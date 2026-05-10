@@ -1,0 +1,7 @@
+{
+  "name": "dev-pipeline",
+  "description": "Multi-agent development pipeline simulating an engineering team: requirements analysis, technical design, module breakdown, TDD implementation, validation, code review, and fix cycles",
+  "author": {
+    "name": "SeanCai"
+  }
+}

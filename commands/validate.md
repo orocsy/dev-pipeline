@@ -1,0 +1,154 @@
+---
+description: Phase 8 validation gate — lint, type-check, unit tests, REQUIRED browser E2E (when playwright config exists), build. Fails loudly if any gate is skipped. Use after implementation is complete, before commit/deliver.
+---
+
+# Development Pipeline: Validate (Phase 8)
+
+You are the validation gate. Your job is to PREVENT bad code from reaching the commit step. Every check is mandatory. You do NOT skip, summarize, or defer.
+
+All steps are pre-approved. Run to completion or fail with an actionable error message.
+
+---
+
+## STEP 0: E2E Pre-detection (runs FIRST — gates the rest of the plan)
+
+```bash
+# Detect Playwright config at repo root or apps/* (monorepo-aware)
+PLAYWRIGHT_CONFIG=""
+for candidate in \
+  playwright.config.ts \
+  playwright.config.js \
+  playwright.config.mjs \
+  apps/*/playwright.config.ts \
+  apps/*/playwright.config.js; do
+  if [[ -f "$candidate" ]]; then
+    PLAYWRIGHT_CONFIG="$candidate"
+    break
+  fi
+done
+
+if [[ -n "$PLAYWRIGHT_CONFIG" ]]; then
+  echo "✅ Playwright config found: $PLAYWRIGHT_CONFIG"
+  echo "⚠️  E2E IS REQUIRED for this validation run — it will not be skipped."
+  E2E_REQUIRED=true
+else
+  echo "ℹ️  No Playwright config detected — E2E step will be skipped."
+  E2E_REQUIRED=false
+fi
+```
+
+**Hard rule:** If `E2E_REQUIRED=true` and E2E is not executed (for any reason including timeout, missing env vars, failed server start), Phase 8 FAILS. Do not proceed to commit. Surface the exact blocker to the user.
+
+---
+
+## STEP 1: Lint
+
+```bash
+# Respect turbo if present, fall back to direct eslint
+if command -v pnpm &>/dev/null && grep -q '"lint"' turbo.json 2>/dev/null; then
+  pnpm turbo lint --filter=...[HEAD^1]
+else
+  npx eslint . --ext .ts,.tsx,.js,.jsx --max-warnings=0
+fi
+```
+
+Fail immediately on any error. Do NOT proceed past lint failures.
+
+---
+
+## STEP 2: Type-check
+
+```bash
+# Run tsc noEmit on all packages with a tsconfig
+if command -v pnpm &>/dev/null && grep -q '"typecheck"' turbo.json 2>/dev/null; then
+  pnpm turbo typecheck
+else
+  npx tsc --noEmit
+fi
+```
+
+Fail immediately on type errors.
+
+---
+
+## STEP 3: Unit Tests
+
+```bash
+# turbo test maps to unit tests ONLY — this is intentional here
+if command -v pnpm &>/dev/null && grep -q '"test"' turbo.json 2>/dev/null; then
+  pnpm turbo test --filter=...[HEAD^1]
+else
+  pnpm test --run 2>/dev/null || npm test
+fi
+```
+
+Fail on any test failure. Do NOT proceed to E2E if unit tests are red — fix unit tests first.
+
+---
+
+## STEP 4: Browser E2E (MANDATORY when Playwright config present)
+
+If `E2E_REQUIRED=false`, skip this step and annotate: `[E2E: skipped — no playwright config]`.
+
+If `E2E_REQUIRED=true`, run `scripts/pipeline-e2e.sh` (installed by install.sh):
+
+```bash
+# pipeline-e2e.sh handles: server spin-up → readiness wait → test run → teardown
+# It reads PLAYWRIGHT_BOOKING_URL and PLAYWRIGHT_ADMIN_URL from .env.local if not set
+bash "$(git rev-parse --show-toplevel)/scripts/pipeline-e2e.sh"
+E2E_EXIT=$?
+
+if [[ $E2E_EXIT -ne 0 ]]; then
+  echo ""
+  echo "🛑 PHASE 8 BLOCKED — E2E tests failed (exit $E2E_EXIT)"
+  echo ""
+  echo "Possible causes:"
+  echo "  1. A test assertion failed — check playwright-report/ for trace"
+  echo "  2. Dev server failed to start — check .e2e-server.log"
+  echo "  3. Missing env vars — PLAYWRIGHT_BOOKING_URL, PLAYWRIGHT_ADMIN_URL not set"
+  echo "     Fix: copy .env.example → .env.local and fill in local URLs"
+  echo "  4. DB not seeded — run: pnpm db:seed:test"
+  echo ""
+  echo "Do NOT commit. Fix E2E failures, then re-run /dev-pipeline:validate."
+  exit 1
+fi
+
+echo "✅ E2E passed"
+```
+
+**Never bypass E2E with a comment like "E2E can be added later" or "ran manually." It must be executed in-process with a logged exit code.**
+
+---
+
+## STEP 5: Build
+
+```bash
+if command -v pnpm &>/dev/null && grep -q '"build"' turbo.json 2>/dev/null; then
+  pnpm turbo build --filter=...[HEAD^1]
+else
+  pnpm build 2>/dev/null || npm run build
+fi
+```
+
+Fail on build errors. A build that passes types but fails bundling is still a blocker.
+
+---
+
+## STEP 6: Phase 8 Summary
+
+Print a summary table. ALL rows must be ✅ to proceed:
+
+```
+╔══════════════════════════╦════════╗
+║ Check                    ║ Status ║
+╠══════════════════════════╬════════╣
+║ Lint                     ║  ✅    ║
+║ TypeScript               ║  ✅    ║
+║ Unit tests               ║  ✅    ║
+║ Browser E2E              ║  ✅    ║  ← or [skipped — no config] if not detected
+║ Build                    ║  ✅    ║
+╚══════════════════════════╩════════╝
+Phase 8 PASSED. Safe to proceed to commit + deliver.
+```
+
+If any row is ❌, print the specific failure and block. Do not print a partial pass summary.

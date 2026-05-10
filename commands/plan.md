@@ -1,0 +1,134 @@
+---
+description: Plan and design a feature with multi-agent requirements analysis, architecture, and MIU breakdown
+argument-hint: [feature-description]
+---
+
+# Development Pipeline: Plan Phase
+
+You are running the **planning phases** (1-6) of the development pipeline. This produces an approved architecture + MIU breakdown WITHOUT writing code.
+
+Feature request: $ARGUMENTS
+
+---
+
+## PHASE 1: Requirements Analysis
+
+**Role: Product Owner / BA**
+
+Before starting, invoke `@planning-with-files` to initialize persistent planning files:
+- Create `task_plan.md` with feature phases and checkboxes
+- Create `findings.md` for research discoveries
+- Create `progress.md` for session logging
+
+Launch 1-2 **requirements-analyst** agents to:
+- Explore the codebase for related features and patterns
+- Read all CLAUDE.md files for applicable rules
+- Identify open questions and ambiguities
+- List 5-10 key files to read
+
+After agents return:
+1. **Save findings to `findings.md`** (2-Action Rule: save after every 2 research ops)
+2. Read all key files they identified
+3. Present feature understanding summary
+4. Present open questions
+5. **ASK USER** to clarify ambiguities
+
+---
+
+## PHASE 2: Skill Discovery & Tech Stack Detection
+
+**Role: Tooling Specialist**
+
+Launch the **skill-scout** agent to:
+- Auto-detect tech stack from package.json, configs, project structure
+- Build Tech Stack Profile
+- Map detected technologies to installed skills
+- Identify gaps and recommend Context7 fallback
+
+Present findings. **Save to `findings.md`.**
+
+If gaps found, **ASK USER** if they want to install recommended skills.
+
+---
+
+## PHASE 3: Design Check
+
+**Role: Design Gatekeeper**
+
+Launch the **design-checker** agent.
+
+- If **YES** and no designs exist: Tell the user to run `/ui-ux-pro-max` + `/web-design-guidelines`. **PAUSE.**
+- If **NO** or designs exist: proceed.
+
+---
+
+## PHASE 4: Technical Design
+
+**Role: Senior Architect**
+
+Invoke `@writing-plans` for structured plan decomposition methodology.
+
+Launch the **technical-architect** agent with:
+- Requirements from Phase 1
+- CLAUDE.md rules
+- Key files and patterns found
+
+Present architecture design:
+- Component design with file paths
+- Data flow
+- Trade-offs considered
+
+**ASK USER** to approve architecture.
+
+---
+
+## PHASE 5: Module & Task Breakdown
+
+**Role: Tech Lead**
+
+Continue using `@writing-plans` for chunk-based decomposition.
+
+Launch the **tech-lead** agent with approved architecture to:
+- Break into logical modules
+- Create ordered MIU list
+- Define dependencies and success criteria
+
+Present MIU plan. **ASK USER** to approve.
+
+---
+
+## PHASE 6: Test Planning
+
+**Role: QA Lead**
+
+Launch the **test-planner** agent to enumerate ALL test scenarios:
+- Unit tests (happy path, errors, edge cases, locales, statuses)
+- E2E tests (user journeys)
+- Multi-tenancy isolation tests
+
+Present test scenarios. User reviews and approves.
+
+---
+
+## OUTPUT
+
+Save the approved plan to `.claude/plans/current-feature.md` containing:
+1. Feature requirements (from Phase 1)
+2. Tech stack profile + recommended skills (from Phase 2)
+3. Architecture design (from Phase 4)
+4. MIU breakdown with dependencies (from Phase 5)
+5. Test scenarios per MIU (from Phase 6)
+
+Update `task_plan.md` with all phases marked complete.
+
+Tell the user: "Plan complete. Run `/dev-pipeline:implement` to start TDD implementation."
+
+---
+
+## Ground Rules
+
+1. **Ask before proceeding** at every gate
+2. **Save findings to disk** after every 2 research operations
+3. **No code writing** — this command is planning only
+4. **Track progress** with TodoWrite throughout
+5. **Tenant safety** — verify all queries include tenantId in architecture

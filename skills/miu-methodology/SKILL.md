@@ -1,0 +1,190 @@
+---
+name: miu-methodology
+description: Two-level work decomposition. Use whenever you are breaking down a product task into technical work units for implementation. Triggers on Phase 3-4 of /dev-pipeline:pipeline, and whenever a flow (fix/update/hotfix/pr-review) needs to plan technical work. Also triggers when an agent is about to report "done" and needs to verify the MIU output format.
+---
+
+# MIU Methodology — Two-Level Decomposition
+
+## Activation Banner (print exactly once when this skill loads)
+
+```
+🔧 [dev-pipeline] skill: miu-methodology — MIU decomposition engine active (Phase 3-4)
+   Two-level decomposition: Product Tasks → Technical MIUs
+```
+
+---
+
+Work decomposes in two stages. Never confuse them.
+
+## Level 1: Product Tasks (Phase 3 output)
+
+User-visible work items written in product language:
+- "Add cancellation outcome section to customer manage page"
+- "Add deposit/policy detail to active bookings"
+- "Show late-check-in warning on booking summary"
+
+These are NOT directly implementable. They exist to align with the user/PM/designer. They MUST decompose into technical MIUs before any code is written.
+
+## Level 2: Technical MIUs (Phase 4 output)
+
+The smallest testable code change. Expressed in technical language, scoped to one or two files.
+
+### What IS one MIU
+
+- A backend API service: controller + service + DTOs + types + test (these only work together — don't split them)
+- A frontend component with its hook and handler + test (component + hook are one cohesive thing)
+- A single middleware or interceptor + test
+- A Zustand/Redux/Jotai store slice + test
+- A util function + test
+- An infrastructure setup (TanStack Query provider, Prisma client, Redis connection) + test
+- A single webhook event handler (distinct business logic per event) + test
+- A database migration + verification
+
+### What is NOT one MIU
+
+- "DTO only" or "types only" — not independently functional, belongs with its service MIU
+- Bundling unrelated concerns — "make cancelBooking atomic + add credit service + fix race condition" is 3 MIUs, not 1
+- Mixing backend and frontend — always separate MIUs because tested differently
+- A whole feature (e.g., "Build user profile backend") — that's a Level 1 product task, not an MIU
+
+**The test:** Can I write a meaningful test for this? Does it deliver one complete thing? Does the project still compile after?
+
+---
+
+## Technical MIU Output Format (MANDATORY)
+
+Every technical MIU MUST include ALL of these fields. A MIU without this detail is **rejected** — go deeper.
+
+```
+MIU [N]: [Technical name — component/hook/service/util, NOT product language]
+  Block:        [BACKEND | FRONTEND | INFRASTRUCTURE | INTEGRATION | TESTING]
+  Files:        [Exact file paths, 1-3 max]
+  Type:         [new-file | modify-existing | new-test | refactor]
+  Depends on:   [MIU numbers this depends on, or "none"]
+
+  What it does:
+    - [Specific implementation detail: props/params, return type, state shape]
+    - [API contract if relevant: method, route, request/response DTO]
+    - [UI detail if relevant: what renders, user interactions, conditional states]
+
+  Test plan (TDD — write FIRST):
+    - [Failing test 1: exact assertion, e.g. "renders <ProfileForm> with user data from useProfile"]
+    - [Failing test 2: edge case, e.g. "shows error banner when PATCH /profile returns 422"]
+
+  Done when:
+    - [Specific exit criteria: "component renders with mock data, form submits, error state displays"]
+    - [Project compiles, all existing tests pass]
+```
+
+### Required fields checklist (enforced by tech-lead)
+
+Before approving an MIU for Phase 5 (test-writing), tech-lead checks:
+
+- [ ] Name is TECHNICAL, not product-language (e.g. "CancellationOutcomeBanner component" not "cancellation section")
+- [ ] Block is one of the 5 valid values
+- [ ] Files are listed explicitly with full paths (1–3, never more)
+- [ ] Type is one of the 4 valid values
+- [ ] Dependencies are listed (or explicitly "none")
+- [ ] "What it does" has at least 2 bullets with concrete technical detail
+- [ ] "What it does" specifies props/return/DTO/API contract as applicable to the Block
+- [ ] "Test plan" has ≥2 failing tests (happy + at least one edge case)
+- [ ] Tests are written as assertions, not as "test X" prose
+- [ ] "Done when" has ≥2 exit criteria
+- [ ] Project compilation is part of "Done when"
+
+If ANY box is unchecked → tech-lead rejects the MIU and requires deeper analysis. No exceptions.
+
+---
+
+## Granularity Examples
+
+### WRONG — product-level, too coarse
+
+These are Level 1 tasks, NOT MIUs:
+```
+MIU 1: Build user profile backend
+MIU 2: Build user profile frontend
+```
+
+### RIGHT — technical, testable, 1–3 files each
+
+```
+MIU 1: GetProfileDto + UpdateProfileDto
+  Block:    BACKEND
+  Files:    src/profile/dto/get-profile.dto.ts, src/profile/dto/update-profile.dto.ts
+  Type:     new-file
+  Depends:  none
+  What:     GetProfileDto { id, email, name, avatarUrl }, UpdateProfileDto { name?, avatarUrl? }
+            with class-validator decorators
+  Test:     validate rejects empty name, accepts partial update
+  Done:     DTOs export correctly, validation decorators work, project compiles
+
+MIU 2: ProfileService (getProfile + updateProfile)
+  Block:    BACKEND
+  Files:    src/profile/profile.service.ts, src/profile/profile.service.spec.ts
+  Type:     new-file
+  Depends:  MIU 1
+  What:     getProfile(userId): Promise<GetProfileDto>
+            updateProfile(userId, dto: UpdateProfileDto): Promise<GetProfileDto>
+            uses Prisma; throws NotFoundException for missing user
+  Test:     getProfile returns user data (mocked Prisma)
+            updateProfile persists changes
+            throws NotFoundException for missing user
+  Done:     service methods work with mocked Prisma, tests pass, project compiles
+
+MIU 3: useProfile hook (TanStack Query)
+  Block:    FRONTEND
+  Files:    src/hooks/useProfile.ts, src/hooks/useProfile.test.ts
+  Type:     new-file
+  Depends:  none (uses API contract from MIU 1)
+  What:     useProfile() returns { data, isLoading, error } via useQuery
+            useUpdateProfile() returns mutation with optimistic update
+  Test:     hook returns loading then data
+            mutation calls PATCH with correct payload
+            optimistic update reflects immediately in cache
+  Done:     hook works in test wrapper with msw mock, refetches on mutation success
+```
+
+---
+
+## MIU Categories by Change Type
+
+| Change Type | MIU Scope | Example |
+|---|---|---|
+| New component | JSX + styles + props types + local state + test | `ProfileForm` with validation |
+| New hook | fetch logic + state + error handling + test | `useProfile` query + mutation |
+| New backend endpoint | DTO → Service → Controller → Module → integration test | `GET /profile` endpoint chain |
+| Modify existing component | isolated set of testable changes + updated test | Add error banner to `BookingCard` |
+| New util function | function + types + unit test | `formatCurrency(amount, locale)` |
+| Third-party integration | SDK setup → config → wrapper service → test | Stripe webhook signature verification |
+| State management | store slice + selectors + actions + test | `useBookingStore` Zustand slice |
+| Wiring/routing | import + render + route entry + integration test | Add `/profile` route to Next.js pages |
+| Database migration | migration file + seed fixture + verification test | Add `profile_avatar_url` column |
+| Configuration | config file + validation + docs | `vercel.json` with edge function routes |
+
+---
+
+## Rules
+
+- **MIU names must be technical**: "CancellationOutcomeBanner component", not "add cancellation section."
+- **Each MIU goes through Phases 5–9 individually**: test → implement → simplify → review → validate → commit.
+- **If an MIU description fits in one line, it's not detailed enough.** Go deeper.
+- **Max 3 files per MIU.** If you need more, split.
+- **Never mix Blocks in a single MIU.** Backend/Frontend/Infrastructure each get their own.
+- **Dependencies form a DAG.** No circular deps. Tech-lead refuses any MIU that depends on a later-numbered MIU.
+
+---
+
+## When This Skill Activates
+
+- `/dev-pipeline:pipeline` Phase 3 — Level 1 product-task decomposition
+- `/dev-pipeline:pipeline` Phase 4 — Level 2 Technical MIU decomposition (MANDATORY)
+- `/dev-pipeline:fix`, `/dev-pipeline:update`, `/dev-pipeline:hotfix` STEP 2 (spec phase)
+- `/dev-pipeline:pr-review` when grouping review comments into fix spec sets
+- Any time an agent is about to emit an MIU description
+- Any time tech-lead is validating an MIU before Phase 5 start
+
+## Upstream / Downstream
+
+- **Upstream**: task-classifier skill (classifies request type before decomposition)
+- **Downstream**: test-strategist agent (consumes MIU test plans), tech-lead quality gate enforcement
