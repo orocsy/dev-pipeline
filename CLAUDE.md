@@ -96,6 +96,60 @@ Triggers (in order of preference):
 
 Do NOT invoke the refactor flow opportunistically mid-feature. It belongs on clean `main`, not partway through implementation.
 
+### Rule 10: Read project docs BEFORE writing code
+
+Order of reads when starting work that touches deployment topology, runtime URLs, env-var contracts, or data-model invariants:
+
+1. `README.md`
+2. Project root `CLAUDE.md` (and `.claude/CLAUDE.md`)
+3. `.claude/docs/ARCHITECTURE.md` and `.claude/docs/URL_TOPOLOGY.md` (if present)
+4. `docs/architecture-*.md`, `docs/deployment-*.md`
+5. THEN code (`vercel.json`, `next.config.js`, source)
+
+**Readiness test:** can you state, in one sentence per app, what hostname + path each deployed app lives at, including any framework-level redirects? If not, you haven't read enough docs — re-read before writing.
+
+Failure mode this prevents: assuming an "obvious" architecture by back-inferring from one config file. Long-form rationale: `docs/PHILOSOPHY.md §7`.
+
+### Rule 11: Fix patterns, not enumerations
+
+When a bug is reported, look for the GENERAL CLASS and fix at the class level. Do NOT add one-off rewrites / redirects for each specific failing input that surfaces.
+
+- Anti-pattern: user reports "`/en/admin` shows a fake store" → add a redirect for `/admin`. Next week: "`/en/media` too" → add another redirect.
+- Right pattern: root cause is the fallback that renders a fake tenant on any error. Drop the fallback. Every random slug now 404s, no per-slug fix needed.
+
+**Test before declaring fixed:** "what other inputs would have triggered the same root cause, and does my fix cover them?" If you can't enumerate them, you fixed the symptom, not the bug. Long-form: `docs/PHILOSOPHY.md §8`.
+
+### Rule 12: No file is "out of scope" inside the repo
+
+Every file in the working repo is fixable — `next.config.js`, `vercel.json`, `Dockerfile`, CI workflows, `package.json`. If the right fix is one layer UP (config / build / framework / infra), edit that one, don't constrain yourself to "my page code".
+
+Anti-framing to catch yourself: "X is still there because it's a [framework/platform]-level thing that's outside my page code." Reframe as: "X is configurable in `<file>`. Options are A, B, C. I recommend B because <reasons>."
+
+Test: before declaring a fix complete, ask "is there a SIMPLER fix one level UP that I dismissed because it's not in my immediate code area?" Long-form: `docs/PHILOSOPHY.md §9`.
+
+### Rule 13: Self-correct mid-process, not just at output
+
+When an assumption is corrected (by the user, by a different agent, by your own re-reading), STOP and:
+1. Acknowledge the correction explicitly.
+2. Re-read the relevant docs to verify the corrected version.
+3. List what work-already-done depended on the now-wrong assumption.
+4. Redo that affected work in the SAME turn — do NOT continue forward on top of the corrected assumption.
+
+The `assumption-checker` agent (see `agents/assumption-checker.md`) is the automatic version of this — it fires at every MIU boundary and pre-review. Manual self-correction kicks in BEFORE the agent has a chance to. Long-form: `docs/PHILOSOPHY.md §10`.
+
+### Rule 14: Cross-check is a CONSTRAINT, not a manual gate
+
+Every cross-check in dev-pipeline must be AUTOMATIC, not user-invoked:
+
+- `/dev-pipeline:implement` invokes `assumption-checker` at every MIU boundary (between code and "mark MIU done").
+- `/dev-pipeline:review` invokes `assumption-checker` FIRST in the parallel-reviewer set, before deep / typescript / security / test.
+- Post-commit hook emits `AUTO-REVIEW DIRECTIVE` → Rule 2 acts on it.
+- Pre-push hook requires fresh `.last-reviewed-sha` → Rule 8 enforces.
+
+**Readiness test:** "Can the human user complete a feature ship without typing any `/dev-pipeline:*` command, and still get every gate fired?" If yes, automation is right. If no, find the missing trigger and wire it.
+
+If any gate becomes opt-in instead of automatic, the workflow has decayed back to "human notices the drift if they happen to look". Long-form: `docs/PHILOSOPHY.md §11`.
+
 ---
 
 ## MANDATORY WORKFLOW ROUTING
