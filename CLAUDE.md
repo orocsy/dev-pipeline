@@ -150,9 +150,19 @@ Every cross-check in dev-pipeline must be AUTOMATIC, not user-invoked:
 
 If any gate becomes opt-in instead of automatic, the workflow has decayed back to "human notices the drift if they happen to look". Long-form: `docs/PHILOSOPHY.md §11`.
 
----
+### Rule 15: Raised PR ≠ shippable PR — conflict gate is mandatory
 
-## MANDATORY WORKFLOW ROUTING
+Immediately after `gh pr create`, `/dev-pipeline:deliver` MUST check the PR's mergeable state. A `CONFLICTING` PR is dead — no review automation (codex, CodeRabbit, branch protection) fires on a PR that can't merge, and the PR sits in limbo until a human notices.
+
+The flow:
+1. `gh pr view <N> --json mergeable,mergeStateStatus` (poll briefly if `UNKNOWN`).
+2. If `MERGEABLE` or `UNSTABLE` (CI still running) → proceed.
+3. If `CONFLICTING` / `DIRTY` → `git fetch origin <base>`, `git rebase origin/<base>`, resolve hunk by hunk (read BOTH sides, prefer COMBINING when both sides add new functionality), re-run lint + tsc + tests, `git push --force-with-lease`, re-verify mergeable.
+4. Only after PR is `MERGEABLE` → hand off to code-review / codex / CI.
+
+Spec lives in `commands/deliver.md → PHASE 9.5: Conflict Gate`. There is no override — a conflicting PR cannot proceed to review by definition, so skipping the gate doesn't unblock anything, it just delays discovery.
+
+**Failure mode this prevents:** the 2026-05-21 luxebook session opened PR #92 and started waiting for codex review. The PR had conflicts with main (3 files), so codex never fired — the wait was for nothing. User had to notice and prompt the agent to check. Building this into the pipeline means the agent never lets a conflicting PR sit idle. Long-form: `docs/PHILOSOPHY.md §11` (cross-check as constraint, applied to PR lifecycle).
 
 Every code change routes to a named flow. There is no inline coding without a pipeline.
 
