@@ -90,6 +90,42 @@
         "note": "Replaces ui-ux-pro-max + web-design-guidelines."
       },
       {
+        "name": "playwright-expert",
+        "required": false,
+        "trigger": "writing E2E tests or debugging flaky browser tests",
+        "usedBy": ["validate", "deliver", "implement"],
+        "marketplaceHint": "fullstack-dev-skills",
+        "container": "fullstack-dev-skills",
+        "note": "Use for writing Playwright specs, Page Object Models, selectors, fixtures. Authoritative source for E2E patterns — referenced from commands/deliver.md PHASE 10.5 (browser E2E gate) so spec authors don't reinvent best practices per-feature."
+      },
+      {
+        "name": "test-master",
+        "required": false,
+        "trigger": "test strategy, coverage analysis, test framework design",
+        "usedBy": ["plan", "implement"],
+        "marketplaceHint": "fullstack-dev-skills",
+        "container": "fullstack-dev-skills",
+        "supersedes": ["nodejs-testing"],
+        "note": "Broader test strategy: unit/integration/E2E architecture, coverage gaps, flakiness debugging."
+      },
+      {
+        "name": "verification",
+        "required": false,
+        "trigger": "verify full user story (browser + API + data + env)",
+        "usedBy": ["implement", "validate"],
+        "marketplaceHint": "claude-plugins-official",
+        "container": "vercel",
+        "note": "Vercel-plugin skill. Fires on `pnpm dev` / `next dev` etc. Verifies full flow rather than just unit-level correctness. Pairs with playwright-expert for the formal E2E layer."
+      },
+      {
+        "name": "webapp-testing",
+        "required": false,
+        "trigger": "general web-app testing workflows",
+        "usedBy": ["implement", "validate"],
+        "marketplaceHint": "claude-plugins-official",
+        "note": "Anthropic skill in claude-plugins-public/skills repo. Lower-priority alternative when playwright-expert / test-master not enabled."
+      },
+      {
         "name": "react-best-practices",
         "required": false,
         "trigger": "react/tsx files detected",

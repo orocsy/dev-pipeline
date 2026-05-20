@@ -181,6 +181,22 @@ Spec: `commands/deliver.md → PHASE 10.5: Browser E2E Gate`.
 
 **Failure mode this prevents:** the 2026-05-21 luxebook session shipped OAuth-compliance pages whose unit tests were green but whose actual SSR behaviour (hydration mismatch, post-mount redirect) wasn't observable without a browser. Codex caught the hydration P2 in PR review — but it would have been caught earlier if E2E was a per-PR gate from the start. PR #92 introduced 11 E2E specs (tests/e2e/admin/{landing-page,legal-pages,footer-nav}.spec.ts) that verify the OAuth-reviewer journey end to end; this rule makes that kind of coverage a constraint for future frontend PRs, not a per-feature decision.
 
+### Rule 17: Production smoke after every deploy
+
+PHASE 12.5 of `/dev-pipeline:deliver` runs a **smoke-test subset** of Playwright specs against PRODUCTION URLs five minutes after deploy completes. Preview E2E (Rule 16 / PHASE 10.5) catches code-level regressions; production smoke catches **environment-level regressions** that only surface in prod (missing prod env var, CORS misconfig, CDN cache rule breaking dynamic routes, etc.).
+
+The flow:
+1. Wait 5 minutes for CDN propagation / DNS TTL / post-deploy migrations.
+2. Resolve production URLs from `.claude/docs/URL_TOPOLOGY.md` (auto-captured by `/dev-pipeline:url-topology`).
+3. Run a **narrow** spec subset (~5 specs, < 60s total) — NOT the full suite. Full suite runs against preview pre-merge; production smoke verifies the deploy is healthy, not exhaustive coverage.
+4. On failure: alert with triage commands (`gh run view`, Vercel logs, rollback command). Code is already in production at this point — speed matters.
+
+Spec: `commands/deliver.md → PHASE 12.5: Production Smoke Test`.
+
+**Skill references for writing smoke specs:** `playwright-expert` (fullstack-dev-skills marketplace), `test-master` (fullstack-dev-skills), `verification` (vercel plugin). Listed in `deps.json → external.skills[]` so agents pick them up via the standard skill-router flow rather than reinventing Playwright patterns per-feature.
+
+**Failure mode this prevents:** PR passes preview E2E, merges, deploys, breaks in production because of an env-config drift. Without this phase, first signal is a user report. With it, signal is in the deliver log within ~1 minute after deploy stabilises.
+
 ---
 
 ## MANDATORY WORKFLOW ROUTING
