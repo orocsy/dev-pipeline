@@ -173,8 +173,13 @@ done < <(jq -r '.hybridSkills[]? | "\(.owned)\t\(.composesWith | join(","))\t\(.
 
 # ── Emit JSON status ─────────────────────────────────────────────────────────
 to_jsonarr() {
-  if [[ "$#" -eq 0 ]]; then echo "[]"; return; fi
-  printf '%s\n' "$@" | jq -R . | jq -s .
+  # Filter out empty arg list AND the `${arr[@]:-}` empty-string fallback that
+  # bash emits when an array is unset.
+  if [[ "$#" -eq 0 ]] || { [[ "$#" -eq 1 ]] && [[ -z "$1" ]]; }; then
+    echo "[]"
+    return
+  fi
+  printf '%s\n' "$@" | jq -R . | jq -s 'map(select(length > 0))'
 }
 
 jq -n \
