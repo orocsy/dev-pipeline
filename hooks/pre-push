@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+# dev-pipeline pre-push hook
+#
+# Enforces TWO gates on dev-pipeline-managed repos:
+#   Gate A — review-blessed-SHA: HEAD must equal the SHA written to
+#            .claude/.last-reviewed-sha by /dev-pipeline:review.
+#   Gate B — doc-update guard:   substantive non-test code in the push range
+#            must be accompanied by ≥1 *.md change. Mechanical-only paths
+#            (tests, migrations, lockfiles, .gitignore) exempt.
+#
+# Non-dev-pipeline repos: skip both gates and chain to .next if installed.
+# (Safe to install globally via core.hooksPath.)
+#
+# Overrides (incidents only — logged to .claude/.review-overrides.log):
+#   REVIEWED=1 git push                       skip Gate A
+#   DEV_PIPELINE_SKIP_REVIEW=1 git push       alias for REVIEWED=1
+#   DEV_PIPELINE_SKIP_DEEP_REVIEW=1 git push  legacy alias
+#   DEV_PIPELINE_SKIP_DOC_GUARD=1 git push    skip Gate B
+
+set -e
+
+HOOK_DIR="$(dirname "$0")"
+HOOK_NAME="$(basename "$0")"
+NEXT_HOOK="$HOOK_DIR/$HOOK_NAME.next"
+
+chain_next() {
+  if [[ -x "$NEXT_HOOK" ]]; then
+    "$NEXT_HOOK" "$@"
+  fi
+}
+
+# ── Is this a dev-pipeline-managed repo? ────────────────────────────────────
+if [[ ! -f .claude/pipeline-state.json ]]; then
+  chain_next "$@"
+  exit 0
+fi
+
+OVERRIDE_LOG=".claude/.review-overrides.log"
+BLESS_FILE=".claude/.last-reviewed-sha"
+HEAD_SHA="$(git rev-parse HEAD 2>/dev/null || echo 'unknown')"
+BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unknown')"
+
+log_override() {
+  mkdir -p .claude
+  printf '%s sha=%s branch=%s user=%s reason=%s\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$HEAD_SHA" "$BRANCH" "${USER:-unknown}" "$1" \
+    >> "$OVERRIDE_LOG"
+}
+
+# ── Gate A: review-blessed-SHA ───────────────────────────────────────────────
+REVIEW_SKIP="${REVIEWED:-${DEV_PIPELINE_SKIP_REVIEW:-${DEV_PIPELINE_SKIP_DEEP_REVIEW:-0}}}"
+
+if [[ "$REVIEW_SKIP" == "1" ]]; then
+  log_override "review-gate-skipped"
+  echo "⚠️  PUSH OVERRIDE — review gate skipped (logged to $OVERRIDE_LOG)"
+  echo "    Run /dev-pipeline:review retroactively in this session."
+elif [[ -f "$BLESS_FILE" ]]; then
+  BLESSED_SHA="$(tr -d '[:space:]' < "$BLESS_FILE")"
+  if [[ "$BLESSED_SHA" != "$HEAD_SHA" ]]; then
+    echo "🛑 PUSH BLOCKED — review blessing is stale."
+    echo ""
+    echo "  Blessed SHA:  $BLESSED_SHA"
+    echo "  Current HEAD: $HEAD_SHA"
+    echo ""
+    echo "  Run /dev-pipeline:review on the current HEAD before pushing."
+    echo "  Incident override (logged): REVIEWED=1 git push"
+    exit 1
+  fi
+  echo "✅ pre-push Gate A: review blessing matches HEAD"
+else
+  echo "🛑 PUSH BLOCKED — no review blessing found ($BLESS_FILE)."
+  echo ""
+  echo "  Run /dev-pipeline:review first. On PASS it writes the blessed SHA."
+  echo "  Incident override (logged): REVIEWED=1 git push"
+  exit 1
+fi
+
+# ── Gate B: doc-update guard ─────────────────────────────────────────────────
+SUBSTANTIVE_RE='\.(ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|rb|php|swift|kt|cs|cpp|c|h|sol)$'
+MECHANICAL_RE='(\.(spec|test|e2e)\.(ts|tsx|js|jsx|mjs|cjs)$|\.sql$|^pnpm-lock\.yaml$|^package-lock\.json$|^yarn\.lock$|^\.gitignore$|/__tests__/|/test/)'
+
+if [[ "${DEV_PIPELINE_SKIP_DOC_GUARD:-0}" == "1" ]]; then
+  log_override "doc-guard-skipped"
+  echo "⚠️  PUSH OVERRIDE — doc guard skipped (logged to $OVERRIDE_LOG)"
+  chain_next "$@"
+  exit 0
+fi
+
+UPSTREAM="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || echo '')"
+if [[ -n "$UPSTREAM" ]]; then
+  BASE="$(git merge-base HEAD "$UPSTREAM" 2>/dev/null || echo 'HEAD~1')"
+else
+  BASE='HEAD~1'
+fi
+
+CHANGED="$(git diff --name-only "$BASE" HEAD 2>/dev/null || echo '')"
+if [[ -z "$CHANGED" ]]; then
+  chain_next "$@"
+  exit 0
+fi
+
+SUBSTANTIVE_HITS=$(echo "$CHANGED" | grep -E "$SUBSTANTIVE_RE" | grep -vE "$MECHANICAL_RE" || true)
+DOC_HITS=$(echo "$CHANGED" | grep -E '\.md$' || true)
+
+if [[ -n "$SUBSTANTIVE_HITS" && -z "$DOC_HITS" ]]; then
+  echo "🛑 PUSH BLOCKED — substantive code changes ship without a doc update."
+  echo ""
+  echo "  Files that triggered the guard:"
+  echo "$SUBSTANTIVE_HITS" | sed 's/^/    /'
+  echo ""
+  echo "  Tick at least one *.md (execution doc, CHANGELOG, README, etc.)."
+  echo "  Incident override (logged): DEV_PIPELINE_SKIP_DOC_GUARD=1 git push"
+  exit 1
+fi
+
+[[ -n "$SUBSTANTIVE_HITS$DOC_HITS" ]] && echo "✅ pre-push Gate B: doc-update guard passed"
+chain_next "$@"
+exit 0

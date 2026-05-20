@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# dev-pipeline post-commit hook
+#
+# On dev-pipeline-managed repos:
+#   1. Invalidate stale review blessing (.claude/.last-reviewed-sha).
+#   2. Drop .claude/.auto-review-pending marker with the new HEAD SHA.
+#   3. Print the AUTO-REVIEW DIRECTIVE so Claude sees it in next-turn output.
+#
+# Non-managed repos: silently chain to .next if installed, otherwise no-op.
+# Never fails the commit.
+
+set +e
+
+HOOK_DIR="$(dirname "$0")"
+HOOK_NAME="$(basename "$0")"
+NEXT_HOOK="$HOOK_DIR/$HOOK_NAME.next"
+
+chain_next() {
+  if [[ -x "$NEXT_HOOK" ]]; then
+    "$NEXT_HOOK" "$@"
+  fi
+}
+
+# Skip on non-managed repos.
+if [[ ! -f .claude/pipeline-state.json ]]; then
+  chain_next "$@"
+  exit 0
+fi
+
+COMMIT_SHA="$(git rev-parse HEAD 2>/dev/null)"
+if [[ -z "$COMMIT_SHA" ]]; then
+  chain_next "$@"
+  exit 0
+fi
+
+mkdir -p .claude
+
+# Invalidate stale blessing — new commit ≠ blessed commit.
+if [[ -f .claude/.last-reviewed-sha ]]; then
+  BLESSED="$(tr -d '[:space:]' < .claude/.last-reviewed-sha)"
+  if [[ "$BLESSED" != "$COMMIT_SHA" ]]; then
+    rm -f .claude/.last-reviewed-sha
+  fi
+fi
+
+printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$COMMIT_SHA" \
+  > .claude/.auto-review-pending
+
+cat <<EOF
+──────────────────────────────────────────────
+🔍 AUTO-REVIEW DIRECTIVE — commit $COMMIT_SHA
+   Run /dev-pipeline:review before any further work this session.
+   Marker: .claude/.auto-review-pending
+──────────────────────────────────────────────
+EOF
+
+chain_next "$@"
+exit 0

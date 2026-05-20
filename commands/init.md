@@ -1,11 +1,26 @@
 ---
-description: Bootstrap a new or existing project — run project detection, create .claude/docs/, install git hooks, scaffold missing deploy configs.
+description: Bootstrap a new or existing project — refresh plugin deps, run project detection, create .claude/docs/, install git hooks, scaffold missing deploy configs.
 ---
 
 # Development Pipeline: Init
 
 You are setting up pipeline infrastructure for a project.
 All steps are pre-approved. Do not ask for permission. Run to completion.
+
+---
+
+## STEP 0: Refresh External Plugin Dependencies
+
+Invoke `/dev-pipeline:refresh-deps`. It will:
+- Read `deps.json` from this plugin's root.
+- Verify every referenced external plugin/skill/MCP is installed AND up-to-date.
+- `git pull --ff-only` any stale marketplaces.
+- Flag hybrid-skill drift (owned skills that compose with public ones whose shape may have changed).
+- Write `.claude/dev-pipeline-deps-status.json`.
+
+If `refresh-deps` exits non-zero with a REQUIRED missing dependency (e.g. `code-review`), STOP and tell the user how to install it. Optional/missing deps are warnings, not blockers.
+
+If `refresh-deps` exits with hybrid drift (exit 2), continue init but surface the drift in the final summary so the user knows the next pipeline run may behave differently than expected.
 
 ---
 
@@ -60,11 +75,30 @@ Create `.claude/docs/RECENT_CHANGES.md`:
 
 ## STEP 4: Install Git Hooks
 
+Hook bodies (`pre-commit`, `pre-push`, `post-commit`) ship inside this plugin at
+`hooks/` and are installed by `hooks/setup-git-hooks.sh`. The plugin is fully
+self-contained — no external scripts required.
+
+The user-level entrypoint at `~/.claude/setup-git-hooks.sh` is a thin forwarder
+that locates the plugin and runs the real installer. Either path works.
+
 ```bash
-if [[ -d .git ]] && [[ ! -f .git/hooks/pre-commit ]]; then
-  bash ~/.claude/setup-git-hooks.sh
+if [[ -d .git ]] && [[ ! -f .git/hooks/pre-push ]]; then
+  PLUGIN_HOOKS="$HOME/.claude/plugins/marketplaces/local/plugins/dev-pipeline/hooks/setup-git-hooks.sh"
+  if [[ -f "$PLUGIN_HOOKS" ]]; then
+    bash "$PLUGIN_HOOKS"
+  elif [[ -f "$HOME/.claude/setup-git-hooks.sh" ]]; then
+    bash "$HOME/.claude/setup-git-hooks.sh"
+  else
+    echo "⚠️  Hooks not installed — dev-pipeline plugin not found at expected paths."
+  fi
 fi
 ```
+
+The check uses `pre-push` (not `pre-commit`) because the dev-pipeline contract
+hinges on the pre-push gates (review-blessed-SHA + doc-update). pre-commit may
+already be present from other tooling; that should not block re-installing
+dev-pipeline's pre-push.
 
 ---
 
