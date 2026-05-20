@@ -1,0 +1,53 @@
+{
+  "$schema": "./deps.schema.json",
+  "version": 1,
+  "description": "External skills/plugins/MCPs that dev-pipeline references. Used by /dev-pipeline:refresh-deps to verify presence + freshness before any pipeline run. Names here MUST match the actual plugin/skill `name` on disk.",
+  "owned": [
+    "miu-methodology",
+    "project-detector",
+    "skill-router",
+    "prd-parser",
+    "code-refactor",
+    "cloud-design-patterns",
+    "excalidraw-diagram-generator"
+  ],
+  "external": {
+    "plugins": [
+      { "name": "code-review",       "required": true,  "usedBy": ["review", "deliver", "fix", "fix-review"],          "fallback": "owned reviewers (deep + typescript + security) still run" },
+      { "name": "commit-commands",   "required": false, "usedBy": ["deliver"],                                          "fallback": "git commit/push run directly" }
+    ],
+    "skills": [
+      { "name": "vercel-react-best-practices",   "required": false, "trigger": "next/react detected",         "usedBy": ["plan", "implement", "detect"] },
+      { "name": "vercel-composition-patterns",   "required": false, "trigger": "next/react detected",         "usedBy": ["plan", "implement", "detect"] },
+      { "name": "ui-ux-pro-max",                 "required": false, "trigger": "UI/design phase",             "usedBy": ["plan"] },
+      { "name": "web-design-guidelines",         "required": false, "trigger": "UI/design phase",             "usedBy": ["plan"] },
+      { "name": "nestjs-best-practices",         "required": false, "trigger": "nestjs detected",             "usedBy": ["implement", "detect"] },
+      { "name": "nestjs-modules",                "required": false, "trigger": "nestjs detected",             "usedBy": ["implement"] },
+      { "name": "mastering-typescript",          "required": false, "trigger": "typescript detected",         "usedBy": ["implement"] },
+      { "name": "websocket-engineer",            "required": false, "trigger": "websocket dependency",        "usedBy": ["implement"] },
+      { "name": "nodejs-architecture",           "required": false, "trigger": "node backend",                "usedBy": ["implement"] },
+      { "name": "nodejs-database-orm",           "required": false, "trigger": "prisma/typeorm detected",     "usedBy": ["implement"] },
+      { "name": "nodejs-caching-redis",          "required": false, "trigger": "redis detected",              "usedBy": ["implement"] },
+      { "name": "nodejs-docker-production",      "required": false, "trigger": "Dockerfile detected",         "usedBy": ["implement"] },
+      { "name": "nodejs-testing",                "required": false, "trigger": "jest/vitest detected",        "usedBy": ["implement"] },
+      { "name": "nodejs-error-handling",         "required": false, "trigger": "node backend",                "usedBy": ["implement"] },
+      { "name": "nodejs-security",               "required": false, "trigger": "auth/payment paths",          "usedBy": ["implement"] }
+    ],
+    "mcps": [
+      { "name": "stitch-mcp",  "required": false, "via": "npx @_davideast/stitch-mcp", "usedBy": ["plan/design"] },
+      { "name": "context7",    "required": false, "via": "MCP server",                  "usedBy": ["any implement phase needing docs"] }
+    ]
+  },
+  "hybridSkills": [
+    {
+      "owned": "skill-router",
+      "composesWith": ["vercel-react-best-practices", "vercel-composition-patterns", "ui-ux-pro-max"],
+      "compatNote": "skill-router routes TO these public skills by name. If a public skill renames or changes its activation triggers, skill-router's routing table goes stale. Re-check after every public-skill update."
+    },
+    {
+      "owned": "project-detector",
+      "composesWith": ["mastering-typescript", "nodejs-*", "nestjs-*"],
+      "compatNote": "project-detector maps detected tech to public-skill HIGH/MEDIUM tier names. If a public skill is removed or renamed, the auto-activation pathway breaks silently."
+    }
+  ]
+}
