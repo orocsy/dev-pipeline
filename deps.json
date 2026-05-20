@@ -1,7 +1,7 @@
 {
   "$schema": "./deps.schema.json",
   "version": 2,
-  "description": "External skills/plugins/MCPs that dev-pipeline references. Used by /dev-pipeline:refresh-deps to verify presence + freshness AND by /dev-pipeline:skill-doctor to diagnose drift. Names here SHOULD match the actual plugin/skill `name` on disk; if upstream renamed, list the old name(s) under `supersedes[]`.",
+  "description": "External skills/plugins/MCPs that dev-pipeline references. Used by /dev-pipeline:refresh-deps to verify presence + freshness AND by /dev-pipeline:skill-doctor to diagnose drift. Names here SHOULD match the actual plugin/skill `name` on disk; if upstream renamed, list the old name(s) under `supersedes[]`. Each entry should carry a `marketplaceHint` pointing to the marketplace name in `marketplaces[]` so refresh-deps can suggest where to install missing items.",
   "owned": [
     "miu-methodology",
     "project-detector",
@@ -17,13 +17,42 @@
       "source": { "type": "github", "repo": "anthropics/claude-plugins-public" },
       "url": "https://github.com/anthropics/claude-plugins-public.git",
       "required": true,
-      "provides": ["code-review", "commit-commands", "context7", "frontend-design", "typescript-lsp", "vercel"]
+      "provides": ["code-review", "commit-commands", "context7", "frontend-design", "typescript-lsp", "vercel"],
+      "trust": "official"
     },
     {
       "name": "local",
       "source": { "type": "local", "path": "~/.claude/plugins/marketplaces/local" },
       "required": true,
-      "provides": ["dev-pipeline"]
+      "provides": ["dev-pipeline"],
+      "trust": "self"
+    },
+    {
+      "name": "developer-kit",
+      "source": { "type": "github", "repo": "giuseppe-trisciuoglio/developer-kit" },
+      "url": "https://github.com/giuseppe-trisciuoglio/developer-kit.git",
+      "required": false,
+      "trust": "community",
+      "provides": [
+        "developer-kit-core",
+        "developer-kit-typescript",
+        "developer-kit-ai",
+        "developer-kit-aws",
+        "developer-kit-java",
+        "developer-kit-php",
+        "developer-kit-python",
+        "developer-kit-devops"
+      ],
+      "note": "Community marketplace. Enable selectively via settings.json after review."
+    },
+    {
+      "name": "fullstack-dev-skills",
+      "source": { "type": "github", "repo": "Jeffallan/claude-skills" },
+      "url": "https://github.com/Jeffallan/claude-skills.git",
+      "required": false,
+      "trust": "community",
+      "provides": ["fullstack-dev-skills"],
+      "note": "Community marketplace — 66 skills as one plugin (api-designer, websocket-engineer, nextjs-developer, nestjs-expert, typescript-pro, security-reviewer, etc.). Enable via settings.json after review."
     }
   ],
   "external": {
@@ -45,9 +74,9 @@
       {
         "name": "vercel",
         "required": false,
-        "usedBy": ["deploy", "scaffold-from-prd"],
+        "usedBy": ["deploy", "scaffold-from-prd", "implement", "plan"],
         "marketplaceHint": "claude-plugins-official",
-        "note": "Deployment plugin (not a coding-style skill). Source URL: https://github.com/vercel/vercel-plugin"
+        "note": "Vercel plugin — ships 30+ skills including react-best-practices, shadcn, nextjs, ai-sdk, vercel-cli, vercel-storage, etc. Source: https://github.com/vercel/vercel-plugin"
       }
     ],
     "skills": [
@@ -58,66 +87,105 @@
         "usedBy": ["plan"],
         "marketplaceHint": "claude-plugins-official",
         "supersedes": ["ui-ux-pro-max", "web-design-guidelines"],
-        "note": "Replaces ui-ux-pro-max + web-design-guidelines. Single skill covers both concerns."
+        "note": "Replaces ui-ux-pro-max + web-design-guidelines."
       },
       {
-        "name": "vercel-react-best-practices",
+        "name": "react-best-practices",
         "required": false,
-        "trigger": "next/react detected",
+        "trigger": "react/tsx files detected",
         "usedBy": ["plan", "implement", "detect"],
-        "status": "search-required",
-        "note": "Not in claude-plugins-official as of 2026-05. Likely deprecated community skill. skill-doctor --search to look upstream."
+        "marketplaceHint": "claude-plugins-official",
+        "container": "vercel",
+        "supersedes": ["vercel-react-best-practices"],
+        "note": "Ships inside the vercel plugin at skills/react-best-practices/. Triggered automatically when editing TSX components."
       },
       {
-        "name": "vercel-composition-patterns",
+        "name": "shadcn",
         "required": false,
-        "trigger": "next/react detected",
-        "usedBy": ["plan", "implement", "detect"],
-        "status": "search-required"
+        "trigger": "shadcn/ui usage detected",
+        "usedBy": ["plan", "implement"],
+        "marketplaceHint": "claude-plugins-official",
+        "container": "vercel",
+        "supersedes": ["vercel-composition-patterns"],
+        "note": "Ships inside the vercel plugin. Covers composition patterns, custom registries, theming. Closest match for the old 'vercel-composition-patterns'."
       },
       {
         "name": "nestjs-best-practices",
         "required": false,
         "trigger": "nestjs detected",
         "usedBy": ["implement", "detect"],
-        "status": "search-required"
+        "marketplaceHint": "developer-kit",
+        "container": "developer-kit-typescript",
+        "note": "Exact name match — ships in developer-kit/plugins/developer-kit-typescript/skills/nestjs-best-practices/. Plugin lives at https://github.com/giuseppe-trisciuoglio/developer-kit."
       },
       {
-        "name": "nestjs-modules",
+        "name": "nestjs",
         "required": false,
         "trigger": "nestjs detected",
         "usedBy": ["implement"],
-        "status": "search-required"
+        "marketplaceHint": "developer-kit",
+        "container": "developer-kit-typescript",
+        "supersedes": ["nestjs-modules"],
+        "note": "Replaces 'nestjs-modules'. Ships in developer-kit-typescript with sibling skills nestjs-code-review, nestjs-drizzle-crud-generator."
       },
       {
-        "name": "mastering-typescript",
+        "name": "typescript-pro",
         "required": false,
         "trigger": "typescript detected",
         "usedBy": ["implement"],
-        "status": "search-required"
+        "marketplaceHint": "fullstack-dev-skills",
+        "container": "fullstack-dev-skills",
+        "supersedes": ["mastering-typescript"],
+        "note": "Replaces 'mastering-typescript'. Part of Jeffallan/claude-skills (66 skills bundled as one plugin)."
       },
       {
         "name": "websocket-engineer",
         "required": false,
         "trigger": "websocket dependency",
         "usedBy": ["implement"],
-        "status": "search-required"
+        "marketplaceHint": "fullstack-dev-skills",
+        "container": "fullstack-dev-skills",
+        "note": "Exact name match in Jeffallan/claude-skills."
       },
       {
-        "name": "nodejs-architecture",
+        "name": "architecture-designer",
         "required": false,
-        "trigger": "node backend",
-        "usedBy": ["implement"],
-        "status": "search-required",
-        "family": "nodejs-*"
+        "trigger": "backend architecture work",
+        "usedBy": ["implement", "plan"],
+        "marketplaceHint": "fullstack-dev-skills",
+        "container": "fullstack-dev-skills",
+        "supersedes": ["nodejs-architecture"],
+        "note": "Replaces 'nodejs-architecture'. Part of Jeffallan/claude-skills."
       },
       {
-        "name": "nodejs-database-orm",
+        "name": "database-optimizer",
         "required": false,
-        "trigger": "prisma/typeorm detected",
+        "trigger": "prisma/typeorm/drizzle detected",
         "usedBy": ["implement"],
-        "status": "search-required",
-        "family": "nodejs-*"
+        "marketplaceHint": "fullstack-dev-skills",
+        "container": "fullstack-dev-skills",
+        "supersedes": ["nodejs-database-orm"],
+        "note": "Replaces 'nodejs-database-orm'. Sibling: developer-kit-typescript/drizzle-orm-patterns for Drizzle-specific guidance."
+      },
+      {
+        "name": "test-master",
+        "required": false,
+        "trigger": "jest/vitest/playwright detected",
+        "usedBy": ["implement"],
+        "marketplaceHint": "fullstack-dev-skills",
+        "container": "fullstack-dev-skills",
+        "supersedes": ["nodejs-testing"],
+        "note": "Replaces 'nodejs-testing'. Part of Jeffallan/claude-skills. Sibling: playwright-expert."
+      },
+      {
+        "name": "security-reviewer",
+        "required": false,
+        "trigger": "auth/payment paths",
+        "usedBy": ["implement", "review"],
+        "marketplaceHint": "fullstack-dev-skills",
+        "container": "fullstack-dev-skills",
+        "supersedes": ["nodejs-security"],
+        "note": "Replaces 'nodejs-security'. Sibling: secure-code-guardian. developer-kit-typescript/typescript-security-review is a stricter TS variant."
       },
       {
         "name": "nodejs-caching-redis",
@@ -125,7 +193,8 @@
         "trigger": "redis detected",
         "usedBy": ["implement"],
         "status": "search-required",
-        "family": "nodejs-*"
+        "family": "nodejs-*",
+        "note": "No exact upstream match found yet. Closest: vercel/runtime-cache (different scope). Author owned skill or accept gap."
       },
       {
         "name": "nodejs-docker-production",
@@ -133,15 +202,8 @@
         "trigger": "Dockerfile detected",
         "usedBy": ["implement"],
         "status": "search-required",
-        "family": "nodejs-*"
-      },
-      {
-        "name": "nodejs-testing",
-        "required": false,
-        "trigger": "jest/vitest detected",
-        "usedBy": ["implement"],
-        "status": "search-required",
-        "family": "nodejs-*"
+        "family": "nodejs-*",
+        "note": "No exact upstream match. spec-forge ships a dockerfile-deploy integration that covers production Dockerfile authoring; not a Claude Code skill though."
       },
       {
         "name": "nodejs-error-handling",
@@ -149,15 +211,8 @@
         "trigger": "node backend",
         "usedBy": ["implement"],
         "status": "search-required",
-        "family": "nodejs-*"
-      },
-      {
-        "name": "nodejs-security",
-        "required": false,
-        "trigger": "auth/payment paths",
-        "usedBy": ["implement"],
-        "status": "search-required",
-        "family": "nodejs-*"
+        "family": "nodejs-*",
+        "note": "No exact upstream match. May be folded into a general 'backend-best-practices' skill in a future plugin."
       }
     ],
     "mcps": [
@@ -168,24 +223,21 @@
   "hybridSkills": [
     {
       "owned": "skill-router",
-      "composesWith": ["frontend-design", "vercel-react-best-practices", "vercel-composition-patterns"],
+      "composesWith": ["frontend-design", "react-best-practices", "shadcn"],
       "compatNote": "skill-router routes TO these public skills by name. After every public-skill update, re-check the routing table for renames/removals."
     },
     {
       "owned": "project-detector",
       "composesWith": [
-        "mastering-typescript",
+        "typescript-pro",
         "nestjs-best-practices",
-        "nestjs-modules",
-        "nodejs-architecture",
-        "nodejs-database-orm",
-        "nodejs-caching-redis",
-        "nodejs-docker-production",
-        "nodejs-testing",
-        "nodejs-error-handling",
-        "nodejs-security"
+        "nestjs",
+        "architecture-designer",
+        "database-optimizer",
+        "test-master",
+        "security-reviewer"
       ],
-      "compatNote": "project-detector maps detected tech to public-skill HIGH/MEDIUM tier names. Names listed explicitly (no wildcards) so each is independently resolved against deps.json — entries with status: search-required are suppressed from drift output."
+      "compatNote": "project-detector maps detected tech to public-skill HIGH/MEDIUM tier names. Names listed explicitly so each is independently resolved against deps.json."
     }
   ]
 }

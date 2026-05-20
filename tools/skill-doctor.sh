@@ -180,6 +180,14 @@ declare -a SEARCH_REQUIRED=()    # no local trace
 for name in "${MISSING_NAMES[@]}"; do
   [[ -z "$name" ]] && continue
 
+  # Is this name explicitly declared search-required in deps.json?
+  # If yes, skip fuzzy match — the human has already triaged this as "no good
+  # match found" and fuzzy hits from other languages just add noise.
+  is_declared_search_required=0
+  if jq -e --arg n "$name" '.external.skills[]? | select(.name == $n and .status == "search-required")' "$DEPS_JSON" >/dev/null 2>&1; then
+    is_declared_search_required=1
+  fi
+
   # 1. Has deps.json already declared this name as superseded by something?
   superseder="$(superseded_by "$name")"
   if [[ -n "$superseder" ]]; then
@@ -200,6 +208,14 @@ for name in "${MISSING_NAMES[@]}"; do
   if [[ -n "$hit" ]]; then
     IFS=$'\t' read -r pl mp source desc <<< "$hit"
     MARKETPLACE_RESOLVE+=("$name|CATALOG|$mp|/plugin install $mp/$pl|$source")
+    continue
+  fi
+
+  # If declared search-required, skip fuzzy match — go straight to step 5.
+  if [[ "$is_declared_search_required" -eq 1 ]]; then
+    family="$(jq -r --arg n "$name" '.external.skills[]? | select(.name == $n) | .family // ""' "$DEPS_JSON")"
+    usedBy="$(jq -r --arg n "$name" '.external.skills[]? | select(.name == $n) | (.usedBy // []) | join(", ")' "$DEPS_JSON")"
+    SEARCH_REQUIRED+=("$name|family=$family|used-by=$usedBy")
     continue
   fi
 

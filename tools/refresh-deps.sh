@@ -49,7 +49,9 @@ fi
 mkdir -p "$STATUS_DIR"
 
 # ── Build the installed-inventory across every marketplace ────────────────────
-# Output: lines of `<plugin-name>\t<marketplace>\t<marketplace-path>`
+# Output: lines of `<plugin-name>\t<marketplace>\t<marketplace-path>\t<source-relative-path>`
+# The source field tells us where the plugin contents live (default ./plugins/<name>;
+# may be "./" when the repo IS the plugin, or any custom path).
 inventory_plugins() {
   local mp_root mp_name mp_json
   for mp_root in "$MARKETPLACES_DIR"/*/; do
@@ -57,19 +59,44 @@ inventory_plugins() {
     mp_name="$(basename "$mp_root")"
     mp_json="$mp_root/.claude-plugin/marketplace.json"
     [[ -f "$mp_json" ]] || continue
-    jq -r --arg mp "$mp_name" --arg path "$mp_root" \
-      '.plugins[]? | "\(.name)\t\($mp)\t\($path)"' "$mp_json" 2>/dev/null || true
+    # Source can be a string ("./" or "./plugins/x") OR an object with .source/.url/.path.
+    # Default to "./plugins/<name>" if no source field present.
+    jq -r --arg mp "$mp_name" --arg path "$mp_root" '
+      .plugins[]? |
+      . as $p |
+      ((
+        if .source then
+          (if (.source | type) == "string" then .source
+           elif (.source | type) == "object" then (.source.path // "./plugins/" + .name)
+           else "./plugins/" + .name end)
+        else "./plugins/" + .name end
+      )) as $src |
+      "\(.name)\t\($mp)\t\($path)\t\($src)"
+    ' "$mp_json" 2>/dev/null || true
   done
 }
 
 # Output: lines of `<skill-name>\t<owning-plugin>\t<plugin-path>`
 inventory_skills() {
   local plugin_root skill_dir skill_name
-  # Use the marketplace plugin inventory to know which plugin dirs to scan.
-  while IFS=$'\t' read -r plugin_name mp_name mp_path; do
-    plugin_root="$mp_path/plugins/$plugin_name"
-    # Plugin source may be a remote URL (not on disk) — skip silently.
+  while IFS=$'\t' read -r plugin_name mp_name mp_path source_rel; do
+    # Resolve plugin root from the source field.
+    # "./"  → marketplace root itself
+    # "./plugins/x" or "./x" → relative to marketplace
+    # absolute path → use as-is
+    if [[ "$source_rel" == "./" ]] || [[ -z "$source_rel" ]]; then
+      plugin_root="$mp_path"
+    elif [[ "$source_rel" == /* ]]; then
+      plugin_root="$source_rel"
+    else
+      # Strip leading ./ if present.
+      plugin_root="$mp_path${source_rel#./}"
+      # Strip trailing /.
+      plugin_root="${plugin_root%/}"
+    fi
+    # Skip plugins whose source isn't on disk (URL-only catalog entries).
     [[ -d "$plugin_root" ]] || continue
+
     if [[ -d "$plugin_root/skills" ]]; then
       for skill_dir in "$plugin_root"/skills/*/; do
         [[ -d "$skill_dir" ]] || continue
