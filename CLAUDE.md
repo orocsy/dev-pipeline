@@ -164,6 +164,27 @@ Spec lives in `commands/deliver.md → PHASE 9.5: Conflict Gate`. There is no ov
 
 **Failure mode this prevents:** the 2026-05-21 luxebook session opened PR #92 and started waiting for codex review. The PR had conflicts with main (3 files), so codex never fired — the wait was for nothing. User had to notice and prompt the agent to check. Building this into the pipeline means the agent never lets a conflicting PR sit idle. Long-form: `docs/PHILOSOPHY.md §11` (cross-check as constraint, applied to PR lifecycle).
 
+### Rule 16: Frontend changes require E2E against the deploy preview
+
+After code review passes and BEFORE merge, `/dev-pipeline:deliver` MUST run targeted Playwright E2E against the Vercel preview URL for any PR that touches frontend files. Unit tests can't observe SSR hydration, basePath redirects, footer placement under real browser rendering, or visual regressions that only manifest at runtime — and those are precisely the bugs that have shipped to prod despite green unit tests.
+
+The flow:
+1. `git diff --name-only origin/<base>..HEAD` → detect which apps' src/messages/public dirs changed (admin / booking / packages/ui).
+2. Parse the vercel[bot] PR comment for preview URLs.
+3. For each affected app: `PLAYWRIGHT_<APP>_URL=<preview> npx playwright test --project=<app>-chromium tests/e2e/<app>/`
+4. **Block merge on failure.** No override — the cost is ~40s on an already-built preview, far less than one prod post-mortem.
+5. Docs-only / config-only / backend-only PRs skip automatically (detection in Step 1).
+
+Spec: `commands/deliver.md → PHASE 10.5: Browser E2E Gate`.
+
+**What "like a user" means in these specs:** assertions use `page.getByRole`, `page.getByText`, real clicks, real navigation. Not `getByTestId` (which can pass even when the user-visible flow is broken — wrong heading, missing link, hidden CTA). Not `waitForLoadState('networkidle')` (Vercel previews include analytics scripts that never let the network truly idle — use per-assertion auto-wait instead).
+
+**Failure mode this prevents:** the 2026-05-21 luxebook session shipped OAuth-compliance pages whose unit tests were green but whose actual SSR behaviour (hydration mismatch, post-mount redirect) wasn't observable without a browser. Codex caught the hydration P2 in PR review — but it would have been caught earlier if E2E was a per-PR gate from the start. PR #92 introduced 11 E2E specs (tests/e2e/admin/{landing-page,legal-pages,footer-nav}.spec.ts) that verify the OAuth-reviewer journey end to end; this rule makes that kind of coverage a constraint for future frontend PRs, not a per-feature decision.
+
+---
+
+## MANDATORY WORKFLOW ROUTING
+
 Every code change routes to a named flow. There is no inline coding without a pipeline.
 
 | User Request Pattern | Task Type | Flow |

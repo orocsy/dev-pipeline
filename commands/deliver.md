@@ -104,9 +104,127 @@ esac
 
 Delegate to `/code-review` to review the PR.
 
-- If **clean** → auto-merge: `gh pr merge --squash --auto`
-- If **issues found** → run `/dev-pipeline:fix` automatically, then re-review
-- Do NOT ask the user. Fix and merge autonomously.
+- If **clean** → proceed to PHASE 10.5 (E2E gate). Do NOT auto-merge yet.
+- If **issues found** → run `/dev-pipeline:fix` automatically, then re-review.
+- Do NOT ask the user. Fix and re-review autonomously.
+
+---
+
+## PHASE 10.5: Browser E2E Gate (MANDATORY for frontend-touched PRs)
+
+After code review clears, BEFORE merge, run targeted Playwright E2E against the deploy preview URL. Unit tests can't observe SSR hydration, basePath redirects, footer-link placement under real browser rendering, or visual issues that only manifest in a real browser — and these are exactly the regressions that have shipped to prod in the past despite green unit tests.
+
+### Step 1 — Detect surface area
+
+```bash
+BASE="$(gh pr view --json baseRefName --jq '.baseRefName')"
+PR_NUM="$(gh pr view --json number --jq '.number')"
+CHANGED="$(git diff --name-only "origin/$BASE"..HEAD)"
+
+FRONTEND_TOUCHED=0
+declare -a AFFECTED_APPS=()
+
+# Detect frontend changes. Per-app granularity so the test run stays
+# narrow (one app's spec suite, not the whole monorepo).
+for app in apps/admin apps/booking; do
+  if echo "$CHANGED" | grep -qE "^$app/(src|messages|public)/"; then
+    FRONTEND_TOUCHED=1
+    AFFECTED_APPS+=("$(basename "$app")")
+  fi
+done
+
+# Also count shared UI changes (packages/ui) as frontend.
+if echo "$CHANGED" | grep -qE "^packages/ui/"; then
+  FRONTEND_TOUCHED=1
+  # Without knowing which apps consume the changed bits, run both.
+  AFFECTED_APPS=(admin booking)
+fi
+
+if [[ "$FRONTEND_TOUCHED" -eq 0 ]]; then
+  echo "ℹ️  No frontend files touched — skipping E2E gate."
+  echo "    (Docs-only / config-only / backend-only diffs skip Playwright.)"
+  # Continue to merge.
+else
+  echo "🌐 Frontend touched: ${AFFECTED_APPS[*]} — running E2E against preview..."
+fi
+```
+
+### Step 2 — Resolve deploy preview URLs
+
+```bash
+# Vercel bot posts a comment on the PR with preview URLs. Parse it.
+PREVIEW_COMMENT="$(gh api "repos/$(gh repo view --json nameWithOwner --jq .nameWithOwner)/issues/$PR_NUM/comments" --jq '[.[] | select(.user.login == "vercel[bot]")] | last | .body')"
+
+for app in "${AFFECTED_APPS[@]}"; do
+  url="$(echo "$PREVIEW_COMMENT" | grep -oE "https://luxebook-${app}-[a-z0-9-]+\.vercel\.app" | head -1 || true)"
+  case "$app" in
+    admin)   ADMIN_PREVIEW="$url" ;;
+    booking) BOOKING_PREVIEW="$url" ;;
+  esac
+done
+
+# Verify accessibility (Vercel deployment protection can lock previews).
+for app in "${AFFECTED_APPS[@]}"; do
+  var="${app^^}_PREVIEW"
+  url="${!var}"
+  [[ -z "$url" ]] && { echo "⚠️  No preview URL for $app — falling back to local stack (slow)"; continue; }
+  status="$(curl -sI -o /dev/null -w '%{http_code}' "$url" 2>/dev/null || echo 000)"
+  if [[ "$status" == "401" ]]; then
+    echo "🛑 $app preview is auth-protected (HTTP 401). Either:"
+    echo "   1. Set VERCEL_PROTECTION_BYPASS in Playwright env, OR"
+    echo "   2. Disable deployment protection for this PR's preview, OR"
+    echo "   3. Run E2E against local stack (docker compose up + pnpm dev)."
+    exit 1
+  fi
+done
+```
+
+### Step 3 — Run targeted Playwright project against preview
+
+```bash
+for app in "${AFFECTED_APPS[@]}"; do
+  case "$app" in
+    admin)
+      PLAYWRIGHT_ADMIN_URL="$ADMIN_PREVIEW" \
+        npx playwright test --project=admin-chromium tests/e2e/admin/ || {
+          echo "🛑 Admin E2E failed against preview — blocking merge."
+          exit 1
+        }
+      ;;
+    booking)
+      PLAYWRIGHT_BOOKING_URL="$BOOKING_PREVIEW" \
+        npx playwright test --project=booking-chromium tests/e2e/booking/ || {
+          echo "🛑 Booking E2E failed against preview — blocking merge."
+          exit 1
+        }
+      ;;
+  esac
+done
+
+echo "✅ E2E gate cleared for ${AFFECTED_APPS[*]} — proceeding to merge."
+```
+
+### Why this is automatic, not opt-in
+
+The branding-e2e GitHub Actions workflow was changed to `workflow_dispatch` only in April 2026 (CI minutes cost). That decision plus the missing per-PR gate left a real gap: frontend changes routinely merge without browser tests, and a regression in SSR hydration / link placement / route behaviour ships to prod despite green unit tests. The deploy-preview approach sidesteps the CI-minutes concern entirely — tests run on the artifact Vercel already built, not a fresh CI environment.
+
+### Override
+
+For docs-only / config-only / backend-only PRs the detection step skips automatically. **There is no override for frontend-touched PRs** — the cost (40s of test run against an already-built preview) is far less than one prod-bug post-mortem.
+
+### When a preview is auth-protected
+
+Vercel "deployment protection" can be enabled on a per-project basis, locking previews behind a login. If E2E hits a 401, three options listed in the script above. For projects that need preview protection AND auto-E2E, use Vercel's "Protection Bypass for Automation" tokens — set `VERCEL_PROTECTION_BYPASS` as a CI/local secret and pass it via the `x-vercel-protection-bypass` header in Playwright's `extraHTTPHeaders`.
+
+### After E2E passes
+
+Auto-merge:
+
+```bash
+gh pr merge "$PR_NUM" --squash --auto
+```
+
+`--squash` is the project's merge style (single commit on main per PR). `--auto` lets GitHub merge as soon as branch protection requirements are met (in case CI or required reviews are still finishing).
 
 ---
 
