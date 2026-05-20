@@ -138,10 +138,21 @@ while IFS=$'\t' read -r name required usedBy; do
   fi
 done < <(jq -r '.external.plugins[]? | "\(.name)\t\(.required)\t\(.usedBy | join(","))"' "$DEPS_JSON")
 
+# Build the set of names superseded by something else in deps.json.
+# Hybrid-drift check treats references to a superseded name as resolved by
+# the entry that supersedes it.
+SUPERSEDED_NAMES="$(jq -r '.external.skills[]? | (.supersedes // [])[]?' "$DEPS_JSON" 2>/dev/null || true)"
+
+# Track which entries were classified as "search-required" so we surface them
+# distinctly from accidental misses.
+declare -a EXT_SEARCH_REQUIRED=()
+
 # External skills
-while IFS=$'\t' read -r name required usedBy; do
+while IFS=$'\t' read -r name required usedBy status; do
   if echo "$INSTALLED_SKILLS" | awk -F'\t' -v n="$name" '$1==n {found=1} END {exit !found}'; then
     EXT_CURRENT+=("skill:$name")
+  elif [[ "$status" == "search-required" ]]; then
+    EXT_SEARCH_REQUIRED+=("skill:$name (used by: $usedBy)")
   else
     if [[ "$required" == "true" ]]; then
       EXT_MISSING_REQUIRED+=("skill:$name (used by: $usedBy)")
@@ -149,14 +160,31 @@ while IFS=$'\t' read -r name required usedBy; do
       EXT_MISSING_OPTIONAL+=("skill:$name (used by: $usedBy)")
     fi
   fi
-done < <(jq -r '.external.skills[]? | "\(.name)\t\(.required)\t\(.usedBy | join(","))"' "$DEPS_JSON")
+done < <(jq -r '.external.skills[]? | "\(.name)\t\(.required)\t\(.usedBy | join(","))\t\(.status // "")"' "$DEPS_JSON")
 
 # Hybrid-skill drift check: for each hybrid entry, confirm the composesWith
-# externals are installed; if not, that's a drift signal because the owned
-# skill assumes they exist.
+# externals are either installed OR superseded by something that is installed.
+# (A reference to an old name is OK if deps.json knows the new name took over.)
+is_superseded() {
+  echo "$SUPERSEDED_NAMES" | awk -v n="$1" '$0 == n {found=1} END {exit !found}'
+}
+
+is_known_search_required() {
+  jq -r --arg n "$1" '.external.skills[]? | select(.name == $n and .status == "search-required") | .name' "$DEPS_JSON" | grep -q .
+}
+
 while IFS=$'\t' read -r owned composesList note; do
   IFS=',' read -ra composes <<< "$composesList"
   for ext in "${composes[@]}"; do
+    # If deps.json already declares this name as superseded → not drift.
+    if is_superseded "$ext"; then
+      continue
+    fi
+    # If deps.json explicitly marks this name as search-required → not drift,
+    # surface it elsewhere (EXT_SEARCH_REQUIRED).
+    if is_known_search_required "$ext"; then
+      continue
+    fi
     # Wildcard match (e.g. `nodejs-*`)
     if [[ "$ext" == *'*'* ]]; then
       prefix="${ext%\*}"
@@ -188,6 +216,7 @@ jq -n \
   --argjson current "$(to_jsonarr "${EXT_CURRENT[@]:-}")" \
   --argjson missingRequired "$(to_jsonarr "${EXT_MISSING_REQUIRED[@]:-}")" \
   --argjson missingOptional "$(to_jsonarr "${EXT_MISSING_OPTIONAL[@]:-}")" \
+  --argjson searchRequired "$(to_jsonarr "${EXT_SEARCH_REQUIRED[@]:-}")" \
   --argjson hybridDrift "$(to_jsonarr "${HYBRID_DRIFT[@]:-}")" \
   --argjson pulled "$(to_jsonarr "${PULLED[@]:-}")" \
   --argjson currentMps "$(to_jsonarr "${CURRENT_MPS[@]:-}")" \
@@ -196,7 +225,7 @@ jq -n \
     checkedAt: $ts,
     devPipelineHead: $head,
     marketplaces: { current: $currentMps, pulled: $pulled, needsManual: $needsManual },
-    external: { current: $current, missingRequired: $missingRequired, missingOptional: $missingOptional },
+    external: { current: $current, missingRequired: $missingRequired, missingOptional: $missingOptional, searchRequired: $searchRequired },
     hybridDrift: $hybridDrift
   }' > "$STATUS_OUT"
 
@@ -213,6 +242,7 @@ log "  Required missing:     ${#EXT_MISSING_REQUIRED[@]}"
 log "  Optional missing:     ${#EXT_MISSING_OPTIONAL[@]}"
 [[ "${#EXT_MISSING_OPTIONAL[@]}" -gt 0 ]] && for n in "${EXT_MISSING_OPTIONAL[@]:0:5}"; do log "    ⚠️  $n"; done
 [[ "${#EXT_MISSING_OPTIONAL[@]}" -gt 5 ]] && log "    … (+$((${#EXT_MISSING_OPTIONAL[@]} - 5)) more — see $STATUS_OUT)"
+log "  Search-required:      ${#EXT_SEARCH_REQUIRED[@]} (declared in deps.json — run /dev-pipeline:skill-doctor --search)"
 log "  Hybrid drift entries: ${#HYBRID_DRIFT[@]}"
 [[ "${#HYBRID_DRIFT[@]}" -gt 0 ]] && for n in "${HYBRID_DRIFT[@]:0:5}"; do log "    ⚠️  $n"; done
 log ""

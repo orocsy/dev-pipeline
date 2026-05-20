@@ -16,11 +16,34 @@ Invoke `/dev-pipeline:refresh-deps`. It will:
 - Verify every referenced external plugin/skill/MCP is installed AND up-to-date.
 - `git pull --ff-only` any stale marketplaces.
 - Flag hybrid-skill drift (owned skills that compose with public ones whose shape may have changed).
+- Honour `supersedes[]` and `status: search-required` declarations so renamed/known-gap skills don't flood the report.
 - Write `.claude/dev-pipeline-deps-status.json`.
 
-If `refresh-deps` exits non-zero with a REQUIRED missing dependency (e.g. `code-review`), STOP and tell the user how to install it. Optional/missing deps are warnings, not blockers.
+Decision tree based on exit code:
 
-If `refresh-deps` exits with hybrid drift (exit 2), continue init but surface the drift in the final summary so the user knows the next pipeline run may behave differently than expected.
+| Exit | Meaning | Init behavior |
+|---|---|---|
+| 0 | Clean | Continue to STEP 1 silently |
+| 1 | REQUIRED dep missing (e.g. `code-review`) | STOP. Surface install instructions. |
+| 2 | Hybrid drift detected (owned skills reference moved/renamed externals) | **Auto-dispatch `/dev-pipeline:skill-doctor --report`** (next sub-step) |
+| 3 | Config error (deps.json malformed, jq missing) | STOP. Fix infrastructure first. |
+
+## STEP 0.5: Skill Doctor (only when STEP 0 returned exit 2)
+
+Invoke `/dev-pipeline:skill-doctor --report`. It will:
+- Read the status JSON from STEP 0.
+- Classify each missing entry as **Auto-resolvable**, **Marketplace-resolvable**, or **Search-required**.
+- Write `.claude/dev-pipeline-skill-doctor-plan.md`.
+
+Init surfaces the counts in its final summary. Init does NOT auto-`--apply` — rename of public-skill references touches owned-skill prose, which is human-review territory. If there are auto-resolvable items, init prints:
+
+> Skill doctor found N auto-fixable items — run `/dev-pipeline:skill-doctor --apply` to fix.
+
+For search-required items:
+
+> Skill doctor flagged M items as search-required — see `.claude/dev-pipeline-skill-doctor-plan.md`.
+
+Then continue to STEP 1.
 
 ---
 
