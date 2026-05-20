@@ -90,9 +90,24 @@ Create `.claude/docs/ARCHITECTURE.md`:
 - Directory structure (`find . -maxdepth 3 -type d | grep -v node_modules | grep -v .git`)
 - Key dependencies from `package.json` (top 10)
 - Environment variables from `.env.example` if present
+- **Production URL topology** — if multiple deployable apps detected (any
+  combination of `apps/*/vercel.json`, `apps/*/Dockerfile`, `apps/*/next.config.{js,mjs}`),
+  invoke `/dev-pipeline:url-topology --probe` so `.claude/docs/URL_TOPOLOGY.md`
+  is generated alongside this file. Link to it from the Deploy posture
+  section. This prevents "agent assumed app X lives at URL Y, but actually
+  lives at URL Z" failures — the classic miss when there's a subdomain split
+  and a `basePath`, or multiple Vercel projects sharing a domain.
 
 Create `.claude/docs/RECENT_CHANGES.md`:
 - Last 10 commits formatted as entries
+
+```bash
+# URL topology dispatch — runs only when multi-app deployment surface detected.
+APP_COUNT="$(find apps -maxdepth 2 -name 'vercel.json' -o -name 'Dockerfile' 2>/dev/null | wc -l)"
+if [[ "$APP_COUNT" -ge 2 ]]; then
+  bash "$HOME/.claude/plugins/marketplaces/local/plugins/dev-pipeline/tools/url-topology.sh" --probe || true
+fi
+```
 
 ---
 

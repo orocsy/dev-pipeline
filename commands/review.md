@@ -33,6 +33,7 @@ If the diff is >50 files, split into clusters by directory and review in paralle
 Announce before spawning each agent:
 
 ```
+🤖 [dev-pipeline] spawning: assumption-checker — diff-vs-docs drift audit
 🤖 [dev-pipeline] spawning: deep-reviewer — correctness, race conditions, edge cases
 🤖 [dev-pipeline] spawning: typescript-reviewer — type safety audit (if .ts/.tsx in diff)
 🤖 [dev-pipeline] spawning: security-reviewer — auth, env vars, SQL, user input (if applicable)
@@ -41,6 +42,11 @@ Announce before spawning each agent:
 ```
 
 Launch these reviewers in parallel. Each gets its own context window. Do NOT run them sequentially.
+
+**A0. Assumption checker** (always — runs first, cheapest gate)
+- Prompt: "Audit this diff for silent assumption drift — URL topology, env-var contracts, multi-tenancy invariants, data-model contracts. Cross-check against README, project CLAUDE.md, .claude/docs/ARCHITECTURE.md, .claude/docs/URL_TOPOLOGY.md (if present), docs/architecture-*.md, prisma/schema.prisma comments. Output: PASS / WARN / BLOCK with findings. See agents/assumption-checker.md for the full spec."
+- Input: `git diff $BASE..HEAD` + the doc files above
+- Severity escalation: a BLOCK from this agent fails the review even if deep/typescript/security all pass. Better to catch wrong-URL or dropped-tenant-filter drift here than at the user's "wait, this targets the wrong URL" five turns later.
 
 **A. Deep reviewer** (always)
 - Prompt: "Review this diff for correctness, race conditions, state bugs, edge cases, missing error handling. Rank each finding P1 (must fix) / P2 (should fix) / P3 (nit). Be specific: file, line, what's wrong, proposed fix."

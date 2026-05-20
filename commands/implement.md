@@ -54,13 +54,41 @@ All MIU-specific tests must pass before proceeding. Do not leave failing tests a
 
 ---
 
-## STEP 4: Mark MIU Complete (tentatively)
+## STEP 4: Assumption Check (MANDATORY — automatic, before MIU is marked complete)
+
+Invoke the `assumption-checker` agent. It is read-only — no tests, no side
+effects. Its job is to compare THIS MIU's diff against the project's
+canonical docs (README, project CLAUDE.md, `.claude/docs/ARCHITECTURE.md`,
+`.claude/docs/URL_TOPOLOGY.md`, `docs/architecture-*.md`, `prisma/schema.prisma`,
+CORS configs) and report drift.
+
+```
+Output classes:
+  PASS  → continue to STEP 5.
+  WARN  → MEDIUM findings; surface in the MIU summary, continue to STEP 5.
+  BLOCK → CRITICAL or HIGH findings; do NOT mark the MIU done. Present
+          findings to user, then either:
+            - resolve the drift (rebase changes to match the doc), OR
+            - update the doc (if the doc was stale), OR
+            - explicitly waive with an inline justification recorded in
+              the MIU's `engineering rationale` block.
+```
+
+Why this is automatic, not opt-in: a single undetected wrong-URL / wrong-API
+assumption costs hours to unwind. A 30-second assumption check catches it at
+the MIU boundary, before the next MIU layers more code on top of the bad
+assumption. See `agents/assumption-checker.md` for the full spec including
+the failure mode that motivated it.
+
+---
+
+## STEP 5: Mark MIU Complete (tentatively)
 
 Update `.claude/miu-progress.json`: set this MIU status to `"pending-validation"`.
 
 ---
 
-## STEP 5: Check if All MIUs Are Complete
+## STEP 6: Check if All MIUs Are Complete
 
 ```bash
 # Are all MIUs for the current product task in "pending-validation" or "done"?
@@ -73,7 +101,7 @@ If all MIUs are `"pending-validation"` → proceed to Phase 8.
 
 ---
 
-## STEP 6: Phase 8 — Validation Gate (MANDATORY — never skip)
+## STEP 7: Phase 8 — Validation Gate (MANDATORY — never skip)
 
 Invoke `/dev-pipeline:validate` in full. This runs:
 
@@ -107,7 +135,7 @@ If `/dev-pipeline:validate` exits with an error, do NOT proceed. Fix the failure
 
 ---
 
-## STEP 7: On Phase 8 Pass — Update Progress + Hand Off
+## STEP 8: On Phase 8 Pass — Update Progress + Hand Off
 
 ```bash
 # Mark all MIUs done

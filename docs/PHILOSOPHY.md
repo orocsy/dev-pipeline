@@ -98,3 +98,76 @@ They live at different paths, serve different concerns, and never load each othe
 **Maintenance protocol:**
 - Whenever an external skill that's referenced in `hybridSkills[]` updates, re-read the owned skill's routing/composition logic and confirm names + triggers still align.
 - If a public skill is removed upstream, treat it as a P1 task for the owned skill: re-route or remove the composition.
+
+---
+
+## 7. Read docs BEFORE code (the "wait, where does this live in prod?" check)
+
+**Rule:** before writing any code that depends on deployment topology, runtime URLs, env-var contracts, or data-model invariants, read the project docs that document those things. The order is:
+
+1. `README.md` — production URL topology, public API, "first-thing-an-engineer-should-know" section.
+2. Project root `CLAUDE.md` — safety invariants, env-var patterns, multi-tenancy / consistency rules.
+3. `.claude/docs/ARCHITECTURE.md` and `.claude/docs/URL_TOPOLOGY.md` (if present).
+4. `docs/architecture-*.md`, `docs/deployment-*.md` — deeper topology.
+5. THEN code (`vercel.json`, `next.config.js`, source).
+
+**Why this order matters:** code shows what IS, docs explain what's INTENDED. If you read code first you'll often back-infer an "obvious" architecture that's actually wrong — `basePath: /admin` doesn't tell you whether the app is at `getluxebook.com/admin` (path-based) or `admin.getluxebook.com/admin` (subdomain + basePath). README says.
+
+**Failure mode this prevents:** the 2026-05 OAuth-compliance work that targeted the wrong URL for three turns because the agent read `next.config.js` first, assumed path-based admin, never opened `docs/architecture-nginx-deployment.md` which had the ASCII diagram of the actual topology.
+
+**Test for whether you read enough docs:** can you state, in one sentence per app, what hostname + path each deployed app lives at, including any framework-level redirects? If no, you haven't read enough.
+
+---
+
+## 8. Fix patterns, not enumerations
+
+**Rule:** when you find a bug, look for the GENERAL CLASS, not just the specific symptom that surfaced. Then fix at the class level.
+
+**Anti-pattern (enumeration fix):** user reports "`/en/admin` shows a fake store". Fix: redirect `/en/admin` somewhere else. Next week: "`/en/media` also shows a fake store". Each new symptom is fixed one URL at a time.
+
+**Right pattern (class fix):** root cause is the fallback that renders a fake tenant on ANY error. Fix: drop the fallback. Every random slug now 404s. Pattern handled; future random slugs don't need separate fixes.
+
+**Failure mode:** the booking app's `[locale]/[tenantSlug]` catch-all renders a "fake-tenant" page for any unknown slug. Pre-fix mental model was "add a redirect for `/admin/`". Post-fix mental model: "any unknown slug 404s, no fallback ever".
+
+**Test:** before declaring a bug fixed, ask: "what other inputs would have triggered the same root cause, and does my fix cover them too?"
+
+---
+
+## 9. No file is "out of scope" inside the repo
+
+**Rule:** every file in the repo you're working on is fixable. `next.config.js`, `vercel.json`, `Dockerfile`, CI workflows, even `package.json` — all of them are your code. If the right fix is to edit one of those instead of the file you started in, edit that one.
+
+**Anti-pattern:** "Hop 1 is still there because it's a Next.js-level redirect that's outside my page code." This frames a config file as someone else's problem. It isn't. Reframe: "Hop 1 is configurable in `next.config.js → redirects()`. Here are the options for changing it: [A], [B], [C]. I recommend [B] because [reasons]."
+
+**Failure mode:** focusing the fix on one component (the page that redirects) and missing the cleaner fix one layer up (the framework-level redirect that caused the same chain). Limiting your scope to "my page code" doubles the chance of the same issue recurring.
+
+**Test:** before declaring a fix complete, ask: "is there a SIMPLER fix one level UP the stack (config / build / framework / infra) that I dismissed because it's not in my immediate code area?"
+
+---
+
+## 10. Self-correct mid-process, not just at output
+
+**Rule:** when an assumption is corrected mid-work (by the user, by a different agent, by your own re-reading), STOP and redo affected steps in the SAME turn. Don't "note the correction and continue past it".
+
+**Anti-pattern:** user says "admin.getluxebook.com is what I meant". Agent says "okay, noted" and keeps building OAuth pages targeting `getluxebook.com/admin`. The correction landed but didn't propagate.
+
+**Right pattern:** user corrects an assumption → agent (a) acknowledges, (b) re-reads the relevant docs to verify the corrected version, (c) re-evaluates what's been built so far against the corrected reality, (d) fixes any drift before continuing forward.
+
+**Operationalisation:** the `assumption-checker` agent (see `agents/assumption-checker.md`) is the dev-pipeline's automatic version of this. It fires at every MIU boundary and before every review, so mid-work drift can't accumulate silently until final output.
+
+**Test:** when corrected, list what work-already-done depended on the now-wrong assumption. If that list is non-empty, redo before moving on.
+
+---
+
+## 11. Cross-check is a constraint, not a manual gate
+
+**Rule:** the same way a high-quality human team has a second pair of eyes baked into the workflow (PR review, pair programming, code-review checklist), dev-pipeline's cross-check (`assumption-checker` + `validator` + the parallel reviewers in `/dev-pipeline:review`) is AUTOMATIC. It does not require the user to invoke `/dev-pipeline:review` manually.
+
+- `/dev-pipeline:implement` MUST invoke `assumption-checker` at every MIU boundary.
+- `/dev-pipeline:review` MUST invoke `assumption-checker` first, then the parallel deep / typescript / security / test reviewers.
+- The post-commit hook MUST emit the AUTO-REVIEW DIRECTIVE.
+- The pre-push hook MUST require a fresh `.last-reviewed-sha`.
+
+If any of these gates becomes opt-in instead of automatic, the workflow has decayed back to "human notices the drift if they happen to look". That's the failure mode.
+
+**Test:** can the human user complete a feature ship WITHOUT typing any `/dev-pipeline:*` command, and still get every gate fired? If yes, the automation is right. If no, find the missing trigger.
