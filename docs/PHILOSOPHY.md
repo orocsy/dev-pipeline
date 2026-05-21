@@ -159,6 +159,70 @@ They live at different paths, serve different concerns, and never load each othe
 
 ---
 
+## 12. Removing "dead code" requires proving what it guarded against
+
+**Rule (operational form):** `CLAUDE.md → Rule 18`.
+
+**Why this gets its own §:** the May 2026 luxebook outage came from one commit that looked, in isolation, like dead-code cleanup. A helper called `buildFallbackTenant` rendered a degraded page when an API fetch failed. The PR description argued the fallback was "SEO pollution — unknown slugs return 200 with fake content". Tests were rewritten to assert the new behaviour ("404 on error"). Everything passed. The PR shipped. Real customer salons started 404'ing within hours.
+
+The bug wasn't in the new code. The bug was reading the OLD code wrong:
+
+| What I saw | What it actually was |
+|---|---|
+| `error → fallback shell` looked like a graceful-degradation pattern. | It WAS a graceful-degradation pattern — specifically for the case where SSR couldn't reach the API at all (HTTP 000 / Cloudflare bot challenge / connection drop). |
+| The fallback rendered "fake-tenant"-looking pages for unknown slugs. | Unknown slugs hit a DIFFERENT branch (`not-found`) which already 404'd. The fallback only fired on `error`, which is a different failure mode. |
+| `// surfaces as 404s because getTenant catches the error` comment in `layout.tsx`. | A load-bearing warning, written by someone who'd seen this exact bug before. I deleted it as part of the cleanup. |
+
+**The methodology I should have used (and now codify here):**
+
+1. **Read the comment.** Doc-comments on safety code aren't decoration. If a comment names a failure mode, that's the case the code is guarding. Believe it before you delete the code.
+2. **`git log -p -- <file>`.** Find when this branch was added. Read that commit message. The author often wrote down what they were guarding against. If it says "fallback for transient API outages" — it's outage protection, not refactoring debt.
+3. **Map every branch in the caller.** If `error → A` and `not-found → B` and `ok → C`, those are three distinct semantics. Don't collapse two of them without testing whether anything depends on the distinction. The branch that ALREADY does what you want (in our case, `not-found → notFound()` handled the unknown-slug SEO concern) is the proof that the OTHER branch (`error`) was doing something different.
+4. **Chaos test.** Simulate the failure mode the branch handles. Mock the upstream as failing. Watch what the user sees. If "degraded page" becomes "404 page" after your removal, you've shipped a regression dressed as a cleanup.
+5. **Only then remove.** And don't rewrite the test that exercises the old branch to assert the new behaviour — see §13.
+
+**Heuristic for spotting load-bearing code at code-review time:**
+
+- Defensive null-checks where the type system says null is impossible — there's a runtime case you're not seeing.
+- `try/catch` that swallows errors and renders a fallback — the fallback IS the error UX. Don't remove the fallback without replacing the error UX.
+- Retry loops — somebody has been bitten by transient failures before.
+- Region preferences (`preferredRegion`, `vercel.json regions:`) — somebody has been bitten by cross-region latency.
+- Comments that say "DO NOT" or "previously this was X but Y broke" — that's a tombstone for a real bug. Read it before stepping on it.
+
+When in doubt, **leave the code in and add a comment naming what it's for**. The cost of unnecessary code is small; the cost of removing necessary code is a production incident.
+
+---
+
+## 13. Tests that change behaviour are not proof of correctness — they're proof of agreement with yourself
+
+**Rule (operational form):** `CLAUDE.md → Rule 19`.
+
+**The anti-pattern:** you change a code path, then change the unit test that exercises it to assert the new behaviour. Test passes. You ship. The test passed because YOU WROTE IT TO PASS.
+
+Pre-PR-#92, `services-page.test.tsx` had:
+```ts
+it('renders fallback tenant with ALL 5 new fields null when getTenant returns error', ...)
+```
+This test exists because somebody specifically wanted to prove the fallback handles the error case. It was the canary.
+
+I rewrote it to:
+```ts
+it('calls notFound when getTenant returns error (no fake-tenant fallback)', ...)
+```
+Same test name slot, opposite assertion. Both versions passed in isolation. But these two tests describe MUTUALLY EXCLUSIVE behaviours. One of them is wrong, and the test suite no longer told me which.
+
+**Three safer patterns:**
+
+1. **Add new tests, don't rewrite old ones.** If your new behaviour is correct, write a new test asserting it. Leave the old test in place. If the old test now fails, that's a SIGNAL — it tells you the behaviour really did change. Triage: was the old behaviour incorrect (delete the test, write down why)? Or are you about to break something? You can't make that decision if you rewrote the test in the same commit.
+
+2. **Test invariants, not implementations.** Pre-PR-#92, a better test would have been: *"real tenant URLs do not return 404 status from the booking page"*. That property is true under BOTH the fallback design AND any hypothetical 404-on-error design that happens to work. A property test stays true across implementation changes; an implementation test is just an echo.
+
+3. **E2E against deployed artefacts.** Unit tests can be rewritten to anything because the code AND the test are under the same author's control. A Playwright spec hitting a real browser against a real deploy is observing reality, not asserting agreement with itself. If the E2E says "real tenant returns 200" and the unit test says "real tenant returns 404", the E2E is the truth.
+
+**Companion principle to §12:** removing code requires proving what it guarded against. Rewriting the test that proved-it-was-guarded as part of the same removal is exactly how that proof gets erased. Keep them as separate operations: change the code, run the existing test suite, see what fails, THEN decide whether the failure is right.
+
+---
+
 ## 11. Cross-check is a constraint, not a manual gate
 
 **Rule:** the same way a high-quality human team has a second pair of eyes baked into the workflow (PR review, pair programming, code-review checklist), dev-pipeline's cross-check (`assumption-checker` + `validator` + the parallel reviewers in `/dev-pipeline:review`) is AUTOMATIC. It does not require the user to invoke `/dev-pipeline:review` manually.

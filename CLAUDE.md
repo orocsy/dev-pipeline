@@ -197,6 +197,50 @@ Spec: `commands/deliver.md → PHASE 12.5: Production Smoke Test`.
 
 **Failure mode this prevents:** PR passes preview E2E, merges, deploys, breaks in production because of an env-config drift. Without this phase, first signal is a user report. With it, signal is in the deliver log within ~1 minute after deploy stabilises.
 
+### Rule 18: Removing "dead code" requires proving what it guarded against
+
+Before deleting any code path that handles a rare branch (fallback, retry, defensive null-check, special-case handler), do the following — in this order:
+
+1. **Read the surrounding comments.** Load-bearing safety code usually has a doc-comment naming the failure mode it handles. If the comment says "would surface as 404s" — that IS the failure mode. Believe it.
+2. **`git log -p -- <file>` the introduction.** Find the commit that added it. Read the commit message. The author wrote down what they were guarding against. If the message says "fallback for transient API outages" — the fallback is not SEO theatre, it's outage protection.
+3. **Trace what the same caller does in OTHER branches.** If `error → fallback` and `not-found → notFound()`, those are two different failure modes; collapsing them is a semantic change, not a cleanup.
+4. **Chaos test.** Simulate the upstream failure (mock the API as failing) and watch what the user sees. If the answer changes from "degraded page" to "404 page" after your removal, you've changed user-visible behaviour — that's not dead-code cleanup, that's a feature regression disguised as refactoring.
+5. **Only then remove.** And update the test that exercises that branch — DON'T rewrite the test to assert the new behaviour as if it was always right. Add a new test for the new behaviour and leave the old one as a regression check (or explicitly delete it with a comment explaining why the old behaviour is no longer desired).
+
+**Failure mode this prevents:** the 2026-05-21 luxebook outage (PR #92). The booking tenant page had a `buildFallbackTenant()` helper that rendered a shell when `getTenant` returned `'error'`. PR #92 deleted it on the theory it was "SEO pollution on unknown slugs". But unknown slugs already 404'd via the `'not-found'` branch — the fallback only ever fired on `'error'` (SSR couldn't reach the API). Removing it converted every transient Cloudflare bot-challenge into a permanent 404 for real customer salons. The comment in `layout.tsx` literally said "cross-continent fetch failures / timeouts that surface as 404s because getTenant catches the error" — a load-bearing warning, deleted in the same PR.
+
+Long-form + concrete walk-through: `docs/PHILOSOPHY.md §12`. Real-world post-mortem on the consuming project: `luxebook/docs/booking-tenant-fallback-postmortem.md`.
+
+### Rule 19: Tests that change behaviour are NOT proof of correctness — they're proof of agreement with yourself
+
+When changing a code path, do not rewrite the existing test to assert the new behaviour. That's tautology — your test will pass because you wrote it to pass. The test you trusted before the change should still pass after the change OR fail in a way that surfaces the semantic shift.
+
+Three safer patterns:
+
+1. **Add a new test for the new behaviour, leave the old test alone.** If the old test now fails, that failure is meaningful — it tells you the behaviour DID change in a user-visible way. Triage: was the old behaviour incorrect (delete the test with a comment) or are you about to break something (revisit the change)?
+2. **Property-based / invariant test.** Frame the assertion at a higher level than the specific behaviour. e.g. "real tenant URLs do not return 404" — this stays true across both implementations.
+3. **End-to-end against the deployed artefact.** Unit tests can be rewritten to anything; E2E against a real browser against a real deploy reflects what users see.
+
+**Failure mode this prevents:** PR #92's `services-page.test.tsx` had a test "renders fallback tenant with ALL 5 new fields null when getTenant returns error". I rewrote it to "calls notFound when getTenant returns error (no fake-tenant fallback)". Both versions passed locally — but they were asserting OPPOSITE behaviours. The rewrite gave false confidence in the change.
+
+Long-form: `docs/PHILOSOPHY.md §13`.
+
+### Rule 20: Verify against PRODUCTION URLs, not preview URLs, before declaring a deploy successful
+
+Preview deploys differ from production in subtle but consequential ways:
+
+- Different env-var scopes (Preview vs Production scope in Vercel — easy to misconfigure ONE without the other)
+- Different upstream credentials (preview hits staging DB / sandbox Stripe; production hits real DB / live Stripe)
+- Different CDN cache config (preview is "no-cache by default"; production caches aggressively)
+- Different domain (preview is `*.vercel.app`; production is your real domain — CORS allow-lists may exclude one)
+- Different IP egress reputation at the CDN layer
+
+A green preview E2E plus green production smoke is the minimum bar. Preview alone is not a smoke check; it's a build check.
+
+PHASE 12.5 (Rule 17) already encodes this. Rule 20 names it explicitly so it can't be quietly skipped: "I tested it on preview and it worked" is not the same statement as "I tested it on production and it worked".
+
+Long-form: `docs/PHILOSOPHY.md §13` (combined with Rule 19 — same root cause).
+
 ---
 
 ## MANDATORY WORKFLOW ROUTING
