@@ -24,13 +24,29 @@ fi
 
 ## Phase 2 — Gather inputs
 
-If `$ARGUMENTS` is empty, ask the user for:
+If `$ARGUMENTS` is a path to an existing PRD/SPEC file → accept it and skip to Phase 3.
 
-1. A PRD or 1-paragraph project description
-2. The output directory (or default to `./<kebab-name>`)
-3. Any opinions: free-tier-only? specific framework? auth provider preference?
+If `$ARGUMENTS` is empty OR is a one-line description (no structured PRD attached):
 
-If the user has an existing PRD file, accept the path.
+### Phase 2a — Elicit a SPEC (NEW)
+
+Invoke the **`dev-pipeline:spec-elicitor`** skill via the Skill tool. It walks the user through a Socratic discussion — one numbered-options question at a time — and produces a complete SPEC covering Problem / Solution / Constraints / Non-goals / Success Criteria. Wait for it to write `docs/<slug>/SPEC.md`.
+
+For scaffold-from-prd (new project), the SPEC is the PRD — `prd-parser` in Phase 3 will read it directly. Do NOT skip elicitation for "I'll fill it in later" — the spec is what makes integration selection in Phase 3 deterministic.
+
+### Phase 2b — Gather scaffold-specific opinions
+
+After the SPEC exists, ask ONE more question (numbered options):
+
+```
+The SPEC is locked. A few scaffold-level choices:
+
+1. Output directory — default to `./<slug>` derived from the SPEC name?
+2. Stay free-tier only on all integrations (recommended for prototypes)?
+3. Any explicit framework / auth provider override the SPEC didn't capture?
+```
+
+If the user has an existing PRD file (not a SPEC produced by spec-elicitor), accept the path and skip Phase 2a entirely.
 
 ## Phase 3 — Generate the spec via requirements-analyst
 

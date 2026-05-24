@@ -28,18 +28,30 @@ Invoke `@planning-with-files` to initialize persistent planning files:
 - Create `findings.md` for research discoveries
 - Create `progress.md` for session logging
 
-Launch 1-2 **requirements-analyst** agents to:
+### PHASE 1.0: Spec Elicitation (NEW — gates Phase 1 entry)
+
+**Check first**: did the user provide a structured SPEC, PRD, or design doc — or just a one-line idea?
+
+- If `$ARGUMENTS` is a path to an existing SPEC/PRD, or contains a multi-paragraph structured spec → SKIP to Phase 1.1.
+- If `docs/<feature-slug>/SPEC.md` already exists for this feature → READ it and SKIP to Phase 1.1.
+- Otherwise (raw sentence / vague idea / "I want to build…" / "我要做…") → invoke the **`dev-pipeline:spec-elicitor`** skill via the Skill tool BEFORE anything else. It Socratically walks the user through five sections (Problem / Solution / Constraints / Non-goals / Success Criteria) one question at a time and writes `docs/<slug>/SPEC.md`. Wait for that to complete. The SPEC becomes the input to Phase 1.1.
+
+Do NOT skip the elicitor for "small" features — Phase 8.6 (verify-traceability) re-reads this SPEC to check every acceptance criterion shipped. No SPEC = no traceability check possible.
+
+### PHASE 1.1: Codebase Analysis
+
+Launch 1-2 **requirements-analyst** agents (with the SPEC.md as their primary input, not the raw user sentence) to:
 - Explore the codebase for related features and patterns
 - Read all CLAUDE.md files for applicable rules
-- Identify open questions and ambiguities
+- Identify open questions and ambiguities NOT covered by the SPEC
 - List 5-10 key files to read
 
 After agents return:
 1. **Save findings to `findings.md`** (2-Action Rule: save after every 2 research ops)
 2. Read all key files they identified to build deep understanding
 3. Present the feature understanding summary to the user
-4. Present open questions
-5. **ASK USER** to clarify ambiguities before proceeding
+4. Present any remaining open questions (the SPEC should have closed most)
+5. **ASK USER** to clarify any ambiguities the SPEC didn't cover
 6. Update the todo list with all phases
 
 ---
