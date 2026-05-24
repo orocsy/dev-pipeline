@@ -5,6 +5,8 @@
 #   1. Invalidate stale review blessing (.claude/.last-reviewed-sha).
 #   2. Drop .claude/.auto-review-pending marker with the new HEAD SHA.
 #   3. Print the AUTO-REVIEW DIRECTIVE so Claude sees it in next-turn output.
+#   4. Journal review-fix commits to .learnings/JOURNAL.md for later
+#      consolidation by /dev-pipeline:consolidate-lessons → engineering-craft.
 #
 # Non-managed repos: silently chain to .next if installed, otherwise no-op.
 # Never fails the commit.
@@ -53,6 +55,70 @@ cat <<EOF
    Marker: .claude/.auto-review-pending
 ──────────────────────────────────────────────
 EOF
+
+# ─── Journal review-fix commits → .learnings/JOURNAL.md ──────────────────
+# Captures the raw signal that /dev-pipeline:consolidate-lessons later folds
+# into the engineering-craft repo. Conservative trigger: only commits whose
+# subject prefixes look like fix work. Wider patterns would flood the
+# journal with feature/chore noise.
+#
+# Skip silently on any error — never fail the commit because of journaling.
+{
+  SUBJECT="$(git log -1 --pretty=%s 2>/dev/null || echo '')"
+  BODY="$(git log -1 --pretty=%b 2>/dev/null || echo '')"
+  SHA7="$(git rev-parse --short=7 HEAD 2>/dev/null || echo '')"
+  DATE_UTC="$(date -u +%Y-%m-%d)"
+  DATE_FULL="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  REPO_NAME="$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo unknown)")"
+
+  # Trigger pattern: fix(*), hotfix(*), regression(*), revert(*),
+  # OR any commit subject containing "review:" / "review-fix:"
+  if echo "$SUBJECT" | grep -qE '^(fix|hotfix|regression|revert)(\(|:)|review(-fix)?:'; then
+    mkdir -p .learnings
+    JOURNAL=".learnings/JOURNAL.md"
+
+    # Initialize JOURNAL.md with a header on first write.
+    if [[ ! -f "$JOURNAL" ]]; then
+      cat > "$JOURNAL" <<'JEOF'
+# Engineering Lessons Journal
+
+Auto-appended by the dev-pipeline post-commit hook on review-fix commits.
+Consolidated into https://github.com/orocsy/engineering-craft via
+`/dev-pipeline:consolidate-lessons` (scheduled every 2 days; safe to run
+manually). Entries marked `<!-- consolidated: ... -->` have been processed.
+
+Do not edit entries in place; mark them consolidated instead.
+
+---
+
+JEOF
+    fi
+
+    # File-change summary (paths only, capped to keep entries scannable).
+    FILES_CHANGED="$(git diff-tree --no-commit-id --name-only -r HEAD 2>/dev/null | head -20)"
+    FILES_COUNT="$(echo "$FILES_CHANGED" | grep -c . || echo 0)"
+
+    {
+      echo ""
+      echo "## [JNL-${SHA7}-${DATE_UTC//-/}] ${SUBJECT}"
+      echo ""
+      echo "**Logged**: ${DATE_FULL}"
+      echo "**Repo**: ${REPO_NAME}"
+      echo "**SHA**: \`${SHA7}\`"
+      echo "**Files changed (${FILES_COUNT}):**"
+      echo ""
+      echo "$FILES_CHANGED" | sed 's/^/- `/' | sed 's/$/`/'
+      echo ""
+      if [[ -n "$BODY" ]]; then
+        echo "### Commit body"
+        echo ""
+        echo "$BODY"
+        echo ""
+      fi
+      echo "---"
+    } >> "$JOURNAL"
+  fi
+} 2>/dev/null || true
 
 chain_next "$@"
 exit 0
