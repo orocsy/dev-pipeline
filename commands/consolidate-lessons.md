@@ -14,7 +14,13 @@ This is the missing automation piece the engineering-craft README has been claim
 ## Inputs
 
 - **Journal sources**: every `<repo>/.learnings/JOURNAL.md` under `~/projects/*/`. Each entry is unconsolidated unless it carries a `<!-- consolidated: YYYY-MM-DD -->` marker.
-- **Target repo**: `~/projects/engineering-craft` (override with `--repo <path>`). If absent, clone via `git clone https://github.com/orocsy/engineering-craft.git ~/projects/engineering-craft`.
+- **Target repo**: resolve in this order:
+  1. `--repo <path>` flag (explicit override always wins)
+  2. `MIRROR_DIR` from `~/.claude/skills/engineering-craft/.public-mirror-config` if that file exists (this is what `bootstrap/install.sh` writes when the engineering-craft fresh-machine bootstrap has been run)
+  3. Default: `~/.claude/external-mirrors/engineering-craft` (matches the bootstrap's `MIRROR_DIR` convention so things just work on machines that ran the bootstrap)
+  4. Last-resort fallback for ad-hoc setups: `~/projects/engineering-craft`
+
+  If none of the above directories contain a `.git`, clone via `git clone https://github.com/orocsy/engineering-craft.git <chosen-path>`.
 - **Existing categories**: read `~/projects/engineering-craft/categories/` to learn what rules already exist; classify new entries as refinements or new patterns relative to those.
 
 ## Flags
@@ -29,8 +35,19 @@ This is the missing automation piece the engineering-craft README has been claim
 ### Step 1 — Locate or clone the target repo
 
 ```bash
-TARGET="${REPO:-$HOME/projects/engineering-craft}"
+# Resolution order: --repo flag > .public-mirror-config > bootstrap default > legacy fallback
+if [[ -n "${REPO:-}" ]]; then
+  TARGET="$REPO"
+elif [[ -f "$HOME/.claude/skills/engineering-craft/.public-mirror-config" ]]; then
+  TARGET="$(grep -E '^MIRROR_DIR=' "$HOME/.claude/skills/engineering-craft/.public-mirror-config" | cut -d= -f2- | tr -d '"')"
+elif [[ -d "$HOME/.claude/external-mirrors/engineering-craft/.git" ]]; then
+  TARGET="$HOME/.claude/external-mirrors/engineering-craft"
+else
+  TARGET="$HOME/projects/engineering-craft"  # legacy fallback for ad-hoc clones
+fi
+
 if [[ ! -d "$TARGET/.git" ]]; then
+  mkdir -p "$(dirname "$TARGET")"
   git clone https://github.com/orocsy/engineering-craft.git "$TARGET"
 fi
 git -C "$TARGET" fetch origin && git -C "$TARGET" checkout main && git -C "$TARGET" pull --ff-only
