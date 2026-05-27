@@ -74,11 +74,27 @@ Walk the diff hunk by hunk. For each hunk, ask:
 6. **Deploy posture**: any new deploy target / env / Docker change — does it match ARCHITECTURE.md?
 7. **Doc freshness**: if the diff materially changes any of the above, does the SAME diff also update the corresponding doc? If not, that's drift in the OTHER direction (code ahead of docs).
 
+### Cross-file backward traces (MANDATORY for any non-doc-only diff)
+
+Drift between code and docs is HALF the problem. The other half is drift between code and OTHER CODE — values declared in file A consumed in file B, where the implementing agent never opened file B. Run these traces for every new/changed symbol the diff introduces. Long-form rules and rationale in `skills/cross-file-reasoning/SKILL.md`; failure-mode catalog in `skills/cross-file-reasoning/FAILURE_MODES.md` (read this first — if the diff matches a known pattern, dive into the matching trace).
+
+For each of the following, walk the trace BEFORE issuing a verdict:
+
+8. **Env-var trace**: every new `process.env.X` — does X appear in `.github/workflows/*.yml`, `vercel.json`, `docker-compose*.yml`? At the consumer site, is the fallback `??` (only on null/undefined) or `||` (also on empty-string)? Many secret pipelines pass `''` for unset secrets — `??` silently drops the default.
+9. **Route / URL composition trace**: every new route file — compose `basePath + locale prefix + route group + file path` and state the effective URL. The file path is NOT the URL. Cross-check against any client code that targets that URL.
+10. **SDK option-name trace**: every new SDK config option — `grep -rn 'optionName' node_modules/<pkg>/dist/` to verify the option exists in the INSTALLED version. SDKs silently accept unknown keys; type system rarely catches.
+11. **Event lifecycle trace**: every new emit / subscribe — is the listener inside a transaction? Is the side effect fire-and-forget? If the tx rolls back, does the side effect un-happen? If no: trade-off acceptance must be documented.
+12. **Conditional-coupling trace**: every new effect inside a conditional — does the gate match THAT effect's required precondition, or does it piggyback on a shared condition? Effects with different preconditions belong in different gates.
+13. **Wrapper-lifecycle trace**: every new wrapper (`new Observable`, `new Promise`, `async function*`) around a long-running primitive — does the wrapper propagate teardown inward? Missing teardown = silent leak under client cancellation.
+14. **Mock-completeness trace**: every changed class signature (new constructor arg, new method, new injected dep) — list every spec that instantiates the class, verify each mock provides the new shape. Cast mocks as the full interface, not `Partial`. For new side effects, assert the side effect — not just the call.
+
+Each of these is described in detail at `skills/cross-file-reasoning/SKILL.md → The Seven Traces`. When in doubt, load that skill and run the traces verbatim.
+
 For each finding, classify severity:
 
 - **CRITICAL** — diff directly contradicts a stated safety invariant (multi-tenancy filter dropped, booking lock removed, OAuth scope expanded without policy update).
-- **HIGH** — diff contradicts a topology / URL / API contract documented in README or CLAUDE.md.
-- **MEDIUM** — diff makes a new assumption (new env var, new route) that should have a doc update.
+- **HIGH** — diff contradicts a topology / URL / API contract documented in README or CLAUDE.md, OR a cross-file trace (8–14 above) reveals a definite production-bound bug (e.g. route file at the wrong path, env-var fallback using `??` where empty-string is possible, SDK option that doesn't exist in installed version, wrapper missing teardown).
+- **MEDIUM** — diff makes a new assumption (new env var, new route) that should have a doc update, OR a cross-file trace surfaces an UNVERIFIED match against the failure-mode catalog (worth investigating, not a confirmed bug).
 - **LOW** — stylistic / minor comment-drift; surface but don't block.
 
 ## Output format
@@ -106,8 +122,18 @@ Findings:
 - Do NOT re-read code the diff didn't touch unless cross-referencing for a specific finding.
 - Do NOT speculate. If a doc is silent on a topic, that's not drift — surface as "doc gap" only if the diff introduces a new assumption that should be documented going forward.
 
-## Why this agent exists (failure mode it prevents)
+## Why this agent exists (failure modes it prevents)
 
+**Failure mode 1 — assumption drift (the original reason for this agent):**
 Real session, 2026-05: implementing agent assumed admin app lived at `getluxebook.com/admin` because `next.config.js` had `basePath: /admin`. The actual production topology was `admin.getluxebook.com/admin/` (subdomain + basePath), documented in `docs/architecture-nginx-deployment.md`. Three turns of OAuth-compliance work targeted the wrong URL before the user noticed. If this agent had run at the end of the first MIU, finding: `HIGH: diff references getluxebook.com/admin/* / docs/architecture-nginx-deployment.md:25 says admin lives at admin subdomain` — and the wasted work would have been zero.
 
-The cost of running this agent at every MIU boundary (~30s per check) is far less than the cost of one undetected drift episode. This is the meaning of the user feedback "self-correct mid-process not just at output".
+**Failure mode 2 — cross-file blindness (added 2026-05-27 after PR #94):**
+Real session, 2026-05-27: implementing agent shipped MIU 8a (PostHog wiring). Codex review caught FOUR cross-file bugs that the implementing agent missed during implementation AND during its own pre-push self-review:
+- PostHog proxy file at `app/admin/posthog/` doubled with basePath → effective URL `/admin/admin/posthog/*`, every analytics request 404'd silently.
+- `POSTHOG_HOST` consumer used `??` fallback — empty-string from GitHub Actions secret bypassed the EU default → PostHog client built with empty host.
+- Admin Sentry tenant tagging gated by `if (POSTHOG_KEY)` — when PostHog wasn't configured, Sentry events fingerprinted as `no-tenant`.
+- Session recording masked inputs but not text → customer phone numbers (rendered as `<td>` text) leaked into PostHog recordings.
+
+The unifying pattern: **single-file thinking**. The agent read each touched file deeply, made locally-correct changes, never grep'd for the consumers / framework conventions / SDK type defs / unrelated effects that the change interacted with. The cross-file backward traces (steps 8–14 above) exist to make this kind of blindness mechanically detectable. Catalog of recurring patterns: `skills/cross-file-reasoning/FAILURE_MODES.md`.
+
+The cost of running this agent at every MIU boundary (~60s per check with the cross-file traces) is far less than the cost of one undetected drift episode OR one cross-file regression shipped to prod. The user's standing instruction: "even if it costs more token, do the cross-file reasoning". This is what that looks like operationally.

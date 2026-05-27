@@ -33,7 +33,8 @@ If the diff is >50 files, split into clusters by directory and review in paralle
 Announce before spawning each agent:
 
 ```
-🤖 [dev-pipeline] spawning: assumption-checker — diff-vs-docs drift audit
+🤖 [dev-pipeline] spawning: assumption-checker — diff-vs-docs drift audit + cross-file backward-trace
+🤖 [dev-pipeline] spawning: cross-file-reviewer — consumer/producer/lifecycle traces (load cross-file-reasoning skill first)
 🤖 [dev-pipeline] spawning: deep-reviewer — correctness, race conditions, edge cases
 🤖 [dev-pipeline] spawning: typescript-reviewer — type safety audit (if .ts/.tsx in diff)
 🤖 [dev-pipeline] spawning: security-reviewer — auth, env vars, SQL, user input (if applicable)
@@ -44,24 +45,29 @@ Announce before spawning each agent:
 Launch these reviewers in parallel. Each gets its own context window. Do NOT run them sequentially.
 
 **A0. Assumption checker** (always — runs first, cheapest gate)
-- Prompt: "Audit this diff for silent assumption drift — URL topology, env-var contracts, multi-tenancy invariants, data-model contracts. Cross-check against README, project CLAUDE.md, .claude/docs/ARCHITECTURE.md, .claude/docs/URL_TOPOLOGY.md (if present), docs/architecture-*.md, prisma/schema.prisma comments. Output: PASS / WARN / BLOCK with findings. See agents/assumption-checker.md for the full spec."
+- Prompt: "Audit this diff for silent assumption drift — URL topology, env-var contracts, multi-tenancy invariants, data-model contracts. Cross-check against README, project CLAUDE.md, .claude/docs/ARCHITECTURE.md, .claude/docs/URL_TOPOLOGY.md (if present), docs/architecture-*.md, prisma/schema.prisma comments. ALSO run the cross-file backward traces (steps 8–14) per agents/assumption-checker.md → Method. Output: PASS / WARN / BLOCK with findings."
 - Input: `git diff $BASE..HEAD` + the doc files above
 - Severity escalation: a BLOCK from this agent fails the review even if deep/typescript/security all pass. Better to catch wrong-URL or dropped-tenant-filter drift here than at the user's "wait, this targets the wrong URL" five turns later.
 
+**A0.5. Cross-file reviewer** (always — runs in parallel with A0; the cross-file-aware twin of the deep reviewer)
+- Prompt: "Load `skills/cross-file-reasoning/SKILL.md` and `skills/cross-file-reasoning/FAILURE_MODES.md` first. Then walk this diff and run the seven cross-file traces (env-var, route/URL, SDK option, event lifecycle, mock completeness, conditional coupling, wrapper lifecycle) on every NEW or CHANGED symbol. For each symbol, produce the YAML output format the skill defines. Match the diff against FAILURE_MODES.md — if any entry matches, flag with the entry number and the specific anti-pattern. Output: PASS / WARN / BLOCK with the YAML report. Be brutal: cross-file bugs ship because the implementing agent never opened the consumer file."
+- Input: `git diff $BASE..HEAD` + the consumer files surfaced by each trace + relevant config (`next.config.js`, `vercel.json`, `.github/workflows/*.yml`, `node_modules/<sdk>/dist/*.d.ts` excerpts for option-name verification)
+- Severity escalation: same as A0 — a BLOCK from this reviewer fails the review even if everything else passes. The whole point of this reviewer is to mechanically detect the failure modes the deep/typescript/security reviewers historically MISS because they each look at the diff through one lens.
+
 **A. Deep reviewer** (always)
-- Prompt: "Review this diff for correctness, race conditions, state bugs, edge cases, missing error handling. Rank each finding P1 (must fix) / P2 (should fix) / P3 (nit). Be specific: file, line, what's wrong, proposed fix."
+- Prompt: "Review this diff for correctness, race conditions, state bugs, edge cases, missing error handling. **Cross-file lens — mandatory**: for every NEW symbol the diff introduces (env var, route file, SDK option, event, exported function), do not stop at the file where it's declared. `grep` for consumers. State the consumer file/line in your finding. If a NEW value flows to a consumer the diff doesn't touch, treat that as a candidate for review even if it 'looks fine in this file'. Reference `skills/cross-file-reasoning/FAILURE_MODES.md` for general patterns. Rank each finding P1 (must fix) / P2 (should fix) / P3 (nit). Be specific: file, line, what's wrong, proposed fix."
 - Input: `git diff $BASE..HEAD`
 
 **B. TypeScript reviewer** (if `.ts` / `.tsx` in diff)
-- Prompt: "Review for type safety violations: `as any`, unchecked nullable access, missing return types, incorrect generics, unsafe assertions, `@ts-ignore` without explanation."
+- Prompt: "Review for type safety violations: `as any`, unchecked nullable access, missing return types, incorrect generics, unsafe assertions, `@ts-ignore` without explanation. **Cross-file lens**: for any `Partial<X>` / `as unknown as X` / mock-casting in tests, verify the mock provides every method/field the real interface declares — call out drift between mock shape and real shape."
 - Input: only the TS/TSX files from the diff
 
 **C. Security reviewer** (if diff touches auth, crypto, env vars, SQL, user input)
-- Prompt: "Review for: secrets in commits, `process.env.X` without validation, SQL injection, XSS, missing authz checks, insecure defaults, unvalidated user input flowing to dangerous sinks."
+- Prompt: "Review for: secrets in commits, `process.env.X` without validation, SQL injection, XSS, missing authz checks, insecure defaults, unvalidated user input flowing to dangerous sinks. **Cross-file lens**: for every `process.env.X` introduced, trace producer (deploy.yml secret / vercel env / docker-compose) → consumer (use site) → fallback semantics (`??` vs `||`, empty-string behavior). An env var used without a producer entry is a deployment-time bug waiting to happen."
 - Input: the auth/env/sql-touching files
 
 **D. Test reviewer** (if test files changed OR production code changed without test changes)
-- Prompt: "Review: are the tests actually testing the behaviour change? Any `.only` / `.skip`? Mock completeness — are all interface fields present? Did production code change without matching test updates?"
+- Prompt: "Review: are the tests actually testing the behaviour change? Any `.only` / `.skip`? Mock completeness — are all interface fields present? Did production code change without matching test updates? **Cross-file lens**: if production code added a new method / new constructor arg / new side effect, verify every spec that instantiates the class provides it. Look for `services-page.test.tsx`-style tautologies (test rewritten to match new behavior — see FAILURE_MODES.md #10)."
 
 **E. Delegate to installed `/code-review`** (the 5-agent plugin)
 If the `/code-review` slash command is installed (from the `code-review` plugin), invoke it in parallel with A–D. It runs its own 5-agent sweep (CLAUDE.md compliance, bug scan, git history, prior PR comments, inline comments) with a 0–100 score.

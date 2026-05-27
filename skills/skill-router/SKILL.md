@@ -129,18 +129,29 @@ Read `project-profile.json`. Load the matching skill(s). Multiple may load per p
 
 If multiple targets are present (e.g. Vercel frontend + Supabase backend), run ALL matching adapters in parallel. Do not pick one.
 
+## Always-On Cross-Cutting Skills (Implementation + Review)
+
+These skills load REGARDLESS of detected stack — they enforce reasoning discipline that applies to every project. The implementation flow loads them at the start of every MIU; the review flow loads them before the parallel reviewers spawn.
+
+| Skill | When it loads | What it enforces |
+|---|---|---|
+| `cross-file-reasoning` | `/dev-pipeline:implement` STEP 4.5 (per-MIU) AND `/dev-pipeline:review` STEP 2 (cross-file-reviewer A0.5) | Seven cross-file traces (env-var producer→consumer, route URL composition, SDK option vs type defs, event lifecycle vs tx boundary, mock vs real interface, conditional coupling, wrapper lifecycle). See `skills/cross-file-reasoning/SKILL.md` + `FAILURE_MODES.md` catalog. |
+
+If a future "always-on" skill emerges (e.g. accessibility checks, dependency-freshness audit), add it here so it loads via the router rather than being hard-coded inside individual commands.
+
 ## Review-Phase Skill Routing (Self-Review)
 
 After every commit, the post-commit hook triggers self-review. Which reviewers run is decided by diff contents:
 
-| Diff touches | Reviewer |
-|---|---|
-| Any file | `deep-reviewer` (always) |
-| `.ts` / `.tsx` | `typescript-reviewer` |
-| Auth / crypto / `process.env.*` / `.env*` | `security-reviewer` |
-| SQL / migrations / `schema.prisma` | `db-reviewer` |
-| `*.test.*` / `*.spec.*` | `test-reviewer` |
-| `Dockerfile` / `k8s/` / `helm/` | `infra-reviewer` |
+| Diff touches | Reviewer | Skill(s) it loads |
+|---|---|---|
+| Any non-doc-only file | `cross-file-reviewer` (always — runs alongside deep-reviewer) | `cross-file-reasoning` |
+| Any file | `deep-reviewer` (always) | (none; uses cross-file lens via prompt instructions) |
+| `.ts` / `.tsx` | `typescript-reviewer` | `typescript-strict` |
+| Auth / crypto / `process.env.*` / `.env*` | `security-reviewer` | (none; uses cross-file env-var trace via prompt) |
+| SQL / migrations / `schema.prisma` | `db-reviewer` | `postgres-best-practices` / `prisma-patterns` |
+| `*.test.*` / `*.spec.*` | `test-reviewer` | `vitest-patterns` / `jest-patterns` |
+| `Dockerfile` / `k8s/` / `helm/` | `infra-reviewer` | `docker-adapter` / `k8s-adapter` |
 
 ## MCP Connection Detection
 
