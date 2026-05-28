@@ -187,4 +187,4 @@ echo "{\"event\":\"verify-traceability.complete\",\"total\":$TOTAL,\"implemented
 - **Spec listed 6 acceptance criteria, implementation covers 5** — reviewers approve, traceability catches the dropped one.
 - **Edge case noted in spec but never covered** ("expired token shows refresh-code message") — test only covers happy path.
 
-This phase exists because LuxeBook's WS2 spec said one thing, the implementation did another, and the gap was only caught by the user's eyes during a manual browser walkthrough.
+This phase exists because, on a real project, a spec said one thing, the implementation did another, and the gap was only caught by the user's eyes during a manual browser walkthrough.

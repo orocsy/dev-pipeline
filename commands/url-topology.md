@@ -54,7 +54,7 @@ Probing requires network and can be slow / flaky / unavailable (VPN, offline dev
 
 ## Why this exists (the failure mode it prevents)
 
-A real session on luxebook (2026-05): the agent did `/dev-pipeline:init` on a multi-app monorepo (booking + admin + api), `init` STEP 3 generated `.claude/docs/ARCHITECTURE.md` with a single line ("Production URLs: getluxebook.com") scraped from a commit message subject. The agent then assumed admin lived at `getluxebook.com/admin` (path-based) because `next.config.js` had `basePath: /admin`. The actual production setup was `admin.getluxebook.com/admin/` (subdomain + basePath) — three different hostnames, none of which the init capture recorded.
+A real session: the agent did `/dev-pipeline:init` on a multi-app monorepo (booking + admin + api), `init` STEP 3 generated `.claude/docs/ARCHITECTURE.md` with a single line ("Production URLs: app.example.com") scraped from a commit message subject. The agent then assumed admin lived at `app.example.com/admin` (path-based) because `next.config.js` had `basePath: /admin`. The actual production setup was `admin.example.com/admin/` (subdomain + basePath) — three different hostnames, none of which the init capture recorded.
 
 Consequence: subsequent OAuth-compliance work targeted the wrong URL twice before being corrected. Hours of agent time + user frustration that a simple "where does each app live" lookup would have prevented.
 

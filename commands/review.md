@@ -4,7 +4,7 @@ description: Proactive local code review on the current diff BEFORE push. Runs p
 
 # Development Pipeline: Pre-Push Self-Review
 
-You are reviewing your own diff BEFORE pushing. Do NOT push without blessing. Do NOT rely on Codex to catch things.
+You are reviewing your own diff BEFORE pushing. Do NOT push without blessing. Do NOT rely on an async review bot to catch things.
 All steps are pre-approved. Run to completion.
 
 This command is the **blessing gate**: it writes `.claude/.last-reviewed-sha` on success. The pre-push hook refuses any push whose HEAD SHA does not match the blessed SHA.

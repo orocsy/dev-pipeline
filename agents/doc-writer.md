@@ -99,4 +99,4 @@ A pointer whose `branch` no longer exists on the remote, or whose `updatedAt` pr
 
 ## Why this agent exists
 
-Real history (luxebook, 2026-05): `.claude/pipeline-state.json` froze at "MIU-2" and `miu-progress.json` grew to 10 KB of stale, gitignored duplication, while the real record drifted. Handoff "relied on the JSON" — but the JSON wasn't even in the repo, and nothing kept it current. The fix is structural: the tracked execution doc is the living source of truth, maintained by THIS agent at every MIU boundary; the JSON is a thin disposable pointer that rotates per-PR. Docs are active and portable; the pointer is cheap and throwaway.
+Real history: `.claude/pipeline-state.json` froze at "MIU-2" and `miu-progress.json` grew to 10 KB of stale, gitignored duplication, while the real record drifted. Handoff "relied on the JSON" — but the JSON wasn't even in the repo, and nothing kept it current. The fix is structural: the tracked execution doc is the living source of truth, maintained by THIS agent at every MIU boundary; the JSON is a thin disposable pointer that rotates per-PR. Docs are active and portable; the pointer is cheap and throwaway.

@@ -46,7 +46,7 @@ Minimum-viable example:
 ```json
 {
   "meta": {
-    "name": "luxebook",
+    "name": "example-booking",
     "description": "Multi-tenant booking SaaS for nail salons in Hong Kong",
     "version": "0.0.1",
     "spec_schema_version": 1

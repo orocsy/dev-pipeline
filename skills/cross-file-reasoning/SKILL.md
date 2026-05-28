@@ -7,7 +7,7 @@ description: Mandatory cross-file consistency checklist for any code change that
 
 You are about to declare an MIU done or about to bless a SHA for push. Before you do that, you MUST trace EVERY new symbol / value / file path the diff introduces or modifies through to its consuming sites. Not just the file you're looking at. **The whole graph.**
 
-This skill exists because of one recurring failure mode: **single-file thinking**. The implementing agent reads one file deeply, makes a locally-correct change, and ships it. The bug lives at the seam — env-var, route, SDK option, mock interface, event lifecycle — where another file's expectations don't match. The unit test for the file passes. The fix's contradiction with the OTHER file is invisible until production (or worse, until a post-merge reviewer like Codex catches it after the agent has already moved on).
+This skill exists because of one recurring failure mode: **single-file thinking**. The implementing agent reads one file deeply, makes a locally-correct change, and ships it. The bug lives at the seam — env-var, route, SDK option, mock interface, event lifecycle — where another file's expectations don't match. The unit test for the file passes. The fix's contradiction with the OTHER file is invisible until production (or worse, until a post-merge reviewer catches it after the agent has already moved on).
 
 Run this skill at:
 - **Every MIU boundary** (before the MIU is marked complete) — `/dev-pipeline:implement` STEP 4.5
@@ -116,7 +116,7 @@ For each effect (e.g. `Sentry.setTag`, `posthog.identify`, analytics call) added
 2. **Does THIS effect's required precondition match the gate's condition?** Sentry tagging needs `user` (to know who to tag) — it does NOT need `POSTHOG_KEY`. Putting it inside `if (POSTHOG_KEY)` couples Sentry tagging to PostHog being configured, which is wrong.
 3. **If the gate is too restrictive**: hoist the effect out into its own `useEffect` / its own if-block with the right precondition.
 
-The recurring trap (PR #94 P2 #3): admin Sentry tenant tagging was inside `if (NEXT_PUBLIC_POSTHOG_KEY)` — when PostHog wasn't configured, Sentry events still fired but had no tenantId tag, fingerprinting all admin errors as `no-tenant`.
+The recurring trap: Sentry tenant tagging placed inside `if (NEXT_PUBLIC_POSTHOG_KEY)` — when PostHog wasn't configured, Sentry events still fired but had no tenantId tag, fingerprinting all errors as `no-tenant`.
 
 ### Trace 7 — Wrapper-lifecycle trace (WRAPPER → INNER)
 
@@ -128,7 +128,7 @@ For each `new Observable(...)`, `new Promise(...)`, `async function*`, or simila
 2. **Teardown**: what cleanup does the inner expose? Subscription `unsubscribe`, AbortController `abort`, EventEmitter `removeListener`, async-iterator `return()`, file-descriptor close?
 3. **Propagate the teardown** through the wrapper. For RxJS: the function passed to `new Observable(subscriber => {...})` must RETURN a teardown function that the wrapper invokes on unsubscribe. Failing to return one means client cancellation (HTTP/2 stream close, request timeout, `takeUntil`) does not reach the inner — emissions keep arriving at a dead subscriber.
 
-The recurring trap (PR #94 P1 #1): `TelemetryContextInterceptor` wrapped `next.handle().subscribe(...)` inside a `new Observable(subscriber => {...})` without capturing the inner Subscription. When the client cancelled, the wrapper's teardown was a no-op, the route handler kept emitting, and the framework reported a subscriber leak.
+The recurring trap: a NestJS interceptor wrapped `next.handle().subscribe(...)` inside a `new Observable(subscriber => {...})` without capturing the inner Subscription. When the client cancelled, the wrapper's teardown was a no-op, the route handler kept emitting, and the framework reported a subscriber leak.
 
 ---
 

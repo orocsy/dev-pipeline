@@ -179,4 +179,4 @@ echo "{\"event\":\"verify-blast-radius.complete\",\"targets\":$TARGET_COUNT,\"fa
 - **Shared utility's signature changes** (added required argument), dependent files type-check because of inference but throw at runtime.
 - **A `data-testid` value changes**, dependent E2E specs match the old testId, fail with "element not found" but only when actually run.
 
-This phase exists because LuxeBook's WS1 phone-component refactor silently broke 10 pre-existing E2E specs that no test filter would have caught.
+This phase exists because, on a real project, a phone-component refactor silently broke 10 pre-existing E2E specs that no test filter would have caught.

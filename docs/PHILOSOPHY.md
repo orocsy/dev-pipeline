@@ -111,7 +111,7 @@ They live at different paths, serve different concerns, and never load each othe
 4. `docs/architecture-*.md`, `docs/deployment-*.md` — deeper topology.
 5. THEN code (`vercel.json`, `next.config.js`, source).
 
-**Why this order matters:** code shows what IS, docs explain what's INTENDED. If you read code first you'll often back-infer an "obvious" architecture that's actually wrong — `basePath: /admin` doesn't tell you whether the app is at `getluxebook.com/admin` (path-based) or `admin.getluxebook.com/admin` (subdomain + basePath). README says.
+**Why this order matters:** code shows what IS, docs explain what's INTENDED. If you read code first you'll often back-infer an "obvious" architecture that's actually wrong — `basePath: /admin` doesn't tell you whether the app is at `app.example.com/admin` (path-based) or `admin.example.com/admin` (subdomain + basePath). README says.
 
 **Failure mode this prevents:** the 2026-05 OAuth-compliance work that targeted the wrong URL for three turns because the agent read `next.config.js` first, assumed path-based admin, never opened `docs/architecture-nginx-deployment.md` which had the ASCII diagram of the actual topology.
 
@@ -149,7 +149,7 @@ They live at different paths, serve different concerns, and never load each othe
 
 **Rule:** when an assumption is corrected mid-work (by the user, by a different agent, by your own re-reading), STOP and redo affected steps in the SAME turn. Don't "note the correction and continue past it".
 
-**Anti-pattern:** user says "admin.getluxebook.com is what I meant". Agent says "okay, noted" and keeps building OAuth pages targeting `getluxebook.com/admin`. The correction landed but didn't propagate.
+**Anti-pattern:** user says "admin.example.com is what I meant". Agent says "okay, noted" and keeps building OAuth pages targeting `app.example.com/admin`. The correction landed but didn't propagate.
 
 **Right pattern:** user corrects an assumption → agent (a) acknowledges, (b) re-reads the relevant docs to verify the corrected version, (c) re-evaluates what's been built so far against the corrected reality, (d) fixes any drift before continuing forward.
 
@@ -163,7 +163,7 @@ They live at different paths, serve different concerns, and never load each othe
 
 **Rule (operational form):** `CLAUDE.md → Rule 18`.
 
-**Why this gets its own §:** the May 2026 luxebook outage came from one commit that looked, in isolation, like dead-code cleanup. A helper called `buildFallbackTenant` rendered a degraded page when an API fetch failed. The PR description argued the fallback was "SEO pollution — unknown slugs return 200 with fake content". Tests were rewritten to assert the new behaviour ("404 on error"). Everything passed. The PR shipped. Real customer salons started 404'ing within hours.
+**Why this gets its own §:** a production outage came from one commit that looked, in isolation, like dead-code cleanup. A helper called `buildFallbackTenant` rendered a degraded page when an API fetch failed. The PR description argued the fallback was "SEO pollution — unknown slugs return 200 with fake content". Tests were rewritten to assert the new behaviour ("404 on error"). Everything passed. The PR shipped. Real customer salons started 404'ing within hours.
 
 The bug wasn't in the new code. The bug was reading the OLD code wrong:
 

@@ -90,8 +90,8 @@ believe was already fixed, the correct response is to `cat` the exact
 `file:line` and RE-DERIVE whether the issue is present NOW — NOT to
 classify it as "stale re-flag noise" from pattern-matching.
 
-The dangerous direction is dismissal, not over-reporting. Real session
-(2026-05-28, luxebook PR #94): a reviewer re-flagged the SAME six findings
+The dangerous direction is dismissal, not over-reporting. Real session:
+a reviewer re-flagged the SAME six findings
 across rounds. Five were genuinely stale (the fix had landed; the
 reviewer re-reviews each commit independently and re-cites the original
 line as code shifts). But the SIXTH — a `process.env.X ?? default` that a

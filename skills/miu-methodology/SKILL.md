@@ -115,7 +115,7 @@ Before approving an MIU for Phase 5 (test-writing), tech-lead checks:
 
 If ANY box is unchecked → tech-lead rejects the MIU and requires deeper analysis. No exceptions.
 
-**Why the Build/Deploy/Runtime field is mandatory (real incident, 2026-05-28):** an MIU shared a util into a workspace package (`@luxebook/utils`) — functionally correct, all unit tests green, one app's `next build` green. But the package shipped raw TS, and the design never asked "how does EACH consumer build/run this?" Result: the API's Docker build (TS2307) and node runtime (can't `require` raw `.ts`) broke `main` — a build context that only runs on push to main, so it was invisible on the PR. Low-level MIU design is not just functional logic; it is also: does this build, deploy, and run in every environment that consumes it. See `docs/observability/observability-execution.md` (luxebook) MIU 8a.3-fix5/fix6 for the full post-mortem.
+**Why the Build/Deploy/Runtime field is mandatory (real incident):** an MIU shared a util into a workspace package — functionally correct, all unit tests green, one app's `next build` green. But the package shipped raw TS, and the design never asked "how does EACH consumer build/run this?" Result: a `tsc`+`node dist/main` service's isolated Docker build (TS2307) and runtime (can't `require` raw `.ts`) broke `main` — a build context that only runs on push to main, so it was invisible on the PR. Low-level MIU design is not just functional logic; it is also: does this build, deploy, and run in every environment that consumes it.
 
 ---
 

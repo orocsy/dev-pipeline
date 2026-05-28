@@ -12,10 +12,10 @@ Catches drift BEFORE the next MIU starts on top of a bad assumption.
 </example>
 
 <example>
-Context: Agent assumed admin app lives at getluxebook.com/admin (path-based), built OAuth pages there. README says admin lives at admin.getluxebook.com (subdomain + basePath).
+Context: Agent assumed admin app lives at app.example.com/admin (path-based), built OAuth pages there. README says admin lives at admin.example.com (subdomain + basePath).
 assistant launches assumption-checker which reports:
-  HIGH: diff references getluxebook.com/admin/* as the admin URL.
-        README.md:42 (Production URL Topology) declares admin at admin.getluxebook.com/admin/.
+  HIGH: diff references app.example.com/admin/* as the admin URL.
+        README.md:42 (Production URL Topology) declares admin at admin.example.com/admin/.
         Recommendation: rebase changes to the admin app's actual URL or update README if topology actually changed.
 <commentary>
 The exact failure that triggered creation of this agent. Caught at MIU boundary, not three turns later by the user.
@@ -66,7 +66,7 @@ You are the **silent-drift auditor**. Your job is NOT to run tests or validate c
 
 Walk the diff hunk by hunk. For each hunk, ask:
 
-1. **Hardcoded paths / URLs / hostnames**: do they match the topology in URL_TOPOLOGY.md / README? If diff references `getluxebook.com/admin/x` and docs say admin lives at `admin.getluxebook.com/admin/`, that's drift.
+1. **Hardcoded paths / URLs / hostnames**: do they match the topology in URL_TOPOLOGY.md / README? If diff references `app.example.com/admin/x` and docs say admin lives at `admin.example.com/admin/`, that's drift.
 2. **Env-var references**: every `process.env.X` introduced — is X documented in `.env.example` AND in CLAUDE.md's env-var pattern section?
 3. **Route assumptions**: any new route or middleware — does it conflict with existing locale prefix / basePath / tenant catch-all?
 4. **Data-model contracts**: any prisma change — does the schema comment or a `docs/` file justify the new shape?
@@ -125,10 +125,10 @@ Findings:
 ## Why this agent exists (failure modes it prevents)
 
 **Failure mode 1 — assumption drift (the original reason for this agent):**
-Real session, 2026-05: implementing agent assumed admin app lived at `getluxebook.com/admin` because `next.config.js` had `basePath: /admin`. The actual production topology was `admin.getluxebook.com/admin/` (subdomain + basePath), documented in `docs/architecture-nginx-deployment.md`. Three turns of OAuth-compliance work targeted the wrong URL before the user noticed. If this agent had run at the end of the first MIU, finding: `HIGH: diff references getluxebook.com/admin/* / docs/architecture-nginx-deployment.md:25 says admin lives at admin subdomain` — and the wasted work would have been zero.
+Real session: an implementing agent assumed the admin app lived at `app.example.com/admin` because `next.config.js` had `basePath: /admin`. The actual production topology was `admin.example.com/admin/` (subdomain + basePath), documented in the project's deployment-architecture doc. Three turns of OAuth-compliance work targeted the wrong URL before the user noticed. If this agent had run at the end of the first MIU, finding: `HIGH: diff references app.example.com/admin/* / deployment doc says admin lives at admin subdomain` — and the wasted work would have been zero.
 
-**Failure mode 2 — cross-file blindness (added 2026-05-27 after PR #94):**
-Real session, 2026-05-27: implementing agent shipped MIU 8a (PostHog wiring). Codex review caught FOUR cross-file bugs that the implementing agent missed during implementation AND during its own pre-push self-review:
+**Failure mode 2 — cross-file blindness:**
+Real session: an implementing agent shipped a PostHog-wiring change. Automated post-merge review caught FOUR cross-file bugs that the implementing agent missed during implementation AND during its own pre-push self-review:
 - PostHog proxy file at `app/admin/posthog/` doubled with basePath → effective URL `/admin/admin/posthog/*`, every analytics request 404'd silently.
 - `POSTHOG_HOST` consumer used `??` fallback — empty-string from GitHub Actions secret bypassed the EU default → PostHog client built with empty host.
 - Admin Sentry tenant tagging gated by `if (POSTHOG_KEY)` — when PostHog wasn't configured, Sentry events fingerprinted as `no-tenant`.

@@ -30,7 +30,7 @@ Stage only files related to this feature (never `git add -A`):
 
 ## PHASE 9.5: Conflict Gate (MANDATORY — automatic, never skipped)
 
-Immediately after PR creation, BEFORE handing off to review/CI/codex, check whether the PR has merge conflicts with the base branch. A `CONFLICTING` PR cannot be merged AND no review automation will fire on it (codex / CodeRabbit / GitHub branch protection won't comment on a PR that can't merge). Leaving a conflicting PR sitting "waiting for review" is dead time.
+Immediately after PR creation, BEFORE handing off to review/CI, check whether the PR has merge conflicts with the base branch. A `CONFLICTING` PR cannot be merged AND no review automation will fire on it (PR-comment review bots / GitHub branch protection won't comment on a PR that can't merge). Leaving a conflicting PR sitting "waiting for review" is dead time.
 
 ```bash
 PR_NUM="$(gh pr view --json number --jq '.number')"
@@ -131,8 +131,9 @@ FRONTEND_TOUCHED=0
 declare -a AFFECTED_APPS=()
 
 # Detect frontend changes. Per-app granularity so the test run stays
-# narrow (one app's spec suite, not the whole monorepo).
-for app in apps/admin apps/booking; do
+# narrow (one app's spec suite, not the whole monorepo). Apps are detected
+# dynamically (any apps/* with a Next config) — never hardcode app names.
+for app in $(find apps -maxdepth 2 -name "next.config.*" 2>/dev/null | xargs -n1 dirname 2>/dev/null | sort -u); do
   if echo "$CHANGED" | grep -qE "^$app/(src|messages|public)/"; then
     FRONTEND_TOUCHED=1
     AFFECTED_APPS+=("$(basename "$app")")
@@ -162,7 +163,10 @@ fi
 PREVIEW_COMMENT="$(gh api "repos/$(gh repo view --json nameWithOwner --jq .nameWithOwner)/issues/$PR_NUM/comments" --jq '[.[] | select(.user.login == "vercel[bot]")] | last | .body')"
 
 for app in "${AFFECTED_APPS[@]}"; do
-  url="$(echo "$PREVIEW_COMMENT" | grep -oE "https://luxebook-${app}-[a-z0-9-]+\.vercel\.app" | head -1 || true)"
+  # Vercel preview hostnames look like <project>-<app>-<hash>.vercel.app (the
+  # project prefix is optional on some setups). Wildcard the project so this
+  # works on any repo — never hardcode a project name here.
+  url="$(echo "$PREVIEW_COMMENT" | grep -oE "https://([a-z0-9-]+-)?${app}-[a-z0-9-]+\.vercel\.app" | head -1 || true)"
   case "$app" in
     admin)   ADMIN_PREVIEW="$url" ;;
     booking) BOOKING_PREVIEW="$url" ;;

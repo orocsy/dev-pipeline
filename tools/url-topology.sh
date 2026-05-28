@@ -115,7 +115,7 @@ done
 # hostnames matching common patterns. Also pull from CORS allowlist env vars.
 CANDIDATE_URLS=()
 # Derive a base-hostname pattern from whatever shows up in vercel.json so the
-# scan adapts to any project (not just luxebook). Falls back to a permissive
+# scan adapts to any project. Falls back to a permissive
 # pattern if vercel.json doesn't reveal one.
 HOST_HINT="$(grep -hoE "https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}" \
   apps/*/vercel.json 2>/dev/null | sed -E 's|https?://([^/]+)|\1|' | \
@@ -220,7 +220,7 @@ TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   echo "## How to read this file"
   echo ""
   echo "- A **basePath** entry means requests to the bare hostname are server-redirected to that prefix before the app sees them. Bookmarks, OAuth redirect URIs, and external integrations should always include the basePath."
-  echo "- A **Vercel env hint** like \`NEXT_PUBLIC_BOOKING_URL=https://getluxebook.com\` is set at build time and bakes the production hostname into the build. Don't override at runtime."
+  echo "- A **Vercel env hint** like \`NEXT_PUBLIC_BOOKING_URL=https://app.example.com\` is set at build time and bakes the production hostname into the build. Don't override at runtime."
   echo "- A **URL env var referenced in src/** column lists every \`process.env.X_URL\` referenced by the app's source. If a value isn't set in vercel.json or .env.example, that's a missing-env risk."
   echo ""
   echo "## Maintenance"

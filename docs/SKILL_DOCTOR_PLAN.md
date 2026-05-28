@@ -4,7 +4,7 @@ Closes the gap surfaced by the first `/dev-pipeline:refresh-deps` run: 15 option
 
 ---
 
-## Problem (as observed on luxebook)
+## Problem (as observed on a real multi-app project)
 
 dev-pipeline references skills by their HISTORICAL names. The ecosystem moved on:
 
@@ -143,11 +143,11 @@ This makes init self-healing for the common rename case without ever silently mu
 3. **commands/skill-doctor.md** — human contract documenting modes + exit codes.
 4. **tools/refresh-deps.sh** — honor `supersedes[]` so renamed-but-resolved skills don't show as missing.
 5. **commands/init.md STEP 0** — auto-invoke `skill-doctor --report` when refresh-deps returns exit 2.
-6. **luxebook smoke test** — run end-to-end on luxebook; expect:
+6. **smoke test** — run end-to-end on the reference project; expect:
    - `ui-ux-pro-max` + `web-design-guidelines` resolved to `frontend-design` (auto-resolvable).
    - `vercel-*` flagged for marketplace-resolvable (since vercel plugin exists upstream).
    - `nestjs-*`, `nodejs-*`, `mastering-typescript`, `websocket-engineer` flagged as search-required.
-7. **Apply auto-resolves** for luxebook: update deps.json + skill-router/project-detector references.
+7. **Apply auto-resolves** for the reference project: update deps.json + skill-router/project-detector references.
 8. **Final refresh-deps + skill-doctor** rerun — confirm exit code drops from 2 to either 0 or a smaller drift count.
 9. **Commit + push** as one or two logical commits.
 
@@ -160,6 +160,6 @@ This makes init self-healing for the common rename case without ever silently mu
 
 ## Success criteria
 
-- `/dev-pipeline:refresh-deps` exit 2 on luxebook drops to either 0 (clean) or surfaces only "search-required" entries.
+- `/dev-pipeline:refresh-deps` exit 2 on the reference project drops to either 0 (clean) or surfaces only "search-required" entries.
 - `deps.json` has zero stale names (every entry maps to either an installed skill or an upstream URL).
 - skill-doctor plan file lives at a known path so a future session can resume the search-required items.

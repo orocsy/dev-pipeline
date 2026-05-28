@@ -145,4 +145,4 @@ echo "{\"event\":\"verify-contract.complete\",\"errors\":$ERR_COUNT,\"warns\":$W
 - **Backend renames `customerId` → `customerIdNew`, frontend not updated** — runtime failure on every booking.
 - **Optional → required tightening on backend, frontend still omits the field** — every legacy form fails.
 
-This phase exists because LuxeBook hit each of the above in production at least once.
+This phase exists because a real project hit each of the above in production at least once.

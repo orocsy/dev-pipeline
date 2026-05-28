@@ -217,4 +217,4 @@ echo "{\"event\":\"verify-visual.complete\",\"shots\":$(ls "$SHOTS_DIR"/*.png 2>
 - **Spacing/typography drift** from a Tailwind preset change — shipped a broken design.
 - **Hover state never tested** — disabled-looking button on dashboard, users can't tell it's clickable.
 
-This phase exists because LuxeBook's WS1 phone-component "passed E2E" while shipping a single-option fake dropdown.
+This phase exists because, on a real project, a phone-component "passed E2E" while shipping a single-option fake dropdown.

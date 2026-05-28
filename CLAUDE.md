@@ -4,6 +4,8 @@ This file auto-loads whenever the `dev-pipeline` plugin is enabled. It contains 
 
 If you are reading this, you MUST follow every rule here in addition to the user-level rules.
 
+**What's new:** read [`CHANGELOG.md`](CHANGELOG.md) for recently-added skills, gates, and agents. New capabilities are easy to add and then forget exist — the changelog is the one place that lists them so they actually get used. Skim it at session start; anything added there is in force.
+
 ---
 
 ## AUTO-INVOCATION RULES (NON-NEGOTIABLE)
@@ -57,9 +59,9 @@ Before any PR or merge:
 - If ANY env var is missing from `.env.example` → BLOCK. Do not proceed.
 - Ask the user to confirm the var exists in CI and production environments.
 
-### Rule 8: Pre-Push Review Gate (MANDATORY — NEVER RELY ON CODEX)
+### Rule 8: Pre-Push Review Gate (MANDATORY — NEVER RELY ON ASYNC REVIEW BOTS)
 
-Codex posting review comments on the PR is NOT a review step. It is a safety net that may be delayed, may be disconnected, or may miss race conditions and state bugs. It is never primary.
+An async review bot posting comments on the PR is NOT a review step. It is a safety net that may be delayed, may be disconnected, or may miss race conditions and state bugs. It is never primary.
 
 **Primary review happens BEFORE push, locally, via `/dev-pipeline:review`.**
 
@@ -152,17 +154,17 @@ If any gate becomes opt-in instead of automatic, the workflow has decayed back t
 
 ### Rule 15: Raised PR ≠ shippable PR — conflict gate is mandatory
 
-Immediately after `gh pr create`, `/dev-pipeline:deliver` MUST check the PR's mergeable state. A `CONFLICTING` PR is dead — no review automation (codex, CodeRabbit, branch protection) fires on a PR that can't merge, and the PR sits in limbo until a human notices.
+Immediately after `gh pr create`, `/dev-pipeline:deliver` MUST check the PR's mergeable state. A `CONFLICTING` PR is dead — no review automation (PR-comment bots, branch protection) fires on a PR that can't merge, and the PR sits in limbo until a human notices.
 
 The flow:
 1. `gh pr view <N> --json mergeable,mergeStateStatus` (poll briefly if `UNKNOWN`).
 2. If `MERGEABLE` or `UNSTABLE` (CI still running) → proceed.
 3. If `CONFLICTING` / `DIRTY` → `git fetch origin <base>`, `git rebase origin/<base>`, resolve hunk by hunk (read BOTH sides, prefer COMBINING when both sides add new functionality), re-run lint + tsc + tests, `git push --force-with-lease`, re-verify mergeable.
-4. Only after PR is `MERGEABLE` → hand off to code-review / codex / CI.
+4. Only after PR is `MERGEABLE` → hand off to code-review / CI.
 
 Spec lives in `commands/deliver.md → PHASE 9.5: Conflict Gate`. There is no override — a conflicting PR cannot proceed to review by definition, so skipping the gate doesn't unblock anything, it just delays discovery.
 
-**Failure mode this prevents:** the 2026-05-21 luxebook session opened PR #92 and started waiting for codex review. The PR had conflicts with main (3 files), so codex never fired — the wait was for nothing. User had to notice and prompt the agent to check. Building this into the pipeline means the agent never lets a conflicting PR sit idle. Long-form: `docs/PHILOSOPHY.md §11` (cross-check as constraint, applied to PR lifecycle).
+**Failure mode this prevents:** a real session opened a PR and started waiting for automated review. The PR had conflicts with main, so the reviewer never fired — the wait was for nothing. The user had to notice and prompt the agent to check. Building this into the pipeline means the agent never lets a conflicting PR sit idle. Long-form: `docs/PHILOSOPHY.md §11` (cross-check as constraint, applied to PR lifecycle).
 
 ### Rule 16: Frontend changes require E2E against the deploy preview
 
@@ -179,7 +181,7 @@ Spec: `commands/deliver.md → PHASE 10.5: Browser E2E Gate`.
 
 **What "like a user" means in these specs:** assertions use `page.getByRole`, `page.getByText`, real clicks, real navigation. Not `getByTestId` (which can pass even when the user-visible flow is broken — wrong heading, missing link, hidden CTA). Not `waitForLoadState('networkidle')` (Vercel previews include analytics scripts that never let the network truly idle — use per-assertion auto-wait instead).
 
-**Failure mode this prevents:** the 2026-05-21 luxebook session shipped OAuth-compliance pages whose unit tests were green but whose actual SSR behaviour (hydration mismatch, post-mount redirect) wasn't observable without a browser. Codex caught the hydration P2 in PR review — but it would have been caught earlier if E2E was a per-PR gate from the start. PR #92 introduced 11 E2E specs (tests/e2e/admin/{landing-page,legal-pages,footer-nav}.spec.ts) that verify the OAuth-reviewer journey end to end; this rule makes that kind of coverage a constraint for future frontend PRs, not a per-feature decision.
+**Failure mode this prevents:** a real session shipped OAuth-compliance pages whose unit tests were green but whose actual SSR behaviour (hydration mismatch, post-mount redirect) wasn't observable without a browser. Post-merge review caught the hydration issue — but it would have been caught earlier if E2E was a per-PR gate from the start. That session introduced E2E specs that verify the OAuth-reviewer journey end to end; this rule makes that kind of coverage a constraint for future frontend PRs, not a per-feature decision.
 
 ### Rule 17: Production smoke after every deploy
 
@@ -207,9 +209,9 @@ Before deleting any code path that handles a rare branch (fallback, retry, defen
 4. **Chaos test.** Simulate the upstream failure (mock the API as failing) and watch what the user sees. If the answer changes from "degraded page" to "404 page" after your removal, you've changed user-visible behaviour — that's not dead-code cleanup, that's a feature regression disguised as refactoring.
 5. **Only then remove.** And update the test that exercises that branch — DON'T rewrite the test to assert the new behaviour as if it was always right. Add a new test for the new behaviour and leave the old one as a regression check (or explicitly delete it with a comment explaining why the old behaviour is no longer desired).
 
-**Failure mode this prevents:** the 2026-05-21 luxebook outage (PR #92). The booking tenant page had a `buildFallbackTenant()` helper that rendered a shell when `getTenant` returned `'error'`. PR #92 deleted it on the theory it was "SEO pollution on unknown slugs". But unknown slugs already 404'd via the `'not-found'` branch — the fallback only ever fired on `'error'` (SSR couldn't reach the API). Removing it converted every transient Cloudflare bot-challenge into a permanent 404 for real customer salons. The comment in `layout.tsx` literally said "cross-continent fetch failures / timeouts that surface as 404s because getTenant catches the error" — a load-bearing warning, deleted in the same PR.
+**Failure mode this prevents:** a real production outage. A booking tenant page had a `buildFallbackTenant()` helper that rendered a shell when `getTenant` returned `'error'`. A PR deleted it on the theory it was "SEO pollution on unknown slugs". But unknown slugs already 404'd via the `'not-found'` branch — the fallback only ever fired on `'error'` (SSR couldn't reach the API). Removing it converted every transient upstream failure (e.g. a bot-challenge on the SSR origin) into a permanent 404 for real customers. The comment in the layout literally said "cross-continent fetch failures / timeouts that surface as 404s because getTenant catches the error" — a load-bearing warning, deleted in the same PR.
 
-Long-form + concrete walk-through: `docs/PHILOSOPHY.md §12`. Real-world post-mortem on the consuming project: `luxebook/docs/booking-tenant-fallback-postmortem.md`.
+Long-form + concrete walk-through: `docs/PHILOSOPHY.md §12`.
 
 ### Rule 19: Tests that change behaviour are NOT proof of correctness — they're proof of agreement with yourself
 
@@ -221,7 +223,7 @@ Three safer patterns:
 2. **Property-based / invariant test.** Frame the assertion at a higher level than the specific behaviour. e.g. "real tenant URLs do not return 404" — this stays true across both implementations.
 3. **End-to-end against the deployed artefact.** Unit tests can be rewritten to anything; E2E against a real browser against a real deploy reflects what users see.
 
-**Failure mode this prevents:** PR #92's `services-page.test.tsx` had a test "renders fallback tenant with ALL 5 new fields null when getTenant returns error". I rewrote it to "calls notFound when getTenant returns error (no fake-tenant fallback)". Both versions passed locally — but they were asserting OPPOSITE behaviours. The rewrite gave false confidence in the change.
+**Failure mode this prevents:** a page test asserted "renders fallback entity with ALL fields null when the fetch returns error". A change rewrote it to "calls notFound when the fetch returns error (no fallback)". Both versions passed locally — but they were asserting OPPOSITE behaviours. The rewrite gave false confidence in the change.
 
 Long-form: `docs/PHILOSOPHY.md §13`.
 
@@ -313,7 +315,7 @@ The user does NOT need to type a slash command. You route automatically.
 | "the auth endpoint returns 500 intermittently" | BUG_FIX_COMPLEX | `/dev-pipeline:pipeline` |
 | "add a dark mode toggle" | NEW_FEATURE | `/dev-pipeline:pipeline` |
 | "the dashboard feels slow" | PERFORMANCE | `/dev-pipeline:perf` |
-| "address Codex's comments" | PR_REVIEW_FIX | `/dev-pipeline:pr-review` |
+| "address the review comments" | PR_REVIEW_FIX | `/dev-pipeline:pr-review` |
 | "ship it" / "merge" / "open PR" | DELIVERY | `/dev-pipeline:deliver` |
 | "clean this file up" / "make this more idiomatic" | REFACTOR_PROPOSAL | `/dev-pipeline:refactor` (propose-only) |
 | "production is down" | HOTFIX | `/dev-pipeline:hotfix` |

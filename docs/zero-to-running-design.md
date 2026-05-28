@@ -31,7 +31,7 @@ The human's first manual action is reading the first PR, not creating accounts.
 | Workflow | dev-pipeline plugin (16 commands, 8 agents, 6 skills) | ✅ Solid |
 | Workflow | 4 new verify-* phases (contract, blast-radius, visual, traceability) | ✅ Just added |
 | Code | nodejs-fullstack-starter (Next.js 15 + Prisma 6 + Tailwind + Jest + Playwright) | ✅ Just built, minimal |
-| Code | LuxeBook itself (real reference of: Turborepo, NestJS, multi-app, i18n, Docker, nginx) | ✅ Live codebase |
+| Code | a real multi-app reference codebase (Turborepo, NestJS, multi-app, i18n, Docker, nginx) | ✅ Live codebase |
 | Skills | 12 Node.js skills (architecture, testing, security, db, docker, caching, ts, websocket, react×2, nestjs) | ✅ User-installed |
 | Skills | vercel-* family (next-forge, ai-sdk, deployment, env-vars, vercel-storage, etc.) | ✅ Installed |
 | Skills | stripe-best-practices, stripe-webhooks | ✅ Installed |
@@ -146,7 +146,7 @@ The only **manual** human step in the bootstrap path is **G0 — approve the sta
 
 ```json
 {
-  "name": "luxebook",
+  "name": "example-booking",
   "summary": "Multi-tenant booking SaaS for nail salons",
   "users": ["salon owner", "salon staff", "end customer"],
   "features": [
@@ -188,7 +188,7 @@ If parser is unsure on any field, output `null` and the bootstrap command surfac
 **Output: `stack-decision.md`** with decisions + rationale per layer:
 
 ```markdown
-## Stack decision for luxebook
+## Stack decision (worked example)
 
 | Layer | Choice | Alternatives considered | Rationale |
 |-------|--------|------------------------|-----------|
@@ -199,7 +199,7 @@ If parser is unsure on any field, output `null` and the bootstrap command surfac
 | Payments | Stripe Checkout + Subscriptions | Lemon Squeezy | Skill `stripe-best-practices` available; SaaS subscriptions implied |
 | Email | Resend | SendGrid | Free tier covers dev; React Email DX matches Next.js |
 | File storage | UploadThing | S3 direct, Cloudflare R2 | Vercel-native; PRD doesn't imply heavy media |
-| i18n | next-intl | next-i18next | App Router compat; team uses this in LuxeBook |
+| i18n | next-intl | next-i18next | App Router compat; proven in the reference project |
 | Testing | Jest + Playwright | Vitest | Already in starter |
 | Deploy (web) | Vercel | Render, Fly | PRD hint + skills bias |
 | Deploy (db) | Vercel Postgres | Supabase, Neon | Marketplace integration; one-click |
@@ -463,7 +463,7 @@ Future Claude Code sessions on the project auto-load these. No manual MCP wiring
 
 ### Tier 2 — production polish
 
-- `boot+smoke every controller route` check (lesson from PR #25)
+- `boot+smoke every controller route` check (lesson from a real incident)
 - Visual baseline registry per project (lesson from phone-component bug)
 - MCP servers per integration auto-wired
 - Auto-create execution doc shells at MIU 1
@@ -558,7 +558,7 @@ The human's first decision is on a feature plan, not on a Docker config or an en
 
 ## 8. What doesn't go in this system (deliberate)
 
-- **Domain logic.** No "booking-concurrency-pattern" or "tenant-isolation-audit" in the registry. Those are LuxeBook-specific. The starter+plugin stay generic. Domain skills can be **added per project** as side-loaded skills in `.claude/skills/`.
+- **Domain logic.** No "booking-concurrency-pattern" or "tenant-isolation-audit" in the registry. Those are project-specific. The starter+plugin stay generic. Domain skills can be **added per project** as side-loaded skills in `.claude/skills/`.
 - **Visual design system.** Each project picks its own (shadcn, Park UI, Mantine, hand-rolled). Starter uses Tailwind + bare components.
 - **Auth strategy.** Multiple options in the registry; PRD signals choose. Not opinionated.
 - **State management.** Server Components first; client state lib added per-PRD signal.
@@ -574,7 +574,7 @@ The human's first decision is on a feature plan, not on a Docker config or an en
 | Stack-decider picks badly | Always go through G0 with rationale + alternatives. User can swap any choice. |
 | PRD parser hallucinates | Output `null` on uncertain fields; bootstrap surfaces clarifying Q. |
 | Integration patches go stale | Each integration has a `version` + a smoke test in CI. Stale integrations are flagged. |
-| Bootstrap creates broken project on edge cases | Bootstrap ends with verify-* phases (contract / blast-radius / visual / traceability) — same gates LuxeBook now has. If verify fails, bootstrap rolls back the unstaged changes. |
+| Bootstrap creates broken project on edge cases | Bootstrap ends with verify-* phases (contract / blast-radius / visual / traceability) — same gates the reference project now has. If verify fails, bootstrap rolls back the unstaged changes. |
 | Vercel / GitHub CLI not authenticated | Detect at start, prompt to `gh auth login` / `vercel login` once, then proceed. |
 
 ---
@@ -633,14 +633,14 @@ So: **G0 + first feature G1 + 3 prod-only key slots are the entire human surface
 
 ---
 
-## 12. Where the LuxeBook lessons land in this design
+## 12. Where the reference-project lessons land in this design
 
 Every workflow lesson from the retrospective lands somewhere here:
 
-| LuxeBook lesson | Lands as |
-|-----------------|----------|
-| "Tests green ≠ correct" (PR #25 doubled prefix) | Health check pings every controller route in step B4 |
-| "Local validation ≠ CI" (PR #58 timezone) | Verify-blast-radius + env-invariance test template in starter |
+| Lesson | Lands as |
+|--------|----------|
+| "Tests green ≠ correct" (a real incident: doubled route prefix) | Health check pings every controller route in step B4 |
+| "Local validation ≠ CI" (a real incident: timezone) | Verify-blast-radius + env-invariance test template in starter |
 | "Replace_all leaves stragglers" | Post-edit grep hook (already in starter) |
 | "Hooks shipped as no-ops" | Adversarial test of hooks on first install |
 | "Auto-merge violation" | `gh pr merge` is hard-denied in `.claude/settings.json` |
@@ -649,7 +649,7 @@ Every workflow lesson from the retrospective lands somewhere here:
 | "Self-review skipped" | pre-push blessed-SHA gate (already in starter) |
 | "E2E faked/skipped" | Headed-by-default e2e in starter; verify-visual phase mandatory for UI MIUs |
 | "Compaction destroys task state" | progress.md writes after every MIU; first 3 user instructions snapshotted at PreCompact |
-| **Y-gate language** | bootstrap mirrors LuxeBook G1/G3/G4 phrasing exactly |
+| **Y-gate language** | bootstrap mirrors the reference project's G1/G3/G4 phrasing exactly |
 | **MIU vocabulary** | dev-pipeline plugin (already does this) |
 | **Per-MIU execution doc** | bootstrap creates `docs/<feature>/execution.md` shell at MIU 1 |
 | **Numbered scenario tables** | test-planner agent's mandatory output format |
@@ -833,7 +833,7 @@ The `mode` flag tells the orchestrator how to surface clarifying questions:
 ### Why this beats "just slash commands"
 
 1. **Replay / batch / cron** — CI can run `dev-pipeline init my.prd.md --mode headless` to scaffold a project automatically when a PRD is committed.
-2. **Multi-agent** — one orchestrator, many caller agents (Claude, Codex, custom). Same audit trail.
+2. **Multi-agent** — one orchestrator, many caller agents (Claude, other assistants, custom). Same audit trail.
 3. **Local testability** — Layer 2 is pure. Each module testable without Claude Code.
 4. **Drift safety** — surfaces are thin enough that bugs concentrate in Layer 2/3 where tests live.
 
@@ -1212,7 +1212,7 @@ vs. **next-forge by Vercel**: opinionated about choices but in the same directio
 
 vs. **t3-stack create command**: t3 picks one stack; we pick a stack PER PRD with rationale.
 
-vs. **rolling your own each time**: every win from the LuxeBook retrospective is encoded once and applies forever.
+vs. **rolling your own each time**: every win from the reference-project retrospective is encoded once and applies forever.
 
 vs. **manual stack assembly via skills + plugins alone**: skills tell the agent HOW to do things; integrations + bootstrap GIVE the agent the things to work on. Skills + scaffold = explanation; this design = generation.
 
