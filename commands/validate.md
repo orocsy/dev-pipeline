@@ -134,6 +134,45 @@ Fail on build errors. A build that passes types but fails bundling is still a bl
 
 ---
 
+## STEP 5.5: Deployment-Build Parity (the context `turbo build` does NOT cover)
+
+`pnpm turbo build` / `next build` is NOT the same as the PRODUCTION build contexts. A change can pass STEP 5 and still break the deploy because each context assembles the workspace differently (local symlinks vs Docker isolated COPY vs Vercel `buildCommand` vs the `node dist/main` runtime). **This step is MANDATORY when the diff touches any of:**
+
+- a `Dockerfile` / container build,
+- a `vercel.json` `buildCommand` / `next.config.js` / build config,
+- a workspace-package dependency (added/removed/changed `package.json` deps, `main`/`exports`/`files`, or a new `import` of a `@scope/*` workspace package),
+- anything under a `packages/*` that a deployed app consumes.
+
+```bash
+# 1. Enumerate deployable artifacts + their REAL build commands.
+#    Don't assume `pnpm build` — read each app's vercel.json buildCommand
+#    and every Dockerfile. They often differ (filters, deps-first, COPY scope).
+grep -rl "buildCommand" apps/*/vercel.json 2>/dev/null
+find . -maxdepth 3 -name "Dockerfile*" -not -path "*/node_modules/*"
+
+# 2. Run each app's EXACT Vercel buildCommand (not `turbo build`):
+#    e.g. cd <repo> && pnpm --filter=<app>... build   (note the deps-first `...`)
+
+# 3. If a Dockerfile exists for a touched app, BUILD THE IMAGE — this is the
+#    only faithful test of the isolated-COPY build context + the node runtime:
+#    docker build -f apps/<app>/Dockerfile -t <app>-validate .
+#    Then smoke the runtime require path that the image will execute, e.g.
+#    docker run --rm --entrypoint sh <img> -c "node -e \"require('@scope/pkg')\""
+```
+
+### CI checks that DON'T run on PRs are YOUR job to run locally
+
+Inspect the CI triggers. A job gated to `on: push: branches: [main]` (or any non-PR trigger) will **not** run on the PR — it runs for the FIRST time post-merge, on main. If your change affects such a job (e.g. the API Docker image build), **run it locally before merge.** A green PR that omits a main-only check is a blind merge.
+
+```bash
+grep -rn "on:\|branches:\|pull_request\|push:" .github/workflows/*.yml | head
+# For each job your change touches: does it trigger on PRs? If NOT, reproduce it locally.
+```
+
+Fail this step if any production build context (container image, Vercel buildCommand, or a main-only CI build affected by the diff) was not actually executed and passing. "It builds with `turbo build`" is not sufficient evidence.
+
+---
+
 ## STEP 6: Phase 8 Summary
 
 Print a summary table. ALL rows must be ✅ to proceed:
@@ -147,6 +186,7 @@ Print a summary table. ALL rows must be ✅ to proceed:
 ║ Unit tests               ║  ✅    ║
 ║ Browser E2E              ║  ✅    ║  ← or [skipped — no config] if not detected
 ║ Build                    ║  ✅    ║
+║ Deploy-build parity      ║  ✅    ║  ← container/Vercel/main-only builds, or [n/a — no infra-touching change]
 ╚══════════════════════════╩════════╝
 Phase 8 PASSED. Safe to proceed to commit + deliver.
 ```

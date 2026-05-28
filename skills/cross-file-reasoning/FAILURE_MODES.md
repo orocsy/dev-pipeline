@@ -653,6 +653,53 @@ purpose is a side effect, the plan is incomplete.
 
 ---
 
+## 13. Workspace package that works in one build context but not another
+
+### Pattern
+
+A monorepo workspace package (`@scope/utils`, `@scope/ui`) is consumed by multiple apps, but the apps have DIFFERENT build/runtime models — and the package only works in some of them. The most common shape: the package ships RAW TypeScript (`main → ./src/index.ts`, no compiled `dist/`). That's fine for BUNDLED consumers (a Next.js/webpack app transpiles the workspace source) but breaks NON-bundled consumers:
+
+- a `tsc`-compiled, `node dist/main` service can't resolve it in an isolated Docker build (the Dockerfile COPYs only that app, not `packages/`), and even if resolved, the emitted `require('@scope/utils')` points at raw `.ts` that Node can't execute;
+- a CI job that builds the image may run ONLY on push to main (not on PRs), so the failure is invisible until after merge.
+
+It "works on my machine" because the local monorepo has the symlink + a TS-aware test runner (ts-jest). Each context assembles the workspace differently: local symlink vs isolated Docker COPY vs Vercel `buildCommand` vs the bare node runtime.
+
+### Anti-pattern
+
+```jsonc
+// packages/utils/package.json — raw-TS source package, no build
+{ "main": "./src/index.ts" }
+```
+```ts
+// apps/api (tsc → node dist/main) imports it:
+export { scrub } from '@scope/utils';   // tsc emits require('@scope/utils') → raw .ts → runtime crash
+// Docker build: COPY apps/api only → TS2307 (packages/ not in image)
+// CI: Build Image job is `on: push: [main]` → never runs on the PR → merges green, breaks main
+```
+
+### Right pattern
+
+Decide, per package, which consumers it must serve, and make it consumable by ALL of them:
+
+- **Compiled package** (robust, single-source): add a build step emitting `dist/` JS + `.d.ts`; `main → dist`, `files: ["dist"]`; an `exports` split (`types → src` so type-check needs no build, `default → dist` for runtime/bundler). Every pipeline builds it first (turbo `^build`; Vercel `--filter=<app>...`; Dockerfile copies + builds it; jest maps the package → src). Now bundler, node runtime, and tests all work from one source.
+- **Or inline** (only for trivial, rarely-changing snippets — a regex, a constant): copy into the non-bundled consumer with a "keep in sync" note. Do NOT inline large or compliance-critical code (drift is the bigger risk than the coupling).
+
+### Test
+
+- For any new `import` of a `@scope/*` workspace package from a non-bundled consumer (a `tsc`+node service, a CLI), ask: "does this package emit runnable JS, and does THIS consumer's build context contain it?"
+- Run the REAL production build of every affected deployable — the container image (`docker build`), the exact Vercel `buildCommand` — not just `turbo build`.
+- Check CI triggers: any build job gated to a branch (not PRs) must be run locally before merge.
+
+### Examples
+
+- **2026-05-28 luxebook PR #94 → #95**: a shared PII scrubber moved into `@luxebook/utils` (raw TS). Vercel admin+booking went green (they transpile it) and merged; the API Docker build (`on: push: [main]`) then failed on `main` with TS2307, and would have crashed `node dist/main` at startup. First "fix" only added `transpilePackages` (Vercel-only) — didn't touch the API. Resolved by compiling the package (dist JS + exports split) and wiring all four build contexts (Vercel `--filter=app...`, Dockerfile copy+build+root-tsconfig, jest mapper, turbo `^build`); verified with a real `docker build` + runtime `require` before merge. Two prior misses came from local gates (jest/tsc/one app's build) not exercising the Docker context.
+
+### Related traces
+
+- Trace 1 (Env-var) and Trace 2 (Route) are the in-repo cousins; this is the cross-BUILD-CONTEXT version. Validate's "Deployment-Build Parity" step + the MIU "Build/Deploy/Runtime impact" field are the operational gates.
+
+---
+
 ## Template for new entries
 
 When adding a new entry, follow this skeleton. Keep the pattern GENERAL — instance details go in `Examples`.

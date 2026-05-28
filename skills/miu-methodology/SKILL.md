@@ -67,13 +67,32 @@ MIU [N]: [Technical name — component/hook/service/util, NOT product language]
     - [API contract if relevant: method, route, request/response DTO]
     - [UI detail if relevant: what renders, user interactions, conditional states]
 
+  Build/Deploy/Runtime impact:   [REQUIRED — "none" is a valid answer, but you must STATE it]
+    - [Does this change how anything BUILDS, DEPLOYS, or RUNS across environments?
+       Not just "does the logic work" — the low-level design must cover infra.]
+    - [New/changed dependency? Especially a workspace/monorepo package: which
+       consumers build it, and HOW (bundler transpiles raw TS vs node runtime
+       needs compiled JS)? Does every consumer's build context have it?]
+    - [Touches Dockerfile / vercel.json buildCommand / CI workflow / package.json
+       main·exports·files / next.config? Then name the build contexts affected
+       (local, each app's prod build, container image, the node runtime) and how
+       each is satisfied.]
+    - [Any CI job that runs only on certain branches (e.g. on: push: main) and
+       therefore WON'T run on the PR? Flag it — it must be verified locally.]
+
   Test plan (TDD — write FIRST):
     - [Failing test 1: exact assertion, e.g. "renders <ProfileForm> with user data from useProfile"]
     - [Failing test 2: edge case, e.g. "shows error banner when PATCH /profile returns 422"]
+    - [Observable side effects (capture/emit/audit/external call) — assert they FIRE
+       with the right payload, and DON'T fire on the negative branch. These are
+       invisible to return-value tests; see test-planner "Observable Side Effects".]
 
   Done when:
     - [Specific exit criteria: "component renders with mock data, form submits, error state displays"]
     - [Project compiles, all existing tests pass]
+    - [If Build/Deploy/Runtime impact ≠ none: the affected production build
+       context(s) actually built + ran — container image / Vercel buildCommand /
+       main-only CI — not just `turbo build`.]
 ```
 
 ### Required fields checklist (enforced by tech-lead)
@@ -89,10 +108,14 @@ Before approving an MIU for Phase 5 (test-writing), tech-lead checks:
 - [ ] "What it does" specifies props/return/DTO/API contract as applicable to the Block
 - [ ] "Test plan" has ≥2 failing tests (happy + at least one edge case)
 - [ ] Tests are written as assertions, not as "test X" prose
+- [ ] **"Build/Deploy/Runtime impact" is STATED** (even if "none") — and if the MIU adds/changes a dependency, Dockerfile, vercel.json, CI workflow, package.json main/exports, or next.config, it enumerates the affected build contexts + how each is satisfied + any non-PR CI job to verify locally
+- [ ] If the MIU has observable side effects (capture/emit/audit/external call), the test plan asserts they fire with the right payload (not just return value)
 - [ ] "Done when" has ≥2 exit criteria
-- [ ] Project compilation is part of "Done when"
+- [ ] Project compilation is part of "Done when"; if there's build/deploy/runtime impact, the affected production build context is part of "Done when" too
 
 If ANY box is unchecked → tech-lead rejects the MIU and requires deeper analysis. No exceptions.
+
+**Why the Build/Deploy/Runtime field is mandatory (real incident, 2026-05-28):** an MIU shared a util into a workspace package (`@luxebook/utils`) — functionally correct, all unit tests green, one app's `next build` green. But the package shipped raw TS, and the design never asked "how does EACH consumer build/run this?" Result: the API's Docker build (TS2307) and node runtime (can't `require` raw `.ts`) broke `main` — a build context that only runs on push to main, so it was invisible on the PR. Low-level MIU design is not just functional logic; it is also: does this build, deploy, and run in every environment that consumes it. See `docs/observability/observability-execution.md` (luxebook) MIU 8a.3-fix5/fix6 for the full post-mortem.
 
 ---
 
