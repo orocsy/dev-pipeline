@@ -7,14 +7,13 @@ General-form bugs that hide at file boundaries. Each entry was a real production
 - When you ship a bug a reviewer catches that is NOT in this catalog, add an entry. The pattern's general form goes in `## Pattern`; the specific instance goes in `## Examples`.
 - Keep entries GENERAL. Project-specific details belong in the `Examples` section, not the `Pattern` body.
 
-**Relationship to the engineering-craft repo (READ ONCE):**
-This catalog is the *operational, in-plugin subset* focused on **cross-file seams** — it's read inline on every trace, so it must stay tight and fast to scan. The broad, public, cross-project archive of engineering craft across ALL categories (concurrency, workflow, library-choice, tooling-footguns, etc.) lives in the external [engineering-craft repo](https://github.com/orocsy/engineering-craft), fed on a 2-day cadence by `/dev-pipeline:consolidate-lessons`.
+**This file is CANONICAL for cross-file-seam failure modes (READ ONCE):**
+There is exactly ONE author for every cross-file-seam lesson, and it is this file. It lives in the plugin because the `cross-file-reasoning` skill reads it inline on every implement/review — it must be present with zero external dependency, and appendable mid-trace the instant a reviewer catches something. So:
+- **Author here, always.** When you catch a new cross-file failure mode, add it to this file immediately — you need it on the very next trace.
+- **engineering-craft's `categories/cross-file-seams/` is a GENERATED, read-only MIRROR of this file.** `/dev-pipeline:consolidate-lessons` publishes this catalog there (one-way) for the public archive. **Never hand-edit the mirror** — the next consolidation overwrites it. Edit here; the mirror follows.
+- **Deeper, broader topics stay in engineering-craft's hand-authored categories.** Cross-file env-var collapse (entry #2) is the *operational* slice; the full "4-consumer rule" treatment lives in engineering-craft `config-drift`. Single-place-fix blindness (#8/#9) is the operational slice; the security-literal sweep lives in `grep-for-siblings`. Link to those for depth — don't restate them here, and don't copy this catalog's entries into them. Each fact has one home.
 
-A cross-file failure mode usually belongs in **both** stores. The division of labor:
-- **Here**: add it immediately when a reviewer catches it — you need it on the very next trace. Don't wait for consolidation.
-- **engineering-craft**: the `consolidate-lessons` pass promotes the corresponding journal entry into the matching category (e.g. `config-drift` for the empty-string env collapse, `grep-for-siblings` for single-place-fix blindness) for the durable public record.
-
-So when you add an entry here, you do NOT also need to touch engineering-craft — the consolidation pass cross-posts. Just add here and move on.
+Net: add cross-file failure modes HERE and move on. Consolidation mirrors them to the public repo; you never touch engineering-craft by hand for cross-file content.
 
 ---
 

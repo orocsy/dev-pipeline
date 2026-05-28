@@ -51,6 +51,11 @@ if [[ ! -d "$TARGET/.git" ]]; then
   git clone https://github.com/orocsy/engineering-craft.git "$TARGET"
 fi
 git -C "$TARGET" fetch origin && git -C "$TARGET" checkout main && git -C "$TARGET" pull --ff-only
+
+# The plugin itself is the CANONICAL home for cross-file-seam lessons.
+# Resolve its path too — Step 4 may append to it, and Step 4.5 publishes it.
+PLUGIN_DIR="$HOME/.claude/plugins/marketplaces/local/plugins/dev-pipeline"
+FAILURE_MODES="$PLUGIN_DIR/skills/cross-file-reasoning/FAILURE_MODES.md"
 ```
 
 If the pull fails (local divergence), STOP and report: "engineering-craft local clone has divergent commits. Resolve manually before consolidating." Do not force-push.
@@ -72,16 +77,19 @@ For each entry, decide:
 
 | Verdict | What it means | Action |
 |---|---|---|
-| `new-pattern` | The entry describes a defensive lesson NOT already in engineering-craft | Create a new `.md` file under `categories/<category>/<slug>.md` with the lesson + SHA citation |
+| `cross-file` | The entry is a cross-file-seam failure mode (see the routing note below) | Canonical home is `$FAILURE_MODES` in the plugin — append there if new, no-op if already present. Do NOT touch an engineering-craft category. Mirrored to `cross-file-seams` in Step 4.5. |
+| `new-pattern` | A NON-cross-file defensive lesson NOT already in engineering-craft | Create a new `.md` file under `categories/<category>/<slug>.md` with the lesson + SHA citation |
 | `refinement` | The entry adds nuance / a new example / a counter-case to an existing pattern | Append an `Example` or `Counter-case` block to the existing rule's file, citing the new SHA |
 | `noise` | The entry is too project-specific or doesn't generalize | Skip; still mark consolidated so we don't re-evaluate it next run |
 
 Be conservative — when in doubt, prefer `noise` over a low-quality `new-pattern`. The repo's value is in curation, not volume.
 
-**Cross-file lessons have a second home — check it.** The `cross-file-reasoning` skill maintains its own focused catalog at `skills/cross-file-reasoning/FAILURE_MODES.md` (inside THIS plugin), covering cross-file-seam failure modes specifically (env-var collapse, framework-prefix doubling, conditional coupling, single-place-fix blindness, etc.). That catalog is appended live by whoever runs a trace, so by the time you consolidate, a cross-file lesson may already be captured there. When an entry's domain is a cross-file seam:
-- **Don't duplicate** — if `FAILURE_MODES.md` already has the general form, your engineering-craft entry should cite it (`See also: dev-pipeline FAILURE_MODES.md #N`) rather than re-derive it.
-- **Keep them consistent** — the engineering-craft category entry (broad/public) and the FAILURE_MODES.md entry (operational/in-plugin) describe the same failure mode at different altitudes. If you refine one, note the other.
-- **Map the category**: FAILURE_MODES.md #2 (empty-string env collapse) → engineering-craft `config-drift`; #1/#4 → `config-drift`/`silent-no-op-integrations`; #8/#9 → `grep-for-siblings`. Use those mappings when deciding where the engineering-craft entry lands.
+**Cross-file-seam entries route to the plugin, NOT to an engineering-craft category.** `$FAILURE_MODES` (the `cross-file-reasoning` skill's catalog) is the single CANONICAL home for cross-file-seam failure modes — env-var empty-string collapse, framework-prefix doubling, SDK-option-unverified, conditional coupling, in-tx fire-and-forget, wrapper-lifecycle, mock drift, single-place-fix blindness, etc. engineering-craft's `categories/cross-file-seams/` is a GENERATED mirror of that file (published in Step 4.5), so do NOT create or refine a cross-file rule directly under any engineering-craft category. Instead, for an entry classified as a cross-file seam:
+
+- **Verdict `cross-file`** (a 4th verdict, alongside new-pattern/refinement/noise): the lesson is a cross-file seam.
+  - If `$FAILURE_MODES` already contains the general form (it usually will — the skill appends live mid-trace) → no write needed; mark the journal entry consolidated with `verdict=cross-file-already`.
+  - If it's genuinely new → append a new numbered entry to `$FAILURE_MODES` (Pattern / Anti-pattern / Correct / Examples — match the existing format) and update that file's Index. Mark the journal entry `verdict=cross-file-new`.
+- **Do NOT** also write it into `config-drift` / `grep-for-siblings` / etc. Those hand-authored categories own the DEEPER, broader treatment of adjacent topics (e.g. the full 4-consumer rule); the cross-file catalog owns the operational seam check. One fact, one home. Cross-link, don't copy.
 
 ### Step 4 — Apply changes
 
@@ -98,6 +106,45 @@ For `refinement`:
 For `noise`:
 - No file change; just the journal marker
 
+For `cross-file`:
+- Handled against `$FAILURE_MODES` per the routing note above (append-if-new, else no-op). The mirror into engineering-craft happens in Step 4.5, not here.
+
+### Step 4.5 — Publish the cross-file catalog to the mirror (one-way)
+
+`$FAILURE_MODES` is canonical; engineering-craft's `cross-file-seams` category is its published mirror. Regenerate the mirror from the canonical file every run (cheap, idempotent — a no-op commit if nothing changed):
+
+```bash
+MIRROR_DIR="$TARGET/categories/cross-file-seams"
+mkdir -p "$MIRROR_DIR"
+
+# 1. Copy the canonical catalog verbatim, with a generated-by banner prepended.
+{
+  echo "<!-- GENERATED — DO NOT EDIT."
+  echo "     Canonical source: dev-pipeline plugin skills/cross-file-reasoning/FAILURE_MODES.md"
+  echo "     Published by /dev-pipeline:consolidate-lessons on $(date -u +%Y-%m-%d)."
+  echo "     Hand-edits here are overwritten on the next consolidation. Edit the plugin instead. -->"
+  echo ""
+  cat "$FAILURE_MODES"
+} > "$MIRROR_DIR/FAILURE_MODES.md"
+
+# 2. The category README is hand-authored once (see Step 4.5a) — leave it.
+#    Only refresh its "last synced" line.
+git -C "$TARGET" add categories/cross-file-seams/
+```
+
+If `$FAILURE_MODES` was also appended this run (a `cross-file-new` verdict), commit the PLUGIN repo too — it's the canonical change:
+
+```bash
+if ! git -C "$PLUGIN_DIR" diff --quiet -- skills/cross-file-reasoning/FAILURE_MODES.md; then
+  git -C "$PLUGIN_DIR" add skills/cross-file-reasoning/FAILURE_MODES.md
+  git -C "$PLUGIN_DIR" commit -m "feat(cross-file-reasoning): +<N> failure mode(s) from consolidation $(date -u +%Y-%m-%d)"
+  # Push the plugin only if the user's review gate allows; otherwise print a reminder.
+  git -C "$PLUGIN_DIR" push origin main 2>&1 || echo "⚠ plugin push deferred — push $PLUGIN_DIR manually"
+fi
+```
+
+**Step 4.5a (first run only)**: if `categories/cross-file-seams/README.md` does not exist, create it as a hand-authored category index (generated marker + what's here + cross-links to the deeper `config-drift` / `grep-for-siblings` categories). It is NOT regenerated after that — only `FAILURE_MODES.md` inside the category is.
+
 ### Step 5 — Mark consolidated in each source journal
 
 For every entry processed (any verdict), edit the source `JOURNAL.md` in place: insert `<!-- consolidated: YYYY-MM-DD verdict=<verdict> -->` immediately under the entry's heading. Never delete journal entries — the source-of-truth audit trail stays intact.
@@ -106,17 +153,19 @@ For every entry processed (any verdict), edit the source `JOURNAL.md` in place: 
 
 ```bash
 cd "$TARGET"
-git add categories/ INDEX.md
+git add categories/ INDEX.md   # categories/ includes the regenerated cross-file-seams mirror
 COUNT_NEW=<count of new-pattern>
 COUNT_REFINED=<count of refinement>
 COUNT_NOISE=<count of noise>
+COUNT_XFILE=<count of cross-file-new>   # mirrored from the plugin's canonical catalog
 
 git commit -m "$(cat <<EOF
-chore(consolidate): fold $COUNT_NEW patterns + $COUNT_REFINED refinements from $(date -u +%Y-%m-%d)
+chore(consolidate): fold $COUNT_NEW patterns + $COUNT_REFINED refinements + $COUNT_XFILE cross-file from $(date -u +%Y-%m-%d)
 
 Source repos:
 $(echo "$REPOS_TOUCHED" | sed 's/^/  - /')
 
+Cross-file mirror regenerated from dev-pipeline FAILURE_MODES.md.
 Skipped as noise: $COUNT_NOISE
 Run: /dev-pipeline:consolidate-lessons
 EOF
@@ -124,6 +173,8 @@ EOF
 
 git push origin main
 ```
+
+(The plugin repo's own commit — when a `cross-file-new` entry was appended to the canonical `$FAILURE_MODES` — already happened in Step 4.5. This Step 6 commit is the engineering-craft side only.)
 
 Then commit the journal markers BACK into the source repos (don't push them — let the user push at their normal cadence):
 - For each project that had entries consolidated, `git -C <repo> add .learnings/JOURNAL.md` is intentionally NOT auto-committed. Print instead: "Journal markers staged but uncommitted in <N> projects; commit at your convenience."
@@ -141,6 +192,7 @@ Print summary:
   Entries processed:       <total>
   → new patterns added:    <count> (files: <list>)
   → refinements applied:   <count> (files: <list>)
+  → cross-file (canonical): <count> appended to plugin FAILURE_MODES.md; mirror regenerated
   → noise (skipped):       <count>
 
   engineering-craft pushed: <sha> → https://github.com/orocsy/engineering-craft
