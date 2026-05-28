@@ -11,6 +11,12 @@ All steps are pre-approved. Do not ask for permission. Run to completion.
 
 ## PHASE 9: Commit & PR
 
+**First, invoke `doc-writer`** to confirm the TRACKED execution doc
+(`docs/<feature>/<feature>-execution.md`) covers every MIU in this PR's diff,
+and to refresh the thin `.claude/pipeline-state.json` pointer (`pr`, `phase:
+deliver`). The PR's durable record is the tracked doc — not the local JSON,
+which doesn't even travel with the repo.
+
 Stage only files related to this feature (never `git add -A`):
 
 1. Run `git status` to list all changed files
@@ -239,6 +245,25 @@ gh run watch "$RUN_ID" --exit-status
 
 If CI fails → alert user with link: "❌ CI failed: gh run view $RUN_ID"
 If CI passes → proceed to Phase 12.
+
+### Rotate the pipeline pointer (PR merged ⇒ pointer spent)
+
+The merged PR's work is now permanently recorded in the TRACKED execution doc.
+The `.claude/pipeline-state.json` pointer was scoped to that one PR — rotate it:
+
+```bash
+# The pointer's branch no longer exists on the remote (merged + deleted).
+mkdir -p .claude/archive
+PR_DONE="$(jq -r '.pr // "unknown"' .claude/pipeline-state.json 2>/dev/null)"
+[ -f .claude/pipeline-state.json ] && mv .claude/pipeline-state.json ".claude/archive/pipeline-state-${PR_DONE}.json"
+echo "Pointer rotated (PR #$PR_DONE merged). Durable record is in docs/<feature>/."
+```
+
+The NEXT unit of work — a new branch/PR, even in the same session — starts a
+FRESH pointer (created by `/dev-pipeline:plan` or the next `implement` run via
+`doc-writer`). Never carry a merged PR's pointer forward; it's stale by
+definition. A fresh clone has no pointer at all and resumes purely from the
+tracked docs + git — which is the point.
 
 ---
 

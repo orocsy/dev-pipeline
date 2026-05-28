@@ -207,7 +207,35 @@ MIU 3: useProfile hook (TanStack Query)
 - Any time an agent is about to emit an MIU description
 - Any time tech-lead is validating an MIU before Phase 5 start
 
+## State & handoff model (where MIU records live)
+
+Two tiers — never confuse them:
+
+| | Source of truth | Pointer (cache) |
+|---|---|---|
+| **What** | per-MIU execution log + the MIU breakdown + architecture | "where am I" hint |
+| **Where** | `docs/<feature>/` (`<feature>-execution.md`, `<feature>-miu-breakdown.md`, `architecture.md`) | `.claude/pipeline-state.json` |
+| **Tracked?** | ✅ git-tracked — survives a fresh clone, portable handoff | ❌ local, gitignored, disposable |
+| **Lifetime** | permanent | per-PR; rotates on merge |
+| **Maintained by** | `doc-writer` agent at every MIU boundary + deliver | `doc-writer` (thin: branch/pr/phase/currentMiu/nextMiu/doc-refs) |
+
+Rules:
+- **The MIU breakdown lives in `docs/<feature>/`** (tracked), NOT `.claude/plans/` (local scratch). If a plan must survive a fresh clone or hand off to another engineer, it has to be tracked. `.claude/plans/` is fine for in-flight scratch only.
+- **Per-MIU records go in the tracked execution doc**, written by `doc-writer` the moment each MIU completes — not reconstructed from memory, not dumped into local JSON.
+- **`.claude/pipeline-state.json` is a ~10-line disposable pointer.** It rotates when its PR merges (the merged work is already in the tracked docs). A new PR — even in the same session — gets a fresh pointer. A stale pointer (branch merged/gone) is regenerated, never trusted. The DEPRECATED verbose `miu-progress.json` dump must not be recreated.
+- **Handoff relies on the tracked docs + git + PR state, NEVER on local JSON.** A fresh clone has no `.claude/*.json` and must resume entirely from `docs/` + git.
+- **Project-specific state/conventions go in the project `CLAUDE.md` or `docs/` — NEVER the user-level `~/.claude/CLAUDE.md`** (that's general routing only).
+
+## When This Skill Activates
+
+- `/dev-pipeline:pipeline` Phase 3 — Level 1 product-task decomposition
+- `/dev-pipeline:pipeline` Phase 4 — Level 2 Technical MIU decomposition (MANDATORY)
+- `/dev-pipeline:fix`, `/dev-pipeline:update`, `/dev-pipeline:hotfix` STEP 2 (spec phase)
+- `/dev-pipeline:pr-review` when grouping review comments into fix spec sets
+- Any time an agent is about to emit an MIU description
+- Any time tech-lead is validating an MIU before Phase 5 start
+
 ## Upstream / Downstream
 
 - **Upstream**: task-classifier skill (classifies request type before decomposition)
-- **Downstream**: test-strategist agent (consumes MIU test plans), tech-lead quality gate enforcement
+- **Downstream**: test-strategist agent (consumes MIU test plans), tech-lead quality gate enforcement, `doc-writer` agent (maintains the tracked execution doc + thin pointer)

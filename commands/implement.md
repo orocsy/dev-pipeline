@@ -12,9 +12,29 @@ All steps are pre-approved. Run to completion.
 
 ## STEP 0: Load Context
 
-Read `.claude/miu-progress.json` and identify the current in-progress MIU.
-Read `.claude/docs/ARCHITECTURE.md` and `RECENT_CHANGES.md` — do not explore the codebase if the answer is there.
-Load the stack skill from `skills/skill-router/SKILL.md` to confirm which patterns to use.
+**Source of truth is the TRACKED docs, not local JSON.** State lives in two tiers:
+- **Truth (tracked, portable):** `docs/<feature>/<feature>-execution.md` (per-MIU log) + `docs/<feature>/<feature>-miu-breakdown.md` (the plan) + architecture. These survive a fresh clone. Read these to learn what's done + what's next.
+- **Pointer (local, disposable):** `.claude/pipeline-state.json` — a ~10-line "where am I" hint. **Validate it against git before trusting it; it goes stale.**
+
+```bash
+# Trust git + the tracked execution doc; treat the pointer as a cache.
+git fetch origin --quiet 2>/dev/null
+PTR_BRANCH=$(jq -r '.branch // empty' .claude/pipeline-state.json 2>/dev/null)
+CUR_BRANCH=$(git branch --show-current)
+if [ -n "$PTR_BRANCH" ] && [ "$PTR_BRANCH" != "$CUR_BRANCH" ]; then
+  echo "⚠️  pipeline-state.json points at '$PTR_BRANCH' but you're on '$CUR_BRANCH' — pointer STALE."
+fi
+if [ -n "$PTR_BRANCH" ] && ! git rev-parse --verify "origin/$PTR_BRANCH" >/dev/null 2>&1; then
+  echo "⚠️  pointer branch '$PTR_BRANCH' is merged/gone — its work is already in the tracked"
+  echo "    execution doc. Regenerate the pointer for the current branch (see doc-writer)."
+fi
+```
+
+If the pointer is stale/missing, do NOT guess from it — read the tracked execution doc + `git log` to determine the current/next MIU, then have `doc-writer` regenerate the pointer.
+
+(`miu-progress.json` is DEPRECATED — the verbose per-MIU dump duplicated the tracked execution doc and froze. If present, ignore it; the execution doc is authoritative.)
+
+Read `.claude/docs/ARCHITECTURE.md` / `RECENT_CHANGES.md` if present. Load the stack skill from `skills/skill-router/SKILL.md` to confirm which patterns to use.
 
 ---
 
@@ -106,22 +126,32 @@ The failure-mode catalog at `skills/cross-file-reasoning/FAILURE_MODES.md` is th
 
 ---
 
-## STEP 5: Mark MIU Complete (tentatively)
+## STEP 5: Record the MIU (doc-writer) + mark complete
 
-Update `.claude/miu-progress.json`: set this MIU status to `"pending-validation"`.
+**Invoke the `doc-writer` agent** (MANDATORY, automatic). It writes this MIU's
+canonical record — What / Why / Tests / Validation / Result / Engineering
+rationale (+ Build/Deploy/Runtime impact if applicable) — into the TRACKED
+execution doc `docs/<feature>/<feature>-execution.md`, and refreshes the thin
+`.claude/pipeline-state.json` pointer (`currentMiu`/`nextMiu`/`phase`).
+
+This is the anti-freeze rule: the durable record lands in the tracked doc the
+moment the MIU finishes, by an agent — not reconstructed later from memory, and
+not buried in a local JSON that drifts. The execution doc travels with the repo
+(survives a fresh clone); the pointer is a disposable cache.
+
+Do NOT write per-MIU detail into `.claude/*.json`. The pointer stays ~10 lines.
 
 ---
 
 ## STEP 6: Check if All MIUs Are Complete
 
-```bash
-# Are all MIUs for the current product task in "pending-validation" or "done"?
-cat .claude/miu-progress.json | jq '.tasks[] | select(.status != "done" and .status != "pending-validation") | .id'
-```
+Determine remaining work from the TRACKED execution doc + the breakdown (not a
+local dump). The thin pointer's `nextMiu` is a hint; the breakdown
+`docs/<feature>/<feature>-miu-breakdown.md` is the authority on what's left.
 
-If any MIU is still `"in-progress"` or `"pending"`, loop back to STEP 1 for the next MIU.
-
-If all MIUs are `"pending-validation"` → proceed to Phase 8.
+If any MIU in the breakdown lacks a "done/pending-validation" entry in the
+execution doc, loop back to STEP 1 for the next one. If all are recorded →
+proceed to Phase 8.
 
 ---
 
@@ -159,15 +189,17 @@ If `/dev-pipeline:validate` exits with an error, do NOT proceed. Fix the failure
 
 ---
 
-## STEP 8: On Phase 8 Pass — Update Progress + Hand Off
+## STEP 8: On Phase 8 Pass — Record + Hand Off
+
+Invoke `doc-writer` once more to flip the completed MIUs' status in the tracked
+execution doc to "done" and refresh the thin pointer (`phase: deliver`). The
+hand-off lives in `docs/<feature>/` (tracked, portable) — confirm the execution
+doc covers every MIU in the breakdown before delivering.
 
 ```bash
-# Mark all MIUs done
-# (validate writes this on success — confirm it happened)
-cat .claude/miu-progress.json | jq '.tasks[].status'
+# The pointer is a hint, not the record. Truth = the tracked execution doc.
+jq '{branch,pr,phase,currentMiu,nextMiu}' .claude/pipeline-state.json 2>/dev/null
 ```
-
-Expected: all `"done"`.
 
 Then announce: *"All MIUs complete. Phase 8 passed. Proceeding to delivery gate."*
 
