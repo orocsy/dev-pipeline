@@ -1,5 +1,5 @@
 ---
-description: Sweep per-project `.learnings/JOURNAL.md` files, classify entries as new-pattern vs refinement, fold into the engineering-craft repo, commit + push to the public mirror. Auto-scheduled via launchd every 2 days (see ~/Library/LaunchAgents/com.luxebook.consolidate-lessons.plist). Safe to run manually any time.
+description: Sweep per-project `.learnings/JOURNAL.md` files, classify entries as new-pattern vs refinement, fold into the engineering-craft repo, commit + push to the public mirror. Auto-scheduled via launchd every 2 days (see ~/Library/LaunchAgents/com.engineering-craft.consolidation-reminder.plist). Safe to run manually any time.
 argument-hint: [--dry-run] [--repo <path>]
 ---
 
@@ -21,12 +21,12 @@ This is the missing automation piece the engineering-craft README has been claim
   4. Last-resort fallback for ad-hoc setups: `~/projects/engineering-craft`
 
   If none of the above directories contain a `.git`, clone via `git clone https://github.com/orocsy/engineering-craft.git <chosen-path>`.
-- **Existing categories**: read `~/projects/engineering-craft/categories/` to learn what rules already exist; classify new entries as refinements or new patterns relative to those.
+- **Existing categories**: read `$TARGET/categories/` (the resolved target — see Step 1) to learn what rules already exist; classify new entries as refinements or new patterns relative to those.
 
 ## Flags
 
 - `--dry-run` — do everything except commit + push. Print proposed changes.
-- `--repo <path>` — alternate engineering-craft clone location (default `~/projects/engineering-craft`).
+- `--repo <path>` — alternate engineering-craft clone location. Default is resolved by the Step 1 chain (bootstrap's `.public-mirror-config` → `~/.claude/external-mirrors/engineering-craft` → legacy `~/projects/engineering-craft`).
 
 ---
 
@@ -66,7 +66,7 @@ If the list is empty, print `No unconsolidated entries since last run.` and exit
 
 ### Step 3 — Classify each entry against existing categories
 
-Read `~/projects/engineering-craft/INDEX.md` and `~/projects/engineering-craft/categories/*.md` to build a map of existing patterns.
+Read `$TARGET/INDEX.md` and `$TARGET/categories/*.md` to build a map of existing patterns.
 
 For each entry, decide:
 
@@ -77,6 +77,11 @@ For each entry, decide:
 | `noise` | The entry is too project-specific or doesn't generalize | Skip; still mark consolidated so we don't re-evaluate it next run |
 
 Be conservative — when in doubt, prefer `noise` over a low-quality `new-pattern`. The repo's value is in curation, not volume.
+
+**Cross-file lessons have a second home — check it.** The `cross-file-reasoning` skill maintains its own focused catalog at `skills/cross-file-reasoning/FAILURE_MODES.md` (inside THIS plugin), covering cross-file-seam failure modes specifically (env-var collapse, framework-prefix doubling, conditional coupling, single-place-fix blindness, etc.). That catalog is appended live by whoever runs a trace, so by the time you consolidate, a cross-file lesson may already be captured there. When an entry's domain is a cross-file seam:
+- **Don't duplicate** — if `FAILURE_MODES.md` already has the general form, your engineering-craft entry should cite it (`See also: dev-pipeline FAILURE_MODES.md #N`) rather than re-derive it.
+- **Keep them consistent** — the engineering-craft category entry (broad/public) and the FAILURE_MODES.md entry (operational/in-plugin) describe the same failure mode at different altitudes. If you refine one, note the other.
+- **Map the category**: FAILURE_MODES.md #2 (empty-string env collapse) → engineering-craft `config-drift`; #1/#4 → `config-drift`/`silent-no-op-integrations`; #8/#9 → `grep-for-siblings`. Use those mappings when deciding where the engineering-craft entry lands.
 
 ### Step 4 — Apply changes
 
@@ -139,7 +144,7 @@ Print summary:
   → noise (skipped):       <count>
 
   engineering-craft pushed: <sha> → https://github.com/orocsy/engineering-craft
-  Next scheduled run:       <date> (launchd com.luxebook.consolidate-lessons)
+  Next scheduled run:       <date> (launchd com.engineering-craft.consolidation-reminder)
 ```
 
 ---
@@ -196,7 +201,7 @@ When creating a new `categories/<category>/<slug>.md`:
 
 ## When this runs
 
-- **Scheduled**: launchd plist `com.luxebook.consolidate-lessons` fires every 2 days at 9am, runs a sweep script that COUNTS unconsolidated entries and posts a macOS notification (`23 new entries in 8 repos — run /dev-pipeline:consolidate-lessons`). The actual consolidation is interactive because classification needs LLM judgment.
+- **Scheduled**: launchd plist `com.engineering-craft.consolidation-reminder` fires every 2 days (`StartInterval=172800`, counted from load — not a fixed wall-clock time), runs a sweep script that COUNTS unconsolidated entries and posts a macOS notification (`23 new entries in 8 repos — run /dev-pipeline:consolidate-lessons`). The actual consolidation is interactive because classification needs LLM judgment. The plist body is installed by engineering-craft's `bootstrap/install.sh` and points at this plugin's `hooks/consolidate-lessons-notify.sh`.
 - **Manual**: any time, with or without `--dry-run`.
 - **End of feature**: `/dev-pipeline:learn` may suggest invoking this if it just promoted a learning that looks generalizable.
 

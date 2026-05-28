@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # dev-pipeline — sweep journals and notify when entries pile up.
 #
-# Invoked by launchd plist com.luxebook.consolidate-lessons every 2 days.
+# Invoked by launchd plist com.engineering-craft.consolidation-reminder every 2 days.
 # This script does NOT consolidate — it counts unconsolidated entries and
 # posts a macOS notification telling the user to run the interactive
 # consolidation command. Consolidation requires LLM judgment, so it stays
