@@ -523,6 +523,136 @@ Or: write the assertion at the INVARIANT level — "real tenant URLs do not retu
 
 ---
 
+## 11. Claimed-but-unlanded fix (stale commit-message vs reality)
+
+### Pattern
+
+A commit message, journal entry, or post-review reply CLAIMS to have fixed a finding. But the diff for that commit did not actually modify the file containing the finding — or modified a sibling file with similar content. Tests pass (the test file the agent looked at also didn't change). The next reviewer sees the same finding and either re-flags it (correctly) or trusts the claim (incorrectly).
+
+The root cause is almost always single-file thinking applied to the FIX phase: the agent saw the finding's general shape, found ONE place that matched the shape, fixed it, and assumed the fix was complete. The OTHER place(s) carrying the same anti-pattern stayed untouched. The commit message describes "the fix" as if singular.
+
+### Anti-pattern
+
+A review finds: `process.env.POSTHOG_HOST ?? '...'` is unsafe (empty string defeats nullish-coalescing).
+
+The agent finds ONE occurrence in `apps/api/src/common/telemetry/posthog.service.ts` and another in `apps/admin/src/lib/telemetry/posthog-provider.tsx`. Fixes only the admin one. Writes a commit message that says: "P2 fix: POSTHOG_HOST `??` → `||`". Pushes. The api one stays broken. Next reviewer sees the same finding on the api file and re-flags. The agent thinks Codex is "re-flagging a fixed issue" and dismisses.
+
+The asymmetry: the fix was real but partial. The commit message generalized to "the fix" when the diff was specific.
+
+### Right pattern
+
+Before claiming a fix complete, `grep` the ENTIRE repo for the bug's general shape and verify each match is either (a) fixed, (b) explicitly out-of-scope, or (c) doesn't actually have the same problem. List every match in the commit message even if it's just "verified not affected".
+
+For env-var fallbacks specifically: `grep -rn 'process\.env\.[A-Z_]* \?\?' apps/ packages/` BEFORE committing the fix. Either every match becomes `||` (or has a documented reason for `??`), or the fix is incomplete.
+
+For ANY review finding with a general shape (a regex, a typo class, a misuse of an SDK option), the verification step is: `grep` the codebase for the shape and confirm the fix covers every instance.
+
+### Test
+
+After writing a commit message that says "X fix", before pushing:
+1. Re-read the file the message names.
+2. `grep` for the bug shape across the entire repo.
+3. Verify every match is addressed OR explicitly listed as out-of-scope.
+4. If the commit message uses "the fix" / "this fix", verify it really is THE fix (singular), not ONE OF the fixes (partial).
+
+When a reviewer re-flags something you thought was fixed: BEFORE arguing it's a stale flag, `grep` for the original bug shape and re-verify YOUR fix is actually present on the line the reviewer cites.
+
+### Examples
+
+- **2026-05-28 luxebook PR #94 (Codex round-2 + round-3)**: round 2 included Codex P2 #5 on `POSTHOG_HOST ?? '...'`. Commit `d09563b` message claimed "P2 Codex #5: POSTHOG_HOST now uses || not ?? so empty-string secret from GitHub Actions falls back to EU default". But `git log -p -- apps/api/src/common/telemetry/posthog.service.ts` showed `d09563b` did not touch that file at all — the `??` survived in the api code. Codex re-flagged at round 3 (correctly). When investigating the re-flag, the agent assumed it was stale and almost dismissed it; checking the actual current file content showed the bug was still there. Fix landed in commit `8b75c8a` together with the genuine new loading-gate fix.
+
+### Related traces
+
+- This is a meta-pattern that compounds OTHER traces: any of the seven traces in `SKILL.md` becomes worse when the agent "fixes" the pattern in one file and claims general resolution.
+- Related to Failure Mode #8 (single-place fix, pattern blindness) — that's about UPSTREAM root-cause class; this is about DOWNSTREAM verification across instances.
+
+---
+
+## 12. Side effect ships untested because it's invisible to the return value
+
+### Pattern
+
+A function's tests assert its RETURN VALUE and its THROWN errors. A side
+effect — `posthog.capture()`, `eventEmitter.emit()`, an audit-log write, a
+webhook publish, a queue `add()`, `Sentry.captureException()` — is neither.
+The mock for the side-effecting dependency satisfies the type signature
+(constructor arity, method exists), the function returns/throws correctly,
+every test passes — and the side effect, which is often the ENTIRE POINT of
+the code (the dashboard signal, the audit trail, the notification), is never
+asserted. It ships unverified through every gate.
+
+Distinct from Failure Mode #7 (mock-real interface drift): #7 is about the
+mock's SHAPE diverging from the real interface. THIS is about the mock's
+shape being correct but no test asserting the call happens at all (or
+asserting only `toHaveBeenCalled()` with no argument check — which passes
+even when the payload is wrong).
+
+### Anti-pattern
+
+```ts
+// Service grows a 9th constructor arg (PostHogService) + 6 capture sites.
+const posthog = { capture: jest.fn() } as unknown as PostHogService;
+const service = new BookingService(..., posthog);
+
+it('rejects double-booking', async () => {
+  await expect(service.createBooking(contendingDto)).rejects.toThrow();
+  // ✅ return/throw asserted. ❌ the capture('slot_contention_detected', ...)
+  //    that the whole observability MIU exists for is NEVER asserted.
+});
+```
+
+### Right pattern
+
+```ts
+it('captures slot_contention_detected on the lock-busy path', async () => {
+  redis.acquireLock.mockResolvedValueOnce(false);
+  await expect(service.rescheduleBookingAdmin(...)).rejects.toThrow();
+  expect(posthog.capture).toHaveBeenCalledWith(
+    'slot_contention_detected',
+    expect.objectContaining({ contentionType: 'lock_busy', operation: 'reschedule_admin', staffId }),
+    expect.objectContaining({ tenantId, distinctId: staffId }),
+  );
+});
+
+// And the negative: capture does NOT fire on the happy path.
+it('does not capture contention when the lock is acquired', async () => {
+  redis.acquireLock.mockResolvedValue('token');
+  await service.rescheduleBookingAdmin(...);
+  expect(posthog.capture).not.toHaveBeenCalledWith('slot_contention_detected', ...);
+});
+```
+
+### Test
+
+For every NEW side-effecting call site the diff introduces (grep the diff
+for `.capture(`, `.emit(`, `.add(`, `.publish(`, audit/log writes), ask:
+"is there a test that asserts THIS call fires with THIS payload?" A bare
+`toHaveBeenCalled()` with no `With(...)` does not count. If the side effect
+is conditional, also assert it does NOT fire in the negative branch.
+
+Proactive prevention: the `test-planner` agent's "Observable Side Effects /
+Instrumentation" category enumerates these scenarios BEFORE code is written.
+If the test plan has no side-effect scenarios for a feature whose whole
+purpose is a side effect, the plan is incomplete.
+
+### Examples
+
+- **2026-05-28 luxebook PR #94 (internal /dev-pipeline:review P1 #5)**: MIU 8a.3
+  added six `posthog.capture('slot_contention_detected', ...)` sites at booking
+  contention throw paths. The PostHogService mock satisfied the 9th constructor
+  arg; 119 booking tests passed; ZERO asserted any capture fired. The internal
+  review caught it (Codex's 3 prior rounds had not). Fix added explicit capture
+  assertions and, in the process, discovered a SEVENTH contention path
+  (`rescheduleBookingManage` lock-busy) that had no capture at all — invisible
+  precisely because nothing tested the captures.
+
+### Related traces
+
+- Trace 5 (Mock-completeness) in `SKILL.md` — adjacent; that one is shape drift, this is coverage of the call itself.
+- Failure Mode #7 — the shape-drift sibling.
+
+---
+
 ## Template for new entries
 
 When adding a new entry, follow this skeleton. Keep the pattern GENERAL — instance details go in `Examples`.

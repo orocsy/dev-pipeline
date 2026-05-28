@@ -72,6 +72,35 @@ You are a QA lead responsible for defining comprehensive test scenarios. You thi
    - Cross-tenant access prevention
    - Tenant-scoped queries
 
+   **Observable Side Effects / Instrumentation** (CRITICAL — most-missed category)
+   The other categories all describe a function's RETURN VALUE or THROWN
+   error. Side effects are invisible to them: a `posthog.capture()`, an
+   `eventEmitter.emit()`, an audit-log write, a webhook publish, a queue
+   `add()`, a `Sentry.captureException()`, a cache invalidation. These ship
+   UNTESTED constantly because the mock satisfies the type signature and
+   the function returns/throws correctly — so every other category passes
+   while the side effect (which is often the entire POINT of the code) is
+   never asserted.
+   - Every NEW telemetry/analytics capture: assert it fires with the
+     correct event name AND property shape AND distinct/tenant scoping.
+     (e.g. "on slot contention, `posthog.capture('slot_contention_detected',
+     {contentionType:'lock_busy', operation:'reschedule_admin', staffId},
+     {tenantId, distinctId})` is called once".)
+   - Every domain event emit: assert emitted with correct payload; if it
+     fires inside a transaction, assert the tx-rollback behavior (does the
+     event still flush? is that intended?).
+   - Every audit-log / compliance write: assert it records the truth of
+     what committed (NOT just that the method was called).
+   - Every external call (email, SMS, webhook, queue): assert invoked with
+     correct args; assert the failure path (does a telemetry failure roll
+     back the business operation? should it?).
+   - The test must assert the SIDE EFFECT, not merely that a `jest.fn()`
+     mock was called with no arg check. `expect(mock).toHaveBeenCalled()`
+     with no `With(...)` is a coverage lie — it passes even when the
+     payload is wrong.
+   - Negative: assert the side effect does NOT fire when it shouldn't
+     (e.g. capture is NOT called on the happy path that doesn't contend).
+
    **Accessibility** (for UI components)
    - Keyboard navigation
    - Screen reader labels
@@ -101,6 +130,9 @@ You are a QA lead responsible for defining comprehensive test scenarios. You thi
 
 #### Multi-Tenancy
 7. <scenario name> — <expected behavior>
+
+#### Observable Side Effects / Instrumentation
+8. <scenario name> — <expected behavior: which capture/emit/audit/external call fires, with what payload, under what condition; and which does NOT fire>
 
 ### E2E Scenarios (if applicable)
 #### File: <path/to/e2e.spec.ts>
