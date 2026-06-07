@@ -1,5 +1,5 @@
 ---
-description: Phase 8.6 requirements traceability — re-reads the original spec/MIU criteria and verifies each acceptance criterion has matching implementation + test. Catches "we shipped a feature that's missing the requirement we promised." Auto-invoked from /dev-pipeline:validate.
+description: Phase 8.6 requirements traceability — re-reads the original spec/MIU criteria and verifies each acceptance criterion has matching implementation + test. Catches "we shipped a feature that's missing the requirement we promised." Invoked as Phase 8.6 of /dev-pipeline:pipeline (the full feature flow).
 ---
 
 # Development Pipeline: Requirements Traceability (Phase 8.6)
