@@ -19,12 +19,15 @@ Answer from existing docs + minimal code reading:
 - Which files are affected?
 - Are there existing tests to extend?
 
+**Intent check (per CLAUDE.md Rule 21).** Apply the business-vs-technical test (`skills/spec-elicitor/SKILL.md` → "When to run me"): is the intended behaviour of this enhancement self-evident, or is an axis still undecided — "should it also handle invited users?", "does the new toggle apply per-user or per-org?". If an axis is undecided, **invoke the `dev-pipeline:spec-elicitor` skill in Scope-Lock mode (Mode B)** — 2–4 questions, no file — and fold the 🔒 Intent Lock into the G1 scope statement below. If the change is purely mechanical (rename, bump, obvious tweak), skip straight to G1.
+
 G1 gate:
 ```
 ✅ G1: Enhancement scoped.
 Changing: [what]
 Files: [list]
 Tests to extend: [list]
+Intent locked: [🔒 Intent Lock summary if Scope-Lock ran, else "behaviour self-evident — no clarification needed"]
 [Y to continue]
 ```
 
