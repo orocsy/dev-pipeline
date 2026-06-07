@@ -106,6 +106,25 @@ verified-by-execution bugs (not just prose review) that are now fixed:
   `/dev-pipeline:consolidate-lessons` (not yet consumed) — a write-only audit trail until
   that loop exists.
 
+## 2026-06-07 — Socratic gate across fix/update + business-vs-technical classifier
+
+- **Widened the Socratic trigger surface** (`skills/spec-elicitor/SKILL.md`,
+  `CLAUDE.md` Rule 23). The elicitor used to fire only for new features
+  (`plan` / `dev-pipeline` / `scaffold-from-prd`). It now also fires for enhancements
+  (`update`) and **business/behavioural bugs** (`fix` Step 1.5) — anywhere a request's
+  *intended behaviour* is undecided, not just a literal requirements phase.
+- **Business-vs-technical test** (`skills/spec-elicitor/SKILL.md` → "When to run me").
+  Canonical litmus: "is the correct behaviour self-evident, or is it itself the thing in
+  question?" Self-evident (TypeError, crash, build break) → skip; must-be-decided
+  ("discount applies twice") → run the pass. Rule 23 and every flow point at this one definition.
+- **Scope-Lock mode (Mode B)** (`skills/spec-elicitor/SKILL.md`). A lightweight 2–4-turn
+  pass for enhancements/bugs that writes NO file — returns a 🔒 Intent Lock folded into the
+  caller's gate (`update` G1 / `fix` triage) and the commit/PR body. Keeps small fixes out
+  of Phase 8.6 traceability machinery. The original full-SPEC behaviour is Mode A.
+- **`requirements-analyst` open questions are now framed Socratically**
+  (`agents/requirements-analyst.md`) — clarify / probe assumptions / probe evidence /
+  alternatives / implications, with numbered options.
+
 ## 2026-05-28
 
 - **Merge the two lesson stores into one canonical home.** Cross-file-seam failure
