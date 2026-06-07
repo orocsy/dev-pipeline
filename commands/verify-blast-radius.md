@@ -1,5 +1,5 @@
 ---
-description: Phase 8.1 blast radius analysis — finds dependents of changed shared modules and runs their tests, even if not directly modified. Catches "shared selector renamed, dependent E2E silently broken." Auto-invoked from /dev-pipeline:validate.
+description: Phase 8.1 blast radius analysis — finds dependents of changed shared modules and runs their tests, even if not directly modified. Catches "shared selector renamed, dependent E2E silently broken." Invoked as Phase 8.1 of /dev-pipeline:pipeline (the full feature flow).
 ---
 
 # Development Pipeline: Blast Radius Verification (Phase 8.1)

@@ -1,5 +1,5 @@
 ---
-description: Phase 7.5 API contract verification — diffs frontend payload shapes against backend DTO/schema definitions. Catches "frontend sends extra field, backend rejects with 400" before runtime. Auto-invoked from /dev-pipeline:validate when diff touches both client and server.
+description: Phase 7.5 API contract verification — diffs frontend payload shapes against backend DTO/schema definitions. Catches "frontend sends extra field, backend rejects with 400" before runtime. Invoked as Phase 7.5 of /dev-pipeline:pipeline when the diff touches both client and server.
 ---
 
 # Development Pipeline: API Contract Verification (Phase 7.5)
