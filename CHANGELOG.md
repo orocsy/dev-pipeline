@@ -12,6 +12,25 @@ Conventions:
 
 ---
 
+## 2026-06-24 — engineering-craft auto-bootstrap
+
+- **Auto-bootstrap the `engineering-craft` skill on every command** (`commands/detect.md`
+  STEP 0, which runs at Phase 0 of every flow). On a fresh machine where the skill is
+  missing it clones the public mirror; when present it refreshes the skill clone itself
+  in the background. Rate-limited to once per 24h. Clone failures degrade gracefully
+  (warn, never a false "installed" success) so `/dev-pipeline:review` STEP 1.5 always has
+  the incident-derived priors when they're available. `commands/init.md` STEP 1.5 just
+  documents that init no longer needs a manual bootstrap step.
+- **`/dev-pipeline:setup-machine` command** (`commands/setup-machine.md`). Idempotent
+  fresh-machine bootstrap — detects what's missing (skill, plugin, hooks, settings,
+  launchd), wraps the engineering-craft installer, verifies end-to-end. Use on first run
+  on a new device or when a hook/setting drifts.
+- **Knowledge-reference sidecar** (`commands/review.md` STEP 1.5b). `/dev-pipeline:review`
+  emits `.claude/knowledge-refs-<sha>.json` recording which engineering-craft rules primed
+  the reviewer prompts. Reserved for a future rule-decay loop in
+  `/dev-pipeline:consolidate-lessons` (not yet consumed) — a write-only audit trail until
+  that loop exists.
+
 ## 2026-05-28
 
 - **Merge the two lesson stores into one canonical home.** Cross-file-seam failure

@@ -58,6 +58,20 @@ If `project-profile.json` already exists and is <7 days old, skip detection.
 
 ---
 
+## STEP 1.5: engineering-craft skill bootstrap
+
+Already handled automatically by `/dev-pipeline:detect` STEP 0 which runs at Phase 0
+of every dev-pipeline command. No action needed in init — by the time init runs,
+detect has already either cloned the skill from `https://github.com/orocsy/engineering-craft`
+(if missing) or pulled the latest rules (if present, rate-limited to once per 24h).
+
+This means a fresh machine can run ANY `/dev-pipeline:*` command and engineering-craft
+gets bootstrapped automatically — no manual setup step.
+
+See `commands/detect.md` STEP 0 for the implementation.
+
+---
+
 ## STEP 2: Create .claude/ Structure
 
 ```bash

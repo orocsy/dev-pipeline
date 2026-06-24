@@ -28,6 +28,66 @@ If the diff is >50 files, split into clusters by directory and review in paralle
 
 ---
 
+## STEP 1.5: Load Production-Defensive-Patterns Skill (MANDATORY)
+
+Before spawning reviewers, load the `engineering-craft` skill index. This skill is distilled from real post-merge incidents — every rule cites a historical SHA — and is the single highest-leverage filter to run BEFORE the parallel reviewers.
+
+Detect which categories the diff touches by grep:
+
+```bash
+# Concurrency / CAS triggers
+git diff "$BASE"..HEAD | grep -E "findUnique|findFirst|update.*WHERE|consumedAt|tokenVersion|client\.(get|set|del|eval)|requestPasswordReset|resetPassword|otp|jti|consume" | head -5
+
+# Enumeration safety triggers
+git diff "$BASE"..HEAD | grep -E "@HttpCode\(204\)|forgot-password|equalizeBcrypt|findFirst.*email|@Post.*forgot" | head -5
+
+# Config drift triggers
+git diff "$BASE"..HEAD --name-only | grep -E "env\.schema|deploy\.yml|\.env\.example|envSchema" | head -5
+
+# Silent no-op integration triggers
+git diff "$BASE"..HEAD | grep -E "RESEND_API_KEY|TWILIO|STRIPE_SECRET|isConfigured\(\)|new Resend\(|sendEmail" | head -5
+
+# Grep-for-siblings triggers (security literal removal)
+git diff "$BASE"..HEAD | grep -E "^-.*'(dev-secret|change-in-production|local-|TODO-set)" | head -5
+```
+
+For each category that fires:
+
+1. Load the matching `~/.claude/skills/engineering-craft/categories/<class>/README.md` into context.
+2. Use that category's rule list and templates as the FRAME for the reviewer prompts in STEP 2 (specifically — the reviewer's `Look for:` clause must include this category's anti-patterns).
+
+Always run the [pre-merge-self-review.md](file:///Users/SeanCai/.claude/skills/engineering-craft/checklists/pre-merge-self-review.md) checklist mentally, ticking each box that applies to the diff. Any unticked box on a triggered category → block with severity P1 even if no other reviewer flags it.
+
+Skipping STEP 1.5 means reviewers operate without the project's own incident-derived priors. PR#85 cost 5 review rounds because this step didn't exist.
+
+### STEP 1.5b: Emit knowledge-references sidecar
+
+For each engineering-craft rule the reviewer agents will be primed with, record it. After STEP 5 (bless or block), write:
+
+```bash
+mkdir -p .claude
+cat > ".claude/knowledge-refs-${HEAD_SHA:0:7}.json" <<JSON
+{
+  "sha": "${HEAD_SHA}",
+  "ts": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "knowledgeReferences": [
+    { "id": "concurrency-cas/state-machine-first",  "category": "concurrency-cas",   "usedIn": "STEP 2 reviewer-prompt prior" },
+    { "id": "enumeration-safety/timing-oracle",     "category": "enumeration-safety","usedIn": "STEP 2 reviewer-prompt prior" }
+  ]
+}
+JSON
+```
+
+Add one object per category-rule loaded into the reviewer prompts. Keep it valid JSON — no trailing comma after the last element, and **no comments inside the heredoc** (the file is machine-read; `//` makes it un-parseable).
+
+The IDs are `<category>/<rule-slug>` matching `~/.claude/skills/engineering-craft/categories/<category>/rules/<slug>.md`.
+
+This sidecar is **reserved** for a future decay loop in `/dev-pipeline:consolidate-lessons` that would bump each referenced rule's `last-referenced` field (proven 365d / verified 180d → demote). **That consumer is not yet implemented** — consolidate-lessons does not read these files today. Emit them anyway so the history exists when the loop is built; until then they are a write-only audit trail, not an active feedback loop.
+
+If no engineering-craft rules were loaded (diff didn't trigger any category), still emit the sidecar with an empty `knowledgeReferences` array — that's the signal that STEP 1.5 ran.
+
+---
+
 ## STEP 2: Run Parallel Reviewers (MANDATORY)
 
 Announce before spawning each agent:

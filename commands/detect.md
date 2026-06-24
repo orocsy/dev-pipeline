@@ -11,6 +11,70 @@ Never ask the user anything — infer everything from files and conversation con
 
 ---
 
+## STEP 0: Ensure engineering-craft skill is present (auto-bootstrap)
+
+The dev-pipeline plugin depends on the `engineering-craft` skill at user-level
+(`~/.claude/skills/engineering-craft/`) — `/dev-pipeline:review` STEP 1.5 reads
+from it; `/dev-pipeline:consolidate-lessons` writes to it. The skill content is
+NOT bundled with the plugin (knowledge has a different lifecycle than workflow
+harness — see "Harness isn't the goal, knowledge is the moat").
+
+This step makes the bootstrap automatic on EVERY dev-pipeline command, so users
+never have to remember to run init manually on a fresh machine.
+
+```bash
+SKILL_DIR="$HOME/.claude/skills/engineering-craft"
+LAST_SYNC="$HOME/.claude/lessons-journal/.last-mirror-sync"
+
+# Check if we already synced today (rate-limit to once per 24h to avoid noise)
+if [ -f "$LAST_SYNC" ]; then
+  AGE=$(( $(date +%s) - $(stat -f %m "$LAST_SYNC" 2>/dev/null || stat -c %Y "$LAST_SYNC" 2>/dev/null || echo 0) ))
+  if [ "$AGE" -lt 86400 ] && [ -d "$SKILL_DIR/categories" ]; then
+    : # already fresh, no-op
+  else
+    NEEDS_SYNC=1
+  fi
+else
+  NEEDS_SYNC=1
+fi
+
+if [ -n "${NEEDS_SYNC:-}" ]; then
+  if [ ! -d "$SKILL_DIR/categories" ]; then
+    echo "[detect] engineering-craft not present — bootstrapping from public mirror"
+    mkdir -p "$HOME/.claude/skills" "$HOME/.claude/lessons-journal"
+    if command -v git >/dev/null 2>&1; then
+      # Guard on BOTH the clone exit status AND the resulting dir — a pipe
+      # (… | tail) would mask the clone's failure behind tail's exit code.
+      if git clone --quiet https://github.com/orocsy/engineering-craft "$SKILL_DIR" 2>/dev/null && [ -d "$SKILL_DIR/categories" ]; then
+        RULE_COUNT=$(find "$SKILL_DIR/categories" -name "*.md" -path "*/rules/*" 2>/dev/null | wc -l | tr -d ' ')
+        CAT_COUNT=$(ls -d "$SKILL_DIR"/categories/*/ 2>/dev/null | wc -l | tr -d ' ')
+        echo "[detect] engineering-craft installed: $RULE_COUNT rules across $CAT_COUNT categories"
+      else
+        echo "[detect] WARN: engineering-craft clone failed (offline?) — /review skill features degrade gracefully"
+      fi
+    else
+      echo "[detect] WARN: git not available; skipping engineering-craft bootstrap"
+    fi
+  elif [ -d "$SKILL_DIR/.git" ]; then
+    # Skill present and is a git clone — refresh THE SKILL ITSELF (the dir /review
+    # reads) in the background. Pulling a separate mirror would never freshen it.
+    git -C "$SKILL_DIR" pull --ff-only >/dev/null 2>&1 &
+  fi
+  touch "$LAST_SYNC"
+fi
+```
+
+Behavior:
+- **Fresh machine** (skill missing): clone from public mirror, ~5 sec, prints one-line summary (or a WARN on failure — never a false "0 rules" success)
+- **Skill present, last sync >24h ago**: `git -C "$SKILL_DIR" pull` in background, no wait
+- **Skill present, last sync <24h ago**: no-op, instant
+- **No git available / clone fails**: warn but continue (skill features in /review degrade gracefully)
+
+The 24h rate-limit avoids hitting GitHub on every single dev-pipeline command in a
+working session while still keeping the skill fresh in normal use.
+
+---
+
 ## STEP 1: Project Type Detection
 
 Read these files (whichever exist):
