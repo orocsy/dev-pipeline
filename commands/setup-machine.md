@@ -19,38 +19,78 @@ Bootstrap the full Claude Code stack on a fresh machine. This wraps `~/.claude/s
 
 ## STEP 1: Detect what's missing
 
-Check each layer and report:
+Check each layer and report. Layers are tagged **REQUIRED** (absence forces setup to run)
+or **OPTIONAL** (acceptable to be absent — a lazily-provisioned mirror, a spec-forge you may
+not use, launchd on non-macOS). Only a missing REQUIRED layer counts toward the gate, so
+re-running on an already-set-up box — or on Linux — correctly reaches "Already set up"
+instead of looping the installer:
 
 ```bash
-echo "=== engineering-craft skill ==="
-[ -d "$HOME/.claude/skills/engineering-craft/categories" ] \
-  && echo "✓ present ($(find "$HOME/.claude/skills/engineering-craft/categories" -name '*.md' -path '*/rules/*' | wc -l | tr -d ' ') rules)" \
-  || echo "✗ MISSING"
+REQUIRED_MISSING=0
 
-echo "=== engineering-craft mirror clone (provisioned lazily, not by setup) ==="
+echo "=== engineering-craft skill (REQUIRED) ==="
+if [ -d "$HOME/.claude/skills/engineering-craft/categories" ]; then
+  echo "✓ present ($(find "$HOME/.claude/skills/engineering-craft/categories" -name '*.md' -path '*/rules/*' | wc -l | tr -d ' ') rules)"
+else
+  echo "✗ MISSING"; REQUIRED_MISSING=1
+fi
+
+echo "=== engineering-craft mirror (OPTIONAL — provisioned by install.sh in STEP 2) ==="
 [ -d "$HOME/.claude/external-mirrors/engineering-craft/.git" ] \
-  && echo "✓ present" || echo "✗ MISSING (OK on a fresh machine — created on first /dev-pipeline:consolidate-lessons)"
+  && echo "✓ present" \
+  || echo "○ absent (will be cloned by install.sh in STEP 2)"
 
-echo "=== dev-pipeline plugin ==="
-[ -d "$HOME/.claude/plugins/marketplaces/local/plugins/dev-pipeline/.git" ] \
-  && echo "✓ present" || echo "✗ MISSING"
+echo "=== dev-pipeline plugin (REQUIRED) ==="
+if [ -d "$HOME/.claude/plugins/marketplaces/local/plugins/dev-pipeline/.git" ]; then
+  echo "✓ present"
+else
+  echo "✗ MISSING"; REQUIRED_MISSING=1
+fi
 
-echo "=== spec-forge ==="
+echo "=== spec-forge (OPTIONAL — only for /dev-pipeline:scaffold-from-prd) ==="
 [ -d "${SPEC_FORGE_DIR:-$HOME/Desktop/projects/spec-forge}/.git" ] \
-  && echo "✓ present" || echo "✗ MISSING (skip if not using scaffold-from-prd)"
+  && echo "✓ present" \
+  || echo "○ absent (skip if not using scaffold-from-prd)"
 
-echo "=== Hooks ==="
-[ -x "$HOME/.claude/hooks/post-codex-fix-extract-lesson.sh" ] \
-  && echo "✓ post-codex-fix-extract-lesson.sh installed" || echo "✗ MISSING"
-[ -f "$HOME/.claude/hooks/session-start.sh" ] && grep -q "engineering-craft skill bootstrap" "$HOME/.claude/hooks/session-start.sh" \
-  && echo "✓ session-start.sh has engineering-craft fragment" || echo "✗ session-start.sh missing fragment"
+echo "=== hooks (REQUIRED) ==="
+if [ -x "$HOME/.claude/hooks/post-codex-fix-extract-lesson.sh" ]; then
+  echo "✓ post-codex-fix-extract-lesson.sh installed"
+else
+  echo "✗ MISSING"; REQUIRED_MISSING=1
+fi
+# install.sh writes the marker "# === engineering-craft auto-bootstrap"; a hand-assembled
+# hook may instead say "engineering-craft skill bootstrap". Match either so a correctly
+# bootstrapped fresh machine isn't seen as missing (which would break idempotency).
+if [ -f "$HOME/.claude/hooks/session-start.sh" ] && grep -qE "engineering-craft (auto-bootstrap|skill bootstrap)" "$HOME/.claude/hooks/session-start.sh"; then
+  echo "✓ session-start.sh has engineering-craft fragment"
+else
+  echo "✗ session-start.sh missing fragment"; REQUIRED_MISSING=1
+fi
 
-echo "=== launchd consolidation reminder ==="
-launchctl list 2>/dev/null | grep -q engineering-craft \
-  && echo "✓ loaded" || echo "✗ NOT loaded"
+echo "=== launchd consolidation reminder (REQUIRED on macOS · n/a elsewhere) ==="
+if [ "$(uname)" = Darwin ]; then
+  # macOS: required — a set-up mac has it loaded; a fresh mac gets it in STEP 2.
+  if launchctl list 2>/dev/null | grep -q engineering-craft; then
+    echo "✓ loaded"
+  else
+    echo "✗ not loaded (will be set up in STEP 2)"; REQUIRED_MISSING=1
+  fi
+else
+  echo "○ n/a (launchd is macOS-only)"
+fi
+
+echo ""
+if [ "$REQUIRED_MISSING" -eq 0 ]; then
+  echo "RESULT: all REQUIRED layers present (optional ○ items are fine to leave)."
+else
+  echo "RESULT: one or more REQUIRED layers missing — proceed to STEP 2."
+fi
 ```
 
-If everything is `✓` and the user didn't ask to force-reinstall, exit "Already set up." If anything is `✗`, continue.
+If `REQUIRED_MISSING` is `0` and the user didn't ask to force-reinstall, exit **"Already
+set up."** Optional `○` items (mirror not yet cloned, unused spec-forge, launchd on Linux)
+do NOT count toward the gate — leaving them absent is correct, which is what keeps re-runs
+idempotent. Only a REQUIRED `✗` means continue to STEP 2.
 
 ---
 
@@ -82,6 +122,16 @@ elif [ -d "$SKILL_DIR" ] && [ -n "$(ls -A "$SKILL_DIR" 2>/dev/null)" ]; then
 else
   mkdir -p "$(dirname "$SKILL_DIR")"
   git clone "$REPO" "$SKILL_DIR"
+fi
+
+# Bail if the skill bootstrap above didn't actually produce the installer. Running a
+# missing/stale install.sh against a half-cloned tree only yields a confusing error;
+# stop here and report that the SKILL bootstrap (not the installer) is what failed.
+if [ ! -f "$SKILL_DIR/bootstrap/install.sh" ]; then
+  echo "[setup] ✗ engineering-craft bootstrap incomplete — no $SKILL_DIR/bootstrap/install.sh"
+  echo "        (skill clone/refresh failed: offline, bad ENGINEERING_CRAFT_REPO, or swap failure)."
+  echo "        Fix connectivity / the repo URL and re-run — NOT invoking the installer against a missing tree."
+  exit 1
 fi
 
 # All three repos (engineering-craft, dev-pipeline, spec-forge) are PUBLIC — default the

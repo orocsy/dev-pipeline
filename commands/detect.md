@@ -50,9 +50,13 @@ else
 fi
 
 if [ -n "${NEEDS_SYNC:-}" ]; then
+  # Ensure the marker's parent dir exists before ANY branch touches it — the skill may
+  # have been installed by setup-machine / review self-bootstrap, which create only the
+  # skills dir, so the present-skill branches below would otherwise fail to advance it.
+  mkdir -p "$(dirname "$LAST_SYNC")"
   if [ ! -d "$SKILL_DIR/categories" ]; then
     echo "[detect] engineering-craft not present — bootstrapping from public mirror"
-    mkdir -p "$HOME/.claude/skills" "$HOME/.claude/lessons-journal"
+    mkdir -p "$HOME/.claude/skills"
     if command -v git >/dev/null 2>&1; then
       # A leftover non-empty dir (partial/corrupt clone — no categories/, maybe no
       # .git/) would make `git clone` abort forever; clear it so the clone targets a
