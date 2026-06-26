@@ -14,17 +14,21 @@ Conventions:
 
 ## 2026-06-24 — engineering-craft auto-bootstrap
 
-- **Auto-bootstrap the `engineering-craft` skill on every command** (`commands/detect.md`
-  STEP 0, which runs at Phase 0 of every flow). On a fresh machine where the skill is
-  missing it clones the public mirror; when present it refreshes the skill clone itself
-  in the background. Rate-limited to once per 24h. Clone failures degrade gracefully
-  (warn, never a false "installed" success) so `/dev-pipeline:review` STEP 1.5 always has
-  the incident-derived priors when they're available. `commands/init.md` STEP 1.5 just
-  documents that init no longer needs a manual bootstrap step.
+- **Layered, self-healing `engineering-craft` skill bootstrap.** Three paths share one 24h
+  marker so the skill converges without manual setup: the SessionStart hook (primary,
+  once per session), `commands/detect.md` STEP 0 (secondary safety net for flows that run
+  detect), and `/dev-pipeline:review` STEP 1.5 (self-bootstraps if review is invoked
+  directly). On a fresh machine the missing skill is cloned from the public HTTPS mirror;
+  when present it's fast-forward-refreshed. The 24h rate-limit marker is advanced **only on
+  a successful clone/pull**, so one offline blip can't suppress bootstrap for a day. The
+  `stat` mtime read is GNU/BSD-portable (tries `-c %Y` before `-f %m`). `commands/init.md`
+  STEP 1.5 documents the layering accurately (it's not "every command").
 - **`/dev-pipeline:setup-machine` command** (`commands/setup-machine.md`). Idempotent
   fresh-machine bootstrap — detects what's missing (skill, plugin, hooks, settings,
-  launchd), wraps the engineering-craft installer, verifies end-to-end. Use on first run
-  on a new device or when a hook/setting drifts.
+  launchd), clones the skill first (the installer lives inside it, so it can't clone
+  itself), then runs the installer for the rest, defaulting all clones to public HTTPS so
+  a device with no SSH key still works. macOS-first (launchd). Use on first run on a new
+  device or when a hook/setting drifts.
 - **Knowledge-reference sidecar** (`commands/review.md` STEP 1.5b). `/dev-pipeline:review`
   emits `.claude/knowledge-refs-<sha>.json` recording which engineering-craft rules primed
   the reviewer prompts. Reserved for a future rule-decay loop in

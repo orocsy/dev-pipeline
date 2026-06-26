@@ -13,6 +13,8 @@ Bootstrap the full Claude Code stack on a fresh machine. This wraps `~/.claude/s
 
 **Idempotent**: re-running is safe. Skips steps that are already done.
 
+**Platform**: macOS-first. The consolidation reminder uses **launchd** (`launchctl`, `~/Library/LaunchAgents`), which is macOS-only — on Linux those steps no-op/fail and the equivalent (a systemd timer or cron job) is not yet wired. Everything else (skill, plugin, hooks, settings) is cross-platform.
+
 ---
 
 ## STEP 1: Detect what's missing
@@ -22,19 +24,19 @@ Check each layer and report:
 ```bash
 echo "=== engineering-craft skill ==="
 [ -d "$HOME/.claude/skills/engineering-craft/categories" ] \
-  && echo "✓ present ($(find $HOME/.claude/skills/engineering-craft/categories -name '*.md' -path '*/rules/*' | wc -l | tr -d ' ') rules)" \
+  && echo "✓ present ($(find "$HOME/.claude/skills/engineering-craft/categories" -name '*.md' -path '*/rules/*' | wc -l | tr -d ' ') rules)" \
   || echo "✗ MISSING"
 
-echo "=== engineering-craft mirror clone ==="
+echo "=== engineering-craft mirror clone (provisioned lazily, not by setup) ==="
 [ -d "$HOME/.claude/external-mirrors/engineering-craft/.git" ] \
-  && echo "✓ present" || echo "✗ MISSING"
+  && echo "✓ present" || echo "✗ MISSING (OK on a fresh machine — created on first /dev-pipeline:consolidate-lessons)"
 
 echo "=== dev-pipeline plugin ==="
 [ -d "$HOME/.claude/plugins/marketplaces/local/plugins/dev-pipeline/.git" ] \
   && echo "✓ present" || echo "✗ MISSING"
 
 echo "=== spec-forge ==="
-[ -d "$HOME/Desktop/projects/spec-forge/.git" ] \
+[ -d "${SPEC_FORGE_DIR:-$HOME/Desktop/projects/spec-forge}/.git" ] \
   && echo "✓ present" || echo "✗ MISSING (skip if not using scaffold-from-prd)"
 
 echo "=== Hooks ==="
@@ -52,26 +54,56 @@ If everything is `✓` and the user didn't ask to force-reinstall, exit "Already
 
 ---
 
-## STEP 2: Run the bootstrap installer
+## STEP 2: Bootstrap the skill, then run the installer
+
+`install.sh` lives *inside* the engineering-craft skill dir, so it can't clone the skill it
+runs from — on a truly fresh machine STEP 1 reports the skill MISSING and a bare
+`bash …/install.sh` dies with "No such file or directory" before anything installs.
+Clone-or-refresh the skill FIRST, then hand off to the installer for everything else:
 
 ```bash
-bash "$HOME/.claude/skills/engineering-craft/bootstrap/install.sh"
+SKILL_DIR="$HOME/.claude/skills/engineering-craft"
+REPO="${ENGINEERING_CRAFT_REPO:-https://github.com/orocsy/engineering-craft}"
+
+if [ -d "$SKILL_DIR/categories" ]; then
+  # Already present — fast-forward refresh, tolerate failure (offline is fine here).
+  [ -d "$SKILL_DIR/.git" ] && git -C "$SKILL_DIR" pull --ff-only origin main 2>&1 | tail -2 || true
+elif [ -d "$SKILL_DIR" ] && [ -n "$(ls -A "$SKILL_DIR" 2>/dev/null)" ]; then
+  # Partial/corrupt dir (the "hook/setting out of sync" case) — a bare `git clone`
+  # would abort on a non-empty target, so clone aside and swap into place. Clear any
+  # leftover temp from an interrupted prior run FIRST so re-runs stay idempotent, and
+  # guard the swap so a failed `rm` can't make `mv` nest the clone inside the old dir.
+  rm -rf "${SKILL_DIR}.tmp"
+  if git clone "$REPO" "${SKILL_DIR}.tmp"; then
+    rm -rf "$SKILL_DIR" && [ ! -e "$SKILL_DIR" ] && mv "${SKILL_DIR}.tmp" "$SKILL_DIR"
+  else
+    rm -rf "${SKILL_DIR}.tmp"; echo "[setup] skill clone failed (offline?) — original left intact"
+  fi
+else
+  mkdir -p "$(dirname "$SKILL_DIR")"
+  git clone "$REPO" "$SKILL_DIR"
+fi
+
+# All three repos (engineering-craft, dev-pipeline, spec-forge) are PUBLIC — default the
+# installer to HTTPS so a brand-new device with no SSH key still works. SSH is opt-in.
+DEV_PIPELINE_REPO="${DEV_PIPELINE_REPO:-https://github.com/orocsy/dev-pipeline.git}" \
+SPEC_FORGE_REPO="${SPEC_FORGE_REPO:-https://github.com/orocsy/spec-forge.git}" \
+  bash "$SKILL_DIR/bootstrap/install.sh"
 ```
 
-The script handles:
-- engineering-craft skill clone (if missing)
-- dev-pipeline plugin clone (if missing)
-- spec-forge clone (if missing)
-- hooks copy + session-start fragment merge
-- settings.json hook registration (jq-merged, doesn't clobber)
-- launchd plist install + load
+Responsibilities:
+- **The clone-or-refresh block above** installs/updates the engineering-craft skill — `install.sh` does NOT (it can't clone the dir it lives in).
+- **`install.sh`** then handles: dev-pipeline plugin clone, spec-forge clone, hooks copy +
+  session-start fragment merge, settings.json hook registration (jq-merged, doesn't
+  clobber), launchd plist install + load.
 
 Allowed env overrides (pass to user if asked):
+- `ENGINEERING_CRAFT_REPO=<url>` — fork or alternate skill remote
 - `SKIP_DEV_PIPELINE=1` — skip dev-pipeline clone
 - `SKIP_SPEC_FORGE=1` — skip spec-forge clone
 - `SPEC_FORGE_DIR=<path>` — custom spec-forge location
-- `DEV_PIPELINE_REPO=<url>` — fork or HTTPS URL
-- `SPEC_FORGE_REPO=<url>` — fork or HTTPS URL
+- `DEV_PIPELINE_REPO=<url>` — SSH (`git@…`) or fork URL (default is HTTPS, no auth needed)
+- `SPEC_FORGE_REPO=<url>` — SSH (`git@…`) or fork URL (default is HTTPS, no auth needed)
 
 ---
 
@@ -84,8 +116,8 @@ bash "$HOME/.claude/hooks/session-start.sh" 2>&1 | head -10
 # Run lint
 python3 "$HOME/.claude/skills/engineering-craft/scripts/lint.py" 2>&1 | tail -8
 
-# Confirm launchd
-launchctl list | grep engineering-craft
+# Confirm launchd (macOS only — no-op on Linux)
+launchctl list 2>/dev/null | grep engineering-craft || echo "(launchd check skipped — not macOS, or reminder not loaded)"
 ```
 
 Expected: SessionStart shows engineering-craft present; lint clean; launchd loaded.

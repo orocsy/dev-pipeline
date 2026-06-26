@@ -87,7 +87,7 @@ gh run list --branch main --limit 5 --json status,conclusion,name \
 ```bash
 for doc in .claude/docs/PROJECT_STATUS.md .claude/docs/ARCHITECTURE.md .claude/docs/RECENT_CHANGES.md; do
   if [[ -f "$doc" ]]; then
-    age=$(( ($(date +%s) - $(stat -f %m "$doc" 2>/dev/null || stat -c %Y "$doc")) / 3600 ))
+    age=$(( ($(date +%s) - $(stat -c %Y "$doc" 2>/dev/null || stat -f %m "$doc" 2>/dev/null || echo 0)) / 3600 ))
     echo "$doc: ${age}h old"
   else
     echo "$doc: MISSING"
