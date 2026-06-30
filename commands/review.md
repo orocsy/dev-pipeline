@@ -36,14 +36,17 @@ Before spawning reviewers, load the `engineering-craft` skill index. This skill 
 
 ```bash
 SKILL_DIR="$HOME/.claude/skills/engineering-craft"
-if [ ! -d "$SKILL_DIR/categories" ] && command -v git >/dev/null 2>&1; then
-  echo "[review] engineering-craft missing — bootstrapping (mirrors /dev-pipeline:detect STEP 0)"
+CHECKLIST="$SKILL_DIR/checklists/pre-merge-self-review.md"
+# Bootstrap if the skill is missing OR incomplete for review — STEP 1.5 needs BOTH the
+# category rules AND the pre-merge checklist, so a partial checkout missing either is unusable.
+if { [ ! -d "$SKILL_DIR/categories" ] || [ ! -f "$CHECKLIST" ]; } && command -v git >/dev/null 2>&1; then
+  echo "[review] engineering-craft missing/incomplete — bootstrapping (mirrors /dev-pipeline:detect STEP 0)"
   mkdir -p "$HOME/.claude/skills"
-  # A leftover non-empty dir (partial/corrupt clone, no categories/) would make
-  # `git clone` abort and leave review permanently without priors; clear it first.
+  # A leftover partial dir (missing categories/ or the checklist) would make `git clone`
+  # abort and leave review permanently without priors; clear it first.
   [ -d "$SKILL_DIR" ] && [ -n "$(ls -A "$SKILL_DIR" 2>/dev/null)" ] && rm -rf "$SKILL_DIR"
-  git clone --quiet "${ENGINEERING_CRAFT_REPO:-https://github.com/orocsy/engineering-craft}" "$SKILL_DIR" 2>/dev/null && [ -d "$SKILL_DIR/categories" ] \
-    || echo "[review] WARN: bootstrap failed (offline?) — proceeding WITHOUT category priors; reviewers still run"
+  git clone --quiet "${ENGINEERING_CRAFT_REPO:-https://github.com/orocsy/engineering-craft}" "$SKILL_DIR" 2>/dev/null && [ -d "$SKILL_DIR/categories" ] && [ -f "$CHECKLIST" ] \
+    || echo "[review] WARN: bootstrap failed/incomplete (offline?) — proceeding WITHOUT category priors; reviewers still run"
 fi
 ```
 
@@ -69,7 +72,7 @@ git diff "$BASE"..HEAD | grep -E "^\+.*(process\.env\.|import\.meta\.env\.|os\.e
 git diff "$BASE"..HEAD | grep -E "RESEND_API_KEY|TWILIO|STRIPE_SECRET|isConfigured\(\)|new Resend\(|sendEmail" | head -5
 
 # Grep-for-siblings triggers (security literal removal)
-git diff "$BASE"..HEAD | grep -E "^-.*'(dev-secret|change-in-production|local-|TODO-set)" | head -5
+git diff "$BASE"..HEAD | grep -E "^-.*(dev-secret|change-in-production|local-|TODO-set)" | head -5
 ```
 
 For each category that fires:

@@ -29,10 +29,13 @@ instead of looping the installer:
 REQUIRED_MISSING=0
 
 echo "=== engineering-craft skill (REQUIRED) ==="
-if [ -d "$HOME/.claude/skills/engineering-craft/categories" ]; then
+# Require the SAME completeness STEP 2 enforces (categories/ AND the installer), so a
+# stripped tree with categories but no installer isn't reported "present" and skipped past
+# STEP 2's repair path.
+if [ -d "$HOME/.claude/skills/engineering-craft/categories" ] && [ -f "$HOME/.claude/skills/engineering-craft/bootstrap/install.sh" ]; then
   echo "✓ present ($(find "$HOME/.claude/skills/engineering-craft/categories" -name '*.md' ! -name 'README.md' ! -name 'INDEX.md' | wc -l | tr -d ' ') rules)"
 else
-  echo "✗ MISSING"; REQUIRED_MISSING=1
+  echo "✗ MISSING or incomplete (need categories/ AND bootstrap/install.sh)"; REQUIRED_MISSING=1
 fi
 
 echo "=== engineering-craft mirror (OPTIONAL — provisioned by install.sh in STEP 2) ==="
@@ -41,7 +44,9 @@ echo "=== engineering-craft mirror (OPTIONAL — provisioned by install.sh in ST
   || echo "○ absent (will be cloned by install.sh in STEP 2)"
 
 echo "=== dev-pipeline plugin (REQUIRED) ==="
-if [ -d "$HOME/.claude/plugins/marketplaces/local/plugins/dev-pipeline/.git" ]; then
+# Gate on the plugin manifest, not .git — a copied (non-git) or symlinked plugin is still
+# usable; requiring .git would mark a valid install missing forever and loop the gate.
+if [ -f "$HOME/.claude/plugins/marketplaces/local/plugins/dev-pipeline/.claude-plugin/plugin.json" ]; then
   echo "✓ present"
 else
   echo "✗ MISSING"; REQUIRED_MISSING=1
