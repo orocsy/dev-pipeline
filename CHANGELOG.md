@@ -14,15 +14,17 @@ Conventions:
 
 ## 2026-06-24 — engineering-craft auto-bootstrap
 
-- **Layered, self-healing `engineering-craft` skill bootstrap.** Three paths share one 24h
-  marker so the skill converges without manual setup: the SessionStart hook (primary,
+- **Layered, self-healing `engineering-craft` skill bootstrap.** Three independently
+  rate-limited paths converge the skill without manual setup: the SessionStart hook (primary,
   once per session), `commands/detect.md` STEP 0 (secondary safety net for flows that run
   detect), and `/dev-pipeline:review` STEP 1.5 (self-bootstraps if review is invoked
-  directly). On a fresh machine the missing skill is cloned from the public HTTPS mirror;
-  when present it's fast-forward-refreshed. The 24h rate-limit marker is advanced **only on
-  a successful clone/pull**, so one offline blip can't suppress bootstrap for a day. The
-  `stat` mtime read is GNU/BSD-portable (tries `-c %Y` before `-f %m`). `commands/init.md`
-  STEP 1.5 documents the layering accurately (it's not "every command").
+  directly). detect uses its own `.last-skill-sync` marker, separate from the hook's
+  `.last-mirror-sync`, so a mirror-only refresh can't suppress a needed skill pull. On a
+  fresh machine the missing skill is cloned from the public HTTPS mirror; when present it's
+  fast-forward-refreshed. Each marker is advanced **only on a successful clone/pull**, so one
+  offline blip can't suppress bootstrap for a day. The `stat` mtime read is GNU/BSD-portable
+  (tries `-c %Y` before `-f %m`). `commands/init.md` STEP 1.5 documents the layering
+  accurately (it's not "every command").
 - **`/dev-pipeline:setup-machine` command** (`commands/setup-machine.md`). Idempotent
   fresh-machine bootstrap — detects what's missing (skill, plugin, hooks, settings,
   launchd), clones the skill first (the installer lives inside it, so it can't clone

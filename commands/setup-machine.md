@@ -133,13 +133,14 @@ else
   git clone "$REPO" "$SKILL_DIR"
 fi
 
-# Bail if the skill bootstrap above didn't actually produce the installer. Running a
-# missing/stale install.sh against a half-cloned tree only yields a confusing error;
-# stop here and report that the SKILL bootstrap (not the installer) is what failed.
-if [ ! -f "$SKILL_DIR/bootstrap/install.sh" ]; then
-  echo "[setup] ✗ engineering-craft bootstrap incomplete — no $SKILL_DIR/bootstrap/install.sh"
+# Bail unless the skill bootstrap above produced a COMPLETE tree — both the installer
+# AND categories/. A partial/corrupt dir (install.sh present but no categories/) whose
+# re-clone just failed would otherwise pass a bare -f check and run the installer from
+# the broken tree — exactly the incomplete-tree case this command is meant to repair.
+if [ ! -f "$SKILL_DIR/bootstrap/install.sh" ] || [ ! -d "$SKILL_DIR/categories" ]; then
+  echo "[setup] ✗ engineering-craft bootstrap incomplete — need BOTH bootstrap/install.sh and categories/ in $SKILL_DIR"
   echo "        (skill clone/refresh failed: offline, bad ENGINEERING_CRAFT_REPO, or swap failure)."
-  echo "        Fix connectivity / the repo URL and re-run — NOT invoking the installer against a missing tree."
+  echo "        Fix connectivity / the repo URL and re-run — NOT invoking the installer against a broken tree."
   exit 1
 fi
 

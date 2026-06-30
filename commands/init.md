@@ -60,8 +60,9 @@ If `project-profile.json` already exists and is <7 days old, skip detection.
 
 ## STEP 1.5: engineering-craft skill bootstrap
 
-No manual action needed in init — the skill is bootstrapped by layered, self-healing paths
-that share one 24h marker, so it converges without a dedicated step here:
+No manual action needed in init — the skill is bootstrapped by layered, self-healing paths,
+each independently rate-limited (the hook and detect use *separate* 24h markers so a
+mirror-only refresh can't suppress a skill pull), so it converges without a dedicated step here:
 
 1. **SessionStart hook (`session-start.sh`) — primary.** Runs once per session; clones the
    skill if missing, else fast-forward-refreshes it (and refreshes the read-write mirror

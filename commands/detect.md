@@ -23,15 +23,17 @@ This step is a **secondary safety net**. The primary engineering-craft bootstrap
 SessionStart hook (`session-start.sh`), which runs once per session and clones the skill
 if missing (it fast-forward-refreshes the read-write mirror only when that already exists —
 provisioning the mirror itself is `setup-machine` / `consolidate-lessons` territory). STEP 0
-shares the *same* 24h marker, so it's normally a no-op
-when the hook already ran — it earns its keep for non-interactive / piped command
-invocations where SessionStart didn't fire. It does NOT run before literally every command
-(only flows that invoke `/dev-pipeline:detect` do); commands that hard-depend on the skill
-self-bootstrap too (see `/dev-pipeline:review` STEP 1.5).
+rate-limits its own SKILL refresh with a **skill-specific** marker (`.last-skill-sync`) —
+deliberately NOT the hook's `.last-mirror-sync`. The hook touches the mirror marker every
+time it refreshes the *mirror*; sharing it would let a mirror-only refresh suppress a needed
+*skill* pull for 24h, leaving `/dev-pipeline:review` on stale rules. STEP 0 earns its keep
+for non-interactive / piped command invocations where SessionStart didn't fire. It does NOT
+run before literally every command (only flows that invoke `/dev-pipeline:detect` do);
+commands that hard-depend on the skill self-bootstrap too (see `/dev-pipeline:review` STEP 1.5).
 
 ```bash
 SKILL_DIR="$HOME/.claude/skills/engineering-craft"
-LAST_SYNC="$HOME/.claude/lessons-journal/.last-mirror-sync"
+LAST_SYNC="$HOME/.claude/lessons-journal/.last-skill-sync"
 
 # Check if we already synced today (rate-limit to once per 24h to avoid noise).
 # stat: GNU coreutils uses `-c %Y`; BSD/macOS uses `-f %m`. Try `-c` FIRST — on
