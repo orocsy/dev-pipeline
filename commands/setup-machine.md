@@ -30,7 +30,7 @@ REQUIRED_MISSING=0
 
 echo "=== engineering-craft skill (REQUIRED) ==="
 if [ -d "$HOME/.claude/skills/engineering-craft/categories" ]; then
-  echo "✓ present ($(find "$HOME/.claude/skills/engineering-craft/categories" -name '*.md' -path '*/rules/*' | wc -l | tr -d ' ') rules)"
+  echo "✓ present ($(find "$HOME/.claude/skills/engineering-craft/categories" -name '*.md' ! -name 'README.md' ! -name 'INDEX.md' | wc -l | tr -d ' ') rules)"
 else
   echo "✗ MISSING"; REQUIRED_MISSING=1
 fi
@@ -114,8 +114,11 @@ Clone-or-refresh the skill FIRST, then hand off to the installer for everything 
 SKILL_DIR="$HOME/.claude/skills/engineering-craft"
 REPO="${ENGINEERING_CRAFT_REPO:-https://github.com/orocsy/engineering-craft}"
 
-if [ -d "$SKILL_DIR/categories" ]; then
-  # Already present — fast-forward refresh, tolerate failure (offline is fine here).
+if [ -d "$SKILL_DIR/categories" ] && [ -f "$SKILL_DIR/bootstrap/install.sh" ]; then
+  # Already present AND complete (categories/ + installer) — fast-forward refresh,
+  # tolerate failure (offline is fine here). A tree with categories/ but no installer
+  # (copied/stripped, or a local deletion) falls through to the re-clone branch so the
+  # command can actually repair it, instead of refreshing then bailing at the guard.
   [ -d "$SKILL_DIR/.git" ] && git -C "$SKILL_DIR" pull --ff-only origin main 2>&1 | tail -2 || true
 elif [ -d "$SKILL_DIR" ] && [ -n "$(ls -A "$SKILL_DIR" 2>/dev/null)" ]; then
   # Partial/corrupt dir (the "hook/setting out of sync" case) — a bare `git clone`

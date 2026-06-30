@@ -67,7 +67,10 @@ if [ -n "${NEEDS_SYNC:-}" ]; then
       # Guard on BOTH the clone exit status AND the resulting dir — a pipe
       # (… | tail) would mask the clone's failure behind tail's exit code.
       if git clone --quiet https://github.com/orocsy/engineering-craft "$SKILL_DIR" 2>/dev/null && [ -d "$SKILL_DIR/categories" ]; then
-        RULE_COUNT=$(find "$SKILL_DIR/categories" -name "*.md" -path "*/rules/*" 2>/dev/null | wc -l | tr -d ' ')
+        # Count every category rule file — both legacy `*/rules/*.md` AND the
+        # `categories/<cat>/<slug>.md` form that consolidate-lessons writes — minus
+        # category index files, so a consolidation-populated install isn't reported as "0 rules".
+        RULE_COUNT=$(find "$SKILL_DIR/categories" -name "*.md" ! -name "README.md" ! -name "INDEX.md" 2>/dev/null | wc -l | tr -d ' ')
         CAT_COUNT=$(ls -d "$SKILL_DIR"/categories/*/ 2>/dev/null | wc -l | tr -d ' ')
         echo "[detect] engineering-craft installed: $RULE_COUNT rules across $CAT_COUNT categories"
         touch "$LAST_SYNC"   # advance the marker ONLY on a successful clone

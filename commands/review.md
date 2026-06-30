@@ -63,7 +63,7 @@ git diff "$BASE"..HEAD | grep -E "@HttpCode\(204\)|forgot-password|equalizeBcryp
 # WITHOUT touching env.schema/.env.example is exactly the missing-producer case the
 # config-drift priors exist to catch, and a filename-only grep would miss it.
 git diff "$BASE"..HEAD --name-only | grep -E "env\.schema|deploy\.yml|\.env\.example|envSchema" | head -5
-git diff "$BASE"..HEAD | grep -E "^\+.*(process\.env\.|import\.meta\.env\.|os\.environ|os\.Getenv|getenv\(|env::var|env!\(|option_env!\(|ENV\[|Deno\.env)" | head -5
+git diff "$BASE"..HEAD | grep -E "^\+.*(process\.env\.|import\.meta\.env\.|os\.environ|os\.Getenv|os\.LookupEnv|getenv\(|env::var|env!\(|option_env!\(|ENV\[|Deno\.env)" | head -5
 
 # Silent no-op integration triggers
 git diff "$BASE"..HEAD | grep -E "RESEND_API_KEY|TWILIO|STRIPE_SECRET|isConfigured\(\)|new Resend\(|sendEmail" | head -5
