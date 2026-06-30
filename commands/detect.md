@@ -11,6 +11,100 @@ Never ask the user anything — infer everything from files and conversation con
 
 ---
 
+## STEP 0: Ensure engineering-craft skill is present (auto-bootstrap)
+
+The dev-pipeline plugin depends on the `engineering-craft` skill at user-level
+(`~/.claude/skills/engineering-craft/`) — `/dev-pipeline:review` STEP 1.5 reads
+from it; `/dev-pipeline:consolidate-lessons` writes to it. The skill content is
+NOT bundled with the plugin (knowledge has a different lifecycle than workflow
+harness — see "Harness isn't the goal, knowledge is the moat").
+
+This step is a **secondary safety net**. The primary engineering-craft bootstrap is the
+SessionStart hook (`session-start.sh`), which runs once per session and clones the skill
+if missing (it fast-forward-refreshes the read-write mirror only when that already exists —
+provisioning the mirror itself is `setup-machine` / `consolidate-lessons` territory). STEP 0
+rate-limits its own SKILL refresh with a **skill-specific** marker (`.last-skill-sync`) —
+deliberately NOT the hook's `.last-mirror-sync`. The hook touches the mirror marker every
+time it refreshes the *mirror*; sharing it would let a mirror-only refresh suppress a needed
+*skill* pull for 24h, leaving `/dev-pipeline:review` on stale rules. STEP 0 earns its keep
+for non-interactive / piped command invocations where SessionStart didn't fire. It does NOT
+run before literally every command (only flows that invoke `/dev-pipeline:detect` do);
+commands that hard-depend on the skill self-bootstrap too (see `/dev-pipeline:review` STEP 1.5).
+
+```bash
+SKILL_DIR="$HOME/.claude/skills/engineering-craft"
+LAST_SYNC="$HOME/.claude/lessons-journal/.last-skill-sync"
+
+# Check if we already synced today (rate-limit to once per 24h to avoid noise).
+# stat: GNU coreutils uses `-c %Y`; BSD/macOS uses `-f %m`. Try `-c` FIRST — on
+# BSD it fails cleanly (empty stdout, non-zero) and falls through to `-f`, whereas
+# the reverse order makes GNU's `-f` print a multi-line filesystem report that
+# poisons the arithmetic. So the value is always a single mtime on both OSes.
+if [ -f "$LAST_SYNC" ]; then
+  AGE=$(( $(date +%s) - $(stat -c %Y "$LAST_SYNC" 2>/dev/null || stat -f %m "$LAST_SYNC" 2>/dev/null || echo 0) ))
+  if [ "$AGE" -lt 86400 ] && [ -d "$SKILL_DIR/categories" ]; then
+    : # already fresh, no-op
+  else
+    NEEDS_SYNC=1
+  fi
+else
+  NEEDS_SYNC=1
+fi
+
+if [ -n "${NEEDS_SYNC:-}" ]; then
+  # Ensure the marker's parent dir exists before ANY branch touches it — the skill may
+  # have been installed by setup-machine / review self-bootstrap, which create only the
+  # skills dir, so the present-skill branches below would otherwise fail to advance it.
+  mkdir -p "$(dirname "$LAST_SYNC")"
+  if [ ! -d "$SKILL_DIR/categories" ]; then
+    echo "[detect] engineering-craft not present — bootstrapping from public mirror"
+    mkdir -p "$HOME/.claude/skills"
+    if command -v git >/dev/null 2>&1; then
+      # A leftover non-empty dir (partial/corrupt clone — no categories/, maybe no
+      # .git/) would make `git clone` abort forever; clear it so the clone targets a
+      # clean path. Safe: with no categories/ it isn't a usable skill anyway.
+      [ -d "$SKILL_DIR" ] && [ -n "$(ls -A "$SKILL_DIR" 2>/dev/null)" ] && rm -rf "$SKILL_DIR"
+      # Guard on BOTH the clone exit status AND the resulting dir — a pipe
+      # (… | tail) would mask the clone's failure behind tail's exit code.
+      if git clone --quiet https://github.com/orocsy/engineering-craft "$SKILL_DIR" 2>/dev/null && [ -d "$SKILL_DIR/categories" ]; then
+        # Count every category rule file — both legacy `*/rules/*.md` AND the
+        # `categories/<cat>/<slug>.md` form that consolidate-lessons writes — minus
+        # category index files, so a consolidation-populated install isn't reported as "0 rules".
+        RULE_COUNT=$(find "$SKILL_DIR/categories" -name "*.md" ! -name "README.md" ! -name "INDEX.md" 2>/dev/null | wc -l | tr -d ' ')
+        CAT_COUNT=$(ls -d "$SKILL_DIR"/categories/*/ 2>/dev/null | wc -l | tr -d ' ')
+        echo "[detect] engineering-craft installed: $RULE_COUNT rules across $CAT_COUNT categories"
+        touch "$LAST_SYNC"   # advance the marker ONLY on a successful clone
+      else
+        echo "[detect] WARN: engineering-craft clone failed (offline?) — /review skill features degrade gracefully"
+        # Deliberately do NOT touch the marker: leave it stale so the next command
+        # (or session-start.sh) retries, instead of skipping for 24h after one blip.
+      fi
+    else
+      echo "[detect] WARN: git not available; skipping engineering-craft bootstrap"
+    fi
+  elif [ -d "$SKILL_DIR/.git" ]; then
+    # Skill present and is a git clone — refresh THE SKILL ITSELF (the dir /review
+    # reads) in the background, and advance the marker only if the pull succeeds.
+    ( git -C "$SKILL_DIR" pull --ff-only origin main >/dev/null 2>&1 && touch "$LAST_SYNC" ) &
+  else
+    # Skill present but not a git clone (copied/rsynced) — it's as fresh as it gets;
+    # advance the marker so this block stops re-evaluating on every command for 24h.
+    [ -d "$SKILL_DIR/categories" ] && touch "$LAST_SYNC"
+  fi
+fi
+```
+
+Behavior:
+- **Fresh machine** (skill missing): clone from public mirror, ~5 sec, prints one-line summary (or a WARN on failure — never a false "0 rules" success, and the marker stays stale so the next run retries)
+- **Skill present, last sync >24h ago**: background `git -C "$SKILL_DIR" pull --ff-only origin main`, marker advanced only on pull success, no wait
+- **Skill present, last sync <24h ago**: no-op, instant
+- **No git available / clone fails**: warn but continue (skill features in /review degrade gracefully); marker left stale
+
+The 24h rate-limit avoids hitting GitHub on every single dev-pipeline command in a
+working session while still keeping the skill fresh in normal use.
+
+---
+
 ## STEP 1: Project Type Detection
 
 Read these files (whichever exist):

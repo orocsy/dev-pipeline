@@ -58,6 +58,29 @@ If `project-profile.json` already exists and is <7 days old, skip detection.
 
 ---
 
+## STEP 1.5: engineering-craft skill bootstrap
+
+No manual action needed in init — the skill is bootstrapped by layered, self-healing paths,
+each independently rate-limited (the hook and detect use *separate* 24h markers so a
+mirror-only refresh can't suppress a skill pull), so it converges without a dedicated step here:
+
+1. **SessionStart hook (`session-start.sh`) — primary.** Runs once per session; clones the
+   skill if missing, else fast-forward-refreshes it (and refreshes the read-write mirror
+   when that already exists — it does not provision the mirror itself).
+2. **`/dev-pipeline:detect` STEP 0 — secondary safety net.** Runs at Phase 0 of flows that
+   invoke detect, covering non-interactive sessions where the hook didn't fire.
+3. **Skill-dependent commands self-bootstrap.** `/dev-pipeline:review` STEP 1.5 clones the
+   skill if it's still missing when review runs directly.
+
+So in practice a fresh machine that starts a session, or runs a pipeline flow, or runs
+`/dev-pipeline:review`, ends up with the skill — but it is NOT literally bootstrapped before
+*every* command (only those three paths). For a guaranteed one-shot install on a brand-new
+device, run `/dev-pipeline:setup-machine`.
+
+See `commands/detect.md` STEP 0 for the implementation.
+
+---
+
 ## STEP 2: Create .claude/ Structure
 
 ```bash
