@@ -58,7 +58,11 @@ echo "=== spec-forge (OPTIONAL — only for /dev-pipeline:scaffold-from-prd) ===
   || echo "○ absent (skip if not using scaffold-from-prd)"
 
 echo "=== hooks (REQUIRED) ==="
-if [ -x "$HOME/.claude/hooks/post-codex-fix-extract-lesson.sh" ]; then
+# Check existence, not the executable bit: the wrapped installer only chmod +x's the hook
+# when it FIRST copies a missing file, so requiring -x here would loop forever on a present-
+# but-non-executable file the installer won't repair. (The chmod-existing-hook fix is tracked
+# against install.sh.)
+if [ -f "$HOME/.claude/hooks/post-codex-fix-extract-lesson.sh" ]; then
   echo "✓ post-codex-fix-extract-lesson.sh installed"
 else
   echo "✗ MISSING"; REQUIRED_MISSING=1
@@ -178,14 +182,32 @@ Allowed env overrides (pass to user if asked):
 ## STEP 3: Verify install end-to-end
 
 ```bash
+# Re-assert the REQUIRED layers ACTUALLY landed. The wrapped install.sh can continue past
+# a failed clone (it logs and moves on), so "ran the installer" != "installed" — fail loudly
+# here instead of printing "Setup complete" over a missing plugin/skill.
+[ -d "$HOME/.claude/skills/engineering-craft/categories" ] && [ -f "$HOME/.claude/skills/engineering-craft/bootstrap/install.sh" ] \
+  && echo "✓ engineering-craft skill installed" \
+  || { echo "🛑 skill still missing/incomplete after install — setup did NOT complete"; exit 1; }
+[ -f "$HOME/.claude/plugins/marketplaces/local/plugins/dev-pipeline/.claude-plugin/plugin.json" ] \
+  && echo "✓ dev-pipeline plugin installed" \
+  || { echo "🛑 dev-pipeline plugin manifest missing after install — setup did NOT complete"; exit 1; }
+
 # Run hooks
 bash "$HOME/.claude/hooks/session-start.sh" 2>&1 | head -10
 
-# Run lint
-python3 "$HOME/.claude/skills/engineering-craft/scripts/lint.py" 2>&1 | tail -8
+# Run lint ONLY if the skill ships it — scripts/lint.py isn't in every checkout, and an
+# unconditional call errors ("can't open file") on installs that lack it.
+LINT="$HOME/.claude/skills/engineering-craft/scripts/lint.py"
+if [ -f "$LINT" ]; then python3 "$LINT" 2>&1 | tail -8; else echo "(lint skipped — $LINT not present in this skill checkout)"; fi
 
-# Confirm launchd (macOS only — no-op on Linux)
-launchctl list 2>/dev/null | grep engineering-craft || echo "(launchd check skipped — not macOS, or reminder not loaded)"
+# Confirm launchd — REQUIRED on macOS, so FAIL if the job isn't loaded; skip elsewhere.
+if [ "$(uname)" = Darwin ]; then
+  launchctl list 2>/dev/null | grep -q engineering-craft \
+    && echo "✓ launchd reminder loaded" \
+    || { echo "🛑 launchd reminder not loaded on macOS — re-run STEP 2 or check the plist"; exit 1; }
+else
+  echo "(launchd skipped — macOS-only)"
+fi
 ```
 
 Expected: SessionStart shows engineering-craft present; lint clean; launchd loaded.

@@ -42,11 +42,17 @@ CHECKLIST="$SKILL_DIR/checklists/pre-merge-self-review.md"
 if { [ ! -d "$SKILL_DIR/categories" ] || [ ! -f "$CHECKLIST" ]; } && command -v git >/dev/null 2>&1; then
   echo "[review] engineering-craft missing/incomplete — bootstrapping (mirrors /dev-pipeline:detect STEP 0)"
   mkdir -p "$HOME/.claude/skills"
-  # A leftover partial dir (missing categories/ or the checklist) would make `git clone`
-  # abort and leave review permanently without priors; clear it first.
-  [ -d "$SKILL_DIR" ] && [ -n "$(ls -A "$SKILL_DIR" 2>/dev/null)" ] && rm -rf "$SKILL_DIR"
-  git clone --quiet "${ENGINEERING_CRAFT_REPO:-https://github.com/orocsy/engineering-craft}" "$SKILL_DIR" 2>/dev/null && [ -d "$SKILL_DIR/categories" ] && [ -f "$CHECKLIST" ] \
-    || echo "[review] WARN: bootstrap failed/incomplete (offline?) — proceeding WITHOUT category priors; reviewers still run"
+  # Clone-aside-and-swap: never delete the existing (possibly partial-but-usable) tree
+  # before the replacement is in hand. A failed offline repair must not downgrade us from
+  # "has category priors" to "no skill at all".
+  rm -rf "${SKILL_DIR}.tmp"
+  if git clone --quiet "${ENGINEERING_CRAFT_REPO:-https://github.com/orocsy/engineering-craft}" "${SKILL_DIR}.tmp" 2>/dev/null \
+       && [ -d "${SKILL_DIR}.tmp/categories" ] && [ -f "${SKILL_DIR}.tmp/checklists/pre-merge-self-review.md" ]; then
+    rm -rf "$SKILL_DIR" && [ ! -e "$SKILL_DIR" ] && mv "${SKILL_DIR}.tmp" "$SKILL_DIR"
+  else
+    rm -rf "${SKILL_DIR}.tmp"
+    echo "[review] WARN: bootstrap failed/incomplete (offline?) — keeping any existing skill; proceeding (priors may be partial)"
+  fi
 fi
 ```
 
