@@ -58,8 +58,12 @@ git diff "$BASE"..HEAD | grep -E "findUnique|findFirst|update.*WHERE|consumedAt|
 # Enumeration safety triggers
 git diff "$BASE"..HEAD | grep -E "@HttpCode\(204\)|forgot-password|equalizeBcrypt|findFirst.*email|@Post.*forgot" | head -5
 
-# Config drift triggers
+# Config drift triggers — match BOTH changed config filenames AND new env/secret
+# consumers added in source. A diff that adds `process.env.NEW_VAR` (or equivalent)
+# WITHOUT touching env.schema/.env.example is exactly the missing-producer case the
+# config-drift priors exist to catch, and a filename-only grep would miss it.
 git diff "$BASE"..HEAD --name-only | grep -E "env\.schema|deploy\.yml|\.env\.example|envSchema" | head -5
+git diff "$BASE"..HEAD | grep -E "^\+.*(process\.env\.|import\.meta\.env\.|os\.environ|getenv\(|ENV\[|Deno\.env)" | head -5
 
 # Silent no-op integration triggers
 git diff "$BASE"..HEAD | grep -E "RESEND_API_KEY|TWILIO|STRIPE_SECRET|isConfigured\(\)|new Resend\(|sendEmail" | head -5

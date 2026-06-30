@@ -13,7 +13,7 @@ Bootstrap the full Claude Code stack on a fresh machine. This wraps `~/.claude/s
 
 **Idempotent**: re-running is safe. Skips steps that are already done.
 
-**Platform**: macOS-first. The consolidation reminder uses **launchd** (`launchctl`, `~/Library/LaunchAgents`), which is macOS-only — on Linux those steps no-op/fail and the equivalent (a systemd timer or cron job) is not yet wired. Everything else (skill, plugin, hooks, settings) is cross-platform.
+**Platform**: macOS-only for now. The consolidation reminder uses **launchd** (`launchctl`, `~/Library/LaunchAgents`). ⚠️ The wrapped `install.sh` runs under `set -e` with an *unconditional* `launchctl load`, so on Linux it completes the cross-platform steps (skill, plugin, hooks, settings) but then **exits non-zero at the launchd step** — the run looks failed even though the core stack landed. Full Linux support (guard launchd behind a `uname` check + a systemd/cron equivalent) is tracked against `install.sh` in the engineering-craft repo. Until then, treat this command as macOS-only.
 
 ---
 
@@ -65,6 +65,15 @@ if [ -f "$HOME/.claude/hooks/session-start.sh" ] && grep -qE "engineering-craft 
   echo "✓ session-start.sh has engineering-craft fragment"
 else
   echo "✗ session-start.sh missing fragment"; REQUIRED_MISSING=1
+fi
+# Hook FILES can exist while settings.json no longer registers them (the exact
+# "hook/setting out of sync" case this command repairs) — gate on the registration,
+# not just the file, so a drifted settings.json forces STEP 2 to re-merge it.
+SETTINGS="$HOME/.claude/settings.json"
+if [ -f "$SETTINGS" ] && grep -q "session-start.sh" "$SETTINGS" && grep -q "post-codex-fix-extract-lesson.sh" "$SETTINGS"; then
+  echo "✓ hooks registered in settings.json"
+else
+  echo "✗ settings.json missing hook registration (files may exist but aren't wired in)"; REQUIRED_MISSING=1
 fi
 
 echo "=== launchd consolidation reminder (REQUIRED on macOS · n/a elsewhere) ==="
