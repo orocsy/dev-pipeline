@@ -7,7 +7,7 @@ argument-hint: "[channel] [--source=gh-pr-bot|doc] [--watch] [--once] [--respond
 
 You are relaying code/design review between Claude and another agent (typically Codex) across one or more **sources** of different formats. You fetch only what is NEW since a cursor, verify + integrate it, respond back, and hand the turn off — without deadlocking, both-editing-at-once, or looping forever.
 
-This command is **opt-in**. It is never triggered by Rule 1 / Rule 5. Run it, or enable the session-start nudge (STEP N in this file). All steps below are pre-approved — run to completion, do not ask for permission.
+This command is **opt-in**. It is never triggered by Rule 1 / Rule 5. Run it, or enable the session-start nudge (see "Opt-in auto-trigger" near the end of this file). All steps below are pre-approved — run to completion, do not ask for permission.
 
 Reuses (do NOT reinvent): `agents/co-review-adapter.md` (detect/parse), `agents/review-analyzer.md` (live-code verification + re-flag trap), `/dev-pipeline:fix` (Path A fixes), `/dev-pipeline:review` (Path A re-bless), `.claude/review-findings-<sha>.md` table, `hooks/pre-push` (blessing gate).
 
@@ -71,10 +71,31 @@ JSON
   echo "[co-review] scaffolded $CFG — set the PR number and/or add a doc source, then re-run."
   exit 0
 fi
-[ -f "$CUR" ] || echo '{"turn":"claude","round":0,"sources":{},"falsePositiveLedger":[]}' > "$CUR"
+[ -f "$CUR" ] || echo '{"turn":"claude","round":0,"sources":{},"falsePositiveLedger":[],"roundHistory":[]}' > "$CUR"
 ```
 
-Read `turn`, `round`, per-source `cursor`, and `falsePositiveLedger` from `$CUR`. Read `sources[]` + `convergence` from `$CFG`. `--source=<id>` narrows to one source.
+**Cold-start a doc channel's REVIEW-CYCLE.md** — a `doc`-adapter source's `detect()` reads git history *of the doc file*; if the file never existed, there is no history to read, and the channel is permanently stuck reporting "nothing new" no matter what the cursor says. If `sources[]` includes a `doc` adapter and its `path` doesn't exist yet, scaffold it BEFORE detect runs. Default the initial turn to `otherAgent` (from `$CFG`) — Claude is running this because its own side of the work is presumably already done elsewhere (the normal implement/deliver flow); the doc's first move is inviting the other agent to review it, not writing a finding of our own:
+
+```bash
+DOCPATH="$(jq -r '.sources[] | select(.adapter=="doc") | .path // empty' "$CFG" 2>/dev/null | head -1)"
+OTHER_AGENT="$(jq -r '.otherAgent // "codex"' "$CFG" 2>/dev/null)"
+if [ -n "$DOCPATH" ] && [ ! -f "$DOCPATH" ]; then
+  mkdir -p "$(dirname "$DOCPATH")"
+  cat > "$DOCPATH" <<DOC
+# Co-Review: ${CHANNEL}
+
+<!-- TURN: ${OTHER_AGENT} -->
+
+## Round 0 — claude — $(date -u +%Y-%m-%dT%H:%M:%SZ)
+### context
+Channel opened. See recent commits/PR for the change under review. Waiting on ${OTHER_AGENT} for the first round.
+DOC
+  git add "$DOCPATH" && git commit -q -m "docs(co-review): open ${CHANNEL} channel" -- "$DOCPATH"
+  echo "[co-review] scaffolded $DOCPATH, turn -> ${OTHER_AGENT} — waiting, nothing to integrate yet."
+fi
+```
+
+Read `turn`, `round`, per-source `cursor`, `falsePositiveLedger`, and `roundHistory` from `$CUR`. Read `sources[]` + `convergence` from `$CFG`. `--source=<id>` narrows to one source.
 
 ---
 
@@ -90,6 +111,8 @@ Pass the adapter: the source config, its cursor, and the `falsePositiveLedger`. 
 
 - **Turn guard (doc channels):** if `turn != "claude"`, run detect **report-only** — do NOT write acks/edits/flip. You may report "waiting on <otherAgent>".
 - If **nothing new** across all sources → append one `coreview.detect` event with `new:0`, print "Nothing to integrate; turn=<turn>", and exit (or, if `--watch`, go to PHASE 5).
+
+For EACH source `$SID` in `$CFG`'s `sources[]` (looping): `$NEW` is the count of Findings that source's adapter just returned; `$ROUND` is `$CUR`'s current `round` value (unchanged until PHASE 4 advances it). Emit one event per source:
 
 ```bash
 printf '{"event":"coreview.detect","channel":"%s","source":"%s","new":%d,"round":%d,"ts":"%s"}\n' \
@@ -128,7 +151,12 @@ printf '{"event":"coreview.integrate","channel":"%s","findings":%d,"kind":"%s","
 
 1. **respond()** per resolved finding via its adapter: PR-thread ack (`gh pr review --comment`) for gh-pr-bot; `> claude-ack:` line for doc. List anything intentionally skipped (nits / wontfix) explicitly so the other agent sees it was seen.
 2. **Flip the turn** to the other agent (doc channel: flip `<!-- TURN -->` and commit). Advance each source's cursor in `$CUR` to its `cursorAfter`. Add any confirmed false positives to `falsePositiveLedger`.
-3. **retrigger()** if `--retrigger` (or config default): post `@codex review` (gh-pr-bot) / handoff signal (doc).
+3. **Append this round to `roundHistory`** — `{round, findingsCount, resolvedIds}` — BEFORE incrementing `round`. This is the persisted record PHASE 5's convergence checks read; without it "trending up" and "a resolved finding reappearing" have no data to compare against:
+   ```jsonc
+   // .claude/co-review/<channel>.cursor.json — roundHistory grows by one entry per round:
+   { "round": 4, "findingsCount": 6, "resolvedIds": ["gh-pr-bot:pr12:c889123", "..."] }
+   ```
+4. **retrigger()** if `--retrigger` (or config default): post `@codex review` (gh-pr-bot) / handoff signal (doc).
 
 ```bash
 printf '{"event":"coreview.handoff","channel":"%s","from":"claude","to":"%s","round":%d,"ts":"%s"}\n' \
@@ -141,11 +169,33 @@ If not `--watch`, print OUTPUT and stop (the turn is now the other agent's).
 
 ## PHASE 5: Watch (only with `--watch`) — with the convergence safeguard
 
-`--watch` loops PHASE 1→4 on an interval until the turn returns to the other agent OR convergence. **Before every loop continuation**, evaluate stop conditions (this is the single most important behavior — it exists because a real review relay on this repo ran 7 rounds and never reached zero):
+`--watch` loops PHASE 1→4 on an interval until the turn returns to the other agent OR convergence. **Before every loop continuation**, evaluate stop conditions against `$CUR`'s `roundHistory` array (PHASE 4 appends one entry per round — the check below is a mechanical read of that array, not a narrated impression):
+
+```bash
+# roundHistory: [{round, findingsCount, resolvedIds}, ...] — one entry per completed round.
+HIST_LEN="$(jq '.roundHistory | length' "$CUR" 2>/dev/null)"
+TRENDING_UP=0
+if [ "${HIST_LEN:-0}" -ge 2 ]; then
+  # Guard: with <2 rounds of history there's nothing to trend against — without this,
+  # round 1 compares against a PREV_N default of 0 and always looks "trending up".
+  LAST_N="$(jq -r '.roundHistory[-1].findingsCount // 0' "$CUR")"
+  PREV_N="$(jq -r '.roundHistory[-2].findingsCount // 0' "$CUR")"
+  [ "$LAST_N" -gt "$PREV_N" ] 2>/dev/null && TRENDING_UP=1
+fi
+
+# THIS_ROUND_NEW_IDS = the finding ids this round's PHASE 2 just parsed (a JSON array).
+# REAPPEARED>0 means one of them was already in some PRIOR round's resolvedIds — the bot
+# re-flagging something we already fixed, the exact pattern that ran 7 rounds without
+# converging.
+REAPPEARED="$(jq --argjson new "$THIS_ROUND_NEW_IDS" '
+  ([.roundHistory[].resolvedIds[]] | unique) as $everResolved
+  | [$new[] | select(. as $id | $everResolved | index($id) != null)] | length
+' "$CUR" 2>/dev/null)"
+```
 
 - **Converged** — a round produced **0 open findings** → emit `coreview.converged` (`reason:"zero-open"`), stop, report success.
 - **Round cap** — `round >= convergence.maxRounds` (default 5) → stop, "did not converge in N rounds."
-- **Stall / non-convergence** — a round still yields `>= stallThreshold` findings, OR the **same finding id reappears** after being `resolved`/`false-positive`, OR the count is **trending up** (round N+1 > round N) → emit `coreview.stalled`, **STOP**, and surface a diagnostic + hand back to the user:
+- **Stall / non-convergence** — a round still yields `>= stallThreshold` findings, OR `REAPPEARED > 0` (a finding id from THIS round appears in some prior round's `resolvedIds`/false-positive ledger), OR `TRENDING_UP` (this round's `findingsCount` exceeds the previous round's) → emit `coreview.stalled`, **STOP**, and surface a diagnostic + hand back to the user (the `Findings/round: 6 → 5 → 5 → 6 → 7` trail below is read directly off `roundHistory[].findingsCount`):
   ```
   🛑 CO-REVIEW STALLED — channel <channel>, round <n>
      Findings/round: 6 → 5 → 5 → 6 → 7  (not converging)
@@ -189,6 +239,6 @@ Enable per-project with `touch .claude/co-review/enabled`. When present, `~/.cla
 ## State & config files (per project, git-tracked)
 - `.claude/co-review/PROTOCOL.md` — the cross-agent convention (scaffolded above; read by both agents).
 - `.claude/co-review/<channel>.json` — sources + convergence config.
-- `.claude/co-review/<channel>.cursor.json` — `{turn, round, sources:{<id>:{cursor}}, falsePositiveLedger:[]}`.
-- `.claude/co-review/<channel>/REVIEW-CYCLE.md` — the git-doc transport artifact (doc channels).
+- `.claude/co-review/<channel>.cursor.json` — `{turn, round, sources:{<id>:{cursor}}, falsePositiveLedger:[], roundHistory:[{round,findingsCount,resolvedIds}]}`. `roundHistory` is what PHASE 5's convergence checks (trending-up, reappeared-after-resolved) actually read — it is not optional bookkeeping.
+- `.claude/co-review/<channel>/REVIEW-CYCLE.md` — the git-doc transport artifact (doc channels); auto-scaffolded by PHASE 0 on first run if a `doc` source is configured and the file doesn't exist yet.
 - Events appended to `.claude/agent-events.jsonl`: `coreview.detect|integrate|handoff|converged|stalled`.
