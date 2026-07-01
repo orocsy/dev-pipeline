@@ -243,6 +243,17 @@ PHASE 12.5 (Rule 17) already encodes this. Rule 20 names it explicitly so it can
 
 Long-form: `docs/PHILOSOPHY.md §13` (combined with Rule 19 — same root cause).
 
+### Rule 21: Co-Review is OPT-IN — never auto-invoke it
+
+`/dev-pipeline:co-review` relays review between Claude and another agent (Codex) across multiple sources (GitHub PR bots, shared design docs) and manages the turn-taking. It is a **deliberately optional** flow: it is NOT part of the default `plan→implement→review→deliver` pipeline and MUST NOT be wired into Rule 1 (route every request) or Rule 5 (auto-resume). It activates only when (a) the user runs it, or (b) the user opts in per-project via `touch .claude/co-review/enabled`, which surfaces a `CO-REVIEW PENDING` nudge at session start (a suggestion, not an auto-run).
+
+Hard rules:
+- Detection is ALWAYS cursor-gated (timestamp for PR bots, doc commit SHA for docs). Re-anchored/re-flagged old items are NOT new — never re-process them (this is the fix for the runaway-relay failure below).
+- In `--watch` mode the **convergence safeguard is mandatory**: auto-STOP and hand back to the user on round-cap, stall (≥ threshold findings again), a resolved/false-positive finding reappearing, or findings trending up. Confirmed false positives go to a suppression ledger. Never loop indefinitely.
+- Turn-taking is a cooperative lock: write only when it's your turn, flip + commit to hand off, and NEVER force-push a co-review doc (last-writer reconciles).
+
+**Failure mode this prevents:** a real session ran 7 manual `@codex review` rounds that never converged to zero — the bot re-flagged already-fixed lines (e.g. `os.getenv` already covered by an existing pattern) and a fix introduced a fresh regression each round. Cursor-gating + the convergence safeguard turn that unbounded manual loop into a bounded, auto-stopping relay. See `commands/co-review.md` and `agents/co-review-adapter.md`.
+
 ---
 
 ## MANDATORY WORKFLOW ROUTING

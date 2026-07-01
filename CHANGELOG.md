@@ -12,6 +12,27 @@ Conventions:
 
 ---
 
+## 2026-06-30 — cross-agent co-review relay
+
+- **`/dev-pipeline:co-review` command** (`commands/co-review.md`, optional/opt-in). Fetches
+  external reviews from MULTIPLE sources/formats, integrates them, responds back, and manages
+  Claude↔Codex turn-taking so a review relay never deadlocks, both-edits-at-once, or loops
+  forever. Generalizes the manual `@codex review` loop into a bounded, auto-stopping flow.
+  Two resolution paths by `Finding.kind`: `code` → `/dev-pipeline:fix` → re-bless → push;
+  `design` → edit the design doc, no code gate (the doc-ping-pong case).
+- **`co-review-adapter` agent** (`agents/co-review-adapter.md`). The pluggable "not one format"
+  contract — each source implements detect / parse / respond / retrigger / cursorAfter and
+  normalizes to one canonical `Finding` shape (a superset of the review-findings table). Ships
+  two MVP adapters: `gh-pr-bot` (delegates parse to `review-analyzer` for live-code verification
+  + the re-flag trap) and `doc` (git-tracked `REVIEW-CYCLE.md`, turn-marker handoff).
+- **Convergence safeguard** (baked from a real 7-round relay that never hit zero). `--watch`
+  auto-stops on round-cap / stall / trend-up / a resolved finding reappearing, and a
+  false-positive ledger suppresses re-flags (e.g. "`os.getenv` already covered"). Cursor-gating
+  (timestamp / doc-SHA) means re-anchored old comments are never re-processed.
+- **Opt-in session-start nudge** (`hooks/co-review-nudge.sh`). Gated on
+  `.claude/co-review/enabled`; surfaces `CO-REVIEW PENDING` when another agent left new input.
+  Suggestion only — NOT auto-run (see CLAUDE.md Rule 21).
+
 ## 2026-06-24 — engineering-craft auto-bootstrap
 
 - **Layered, self-healing `engineering-craft` skill bootstrap.** Three independently
