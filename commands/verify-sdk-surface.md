@@ -38,6 +38,25 @@ SIG_SIDEEFFECT="$(printf '%s\n' "$DIFF_ADDED" | grep -oE "^\+[[:space:]]*import 
 PKG_IMPORTS="$(printf '%s\n%s\n%s\n%s\n' "$SIG_IMPORT" "$SIG_REQUIRE" "$SIG_DYNIMPORT" "$SIG_SIDEEFFECT" \
   | grep -v '^$' | grep -vE '@/|workspace:' || true)"
 
+# Signal C — a diff can add a NEW call on an ALREADY-imported third-party package with
+# NO new import/require line and NO .d.ts edit; signals A/B (both diff-scoped) miss this
+# entirely. For each touched, non-deleted file: scan the FULL FILE (not just the diff) for
+# bare-specifier imports, and if the file's ADDED lines contain any call-like pattern
+# (`.method(`), fold that file's full-file import hit into PKG_IMPORTS. Broad on purpose —
+# STEP 1 narrows to the actual surfaces; a false negative here silently skips the gate.
+while IFS= read -r F; do
+  [ -z "$F" ] && continue
+  [ -f "$F" ] || continue   # skip deleted files
+  FULL_HIT="$(grep -oE "import[^;()]* from ['\"][^.][^'\"]*['\"]|require\(['\"][^.][^'\"]*['\"]\)" "$F" 2>/dev/null | grep -vE '@/|workspace:' || true)"
+  [ -z "$FULL_HIT" ] && continue
+  FILE_DIFF_ADDED="$(git diff "$BASE"..HEAD -- "$F" | grep -E '^\+' || true)"
+  echo "$FILE_DIFF_ADDED" | grep -qE '\.[A-Za-z_][A-Za-z0-9_]*\(' && PKG_IMPORTS="$(printf '%s\n%s\n' "$PKG_IMPORTS" "$FULL_HIT")"
+done <<< "$(echo "$FILES" | grep -vE '\.d\.ts$' || true)"
+# NOTE: this loop uses `while read` rather than `for F in $(...)` — word-splitting a
+# multi-line command substitution via `for` depends on the ambient $IFS, which is not
+# guaranteed to include newline in every shell context. `while read` is IFS-independent.
+PKG_IMPORTS="$(printf '%s\n' "$PKG_IMPORTS" | grep -v '^$' | sort -u)"
+
 if [ -z "$STUB_HITS" ] && [ -z "$PKG_IMPORTS" ]; then
   echo "ℹ️  Diff touches no third-party SDK surface or type stub — SDK reality-check skipped."
   return 0 2>/dev/null || exit 0   # safe whether this block is sourced or run standalone
@@ -57,16 +76,39 @@ PKG_LIST="$(printf '%s\n' "$PKG_IMPORTS" \
   | sort -u)"
 ```
 
-**1b. Drop first-party/workspace packages** — they are not third-party surfaces:
+**1b. Drop first-party/workspace packages** — they are not third-party surfaces. Uses `while read` (not `for PKG in $PKG_LIST`, same IFS-portability reason as 1a's replacement above) and sends "skip" diagnostics to STDERR so they never pollute the accumulated package list on stdout (a prior draft mixed them into the same stream — a consumer of the tmp file would then see `skip <pkg> (workspace symlink)` as if it were a real package name):
 ```bash
-for PKG in $PKG_LIST; do
-  [ -L "node_modules/$PKG" ] && { echo "skip $PKG (workspace symlink)"; continue; }
-  node -e "process.exit(require('$PKG/package.json').version.startsWith('workspace:')?0:1)" 2>/dev/null && { echo "skip $PKG (workspace: version)"; continue; }
+while IFS= read -r PKG; do
+  [ -z "$PKG" ] && continue
+  if [ -L "node_modules/$PKG" ]; then echo "skip $PKG (workspace symlink)" >&2; continue; fi
+  if node -e "process.exit(require('$PKG/package.json').version.startsWith('workspace:')?0:1)" 2>/dev/null; then echo "skip $PKG (workspace: version)" >&2; continue; fi
   echo "$PKG"   # a genuine third-party candidate — accumulate into the surface list below
-done > .claude/co-review-thirdparty-packages.tmp 2>/dev/null || true
+done <<< "$PKG_LIST" > .claude/co-review-thirdparty-packages.tmp
 ```
 
-**1c. For each remaining package, find every `.<method>(` call on its import binding** in `$DIFF_ADDED` (for call sites) and every method name declared in an added/edited `.d.ts` stub for that module (for type-only surfaces — these must ALSO be proven, per STEP 2, even if never called yet). **Persist the full `(package, method)` list as a checkable artifact** — STEP 4/5 diff against this file rather than trusting recollection:
+**1c. For each remaining package, find every `.<method>(` call on its import binding** in `$DIFF_ADDED` (for call sites) and every method name declared in an added/edited `.d.ts` stub for that module (for type-only surfaces — these must ALSO be proven, per STEP 2, even if never called yet). **Also check bare-call and constructor-call forms** — a third-party API used as a direct function (`import { format } from 'date-fns'; format(...)`) or class (`import S3Client from '...'; new S3Client(...)`) never produces a `.<method>(` match, so it would ship unprobed. Extract the binding names from the package's import statement (named/default/namespace forms) and additionally grep `$DIFF_ADDED` for `\b<binding>\(` (this single pattern also matches `new <binding>\(`, since `new ` ends the word boundary right before the name):
+```bash
+# Named-import bindings (respecting `as` aliases), default-import binding, namespace binding.
+BINDINGS=""
+while IFS= read -r LINE; do
+  [ -z "$LINE" ] && continue
+  NAMED="$(printf '%s' "$LINE" | grep -oE '\{[^}]*\}' | tr -d '{}' | tr ',' '\n' | sed -E 's/.*as[[:space:]]+//' | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')"
+  DEFAULT="$(printf '%s' "$LINE" | grep -oE '^\+?import[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*' | grep -oE '[A-Za-z_$][A-Za-z0-9_$]*$' | grep -v '^import$')"
+  NS="$(printf '%s' "$LINE" | grep -oE '\*[[:space:]]+as[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*' | grep -oE '[A-Za-z_$][A-Za-z0-9_$]*$')"
+  BINDINGS="${BINDINGS}
+${NAMED}
+${DEFAULT}
+${NS}"
+done <<< "$(printf '%s\n' "$DIFF_ADDED" | grep -E "^\+.*import.* from ")"
+BINDINGS="$(printf '%s\n' "$BINDINGS" | grep -v '^$' | sort -u)"
+while IFS= read -r B; do
+  [ -z "$B" ] && continue
+  echo "$DIFF_ADDED" | grep -qE "\b${B}\(" && echo "$B is called/constructed — add (package, \$B) to the surface list below"
+done <<< "$BINDINGS"
+```
+A namespace member-call (`AWS.S3(...)` after `import * as AWS from 'aws-sdk'`) is already covered by the pre-existing `.<method>(`-on-binding check above — `S3` is the method to verify, `AWS` the binding it's scoped to.
+
+**Persist the full `(package, method)` list as a checkable artifact** — STEP 4/5 diff against this file rather than trusting recollection:
 ```bash
 SHA="$(git rev-parse --short HEAD)"
 mkdir -p .claude
@@ -142,7 +184,7 @@ Every verified surface MUST be recorded (Rule 22 — a design that merely *claim
 
 ## STEP 5: Gate — mechanically JOIN the surface list against the probe table
 
-Do NOT take your own word for "every surface has a probe row" — diff `$SURF_FILE` (STEP 1c) against the actual probe table content. A surface is "probed" only if BOTH its package name and its method name appear as substrings on the probe table:
+Do NOT take your own word for "every surface has a probe row" — diff `$SURF_FILE` (STEP 1c) against the actual probe table content. A surface is "probed" only if BOTH its package name and its method name appear on the SAME table row — two independent file-wide checks would let a package on one row and an unrelated method on a different row falsely count as probed (this is exactly the reference bug's shape: `wx-server-sdk` + `getUploadMetadata` would falsely "pass" if any OTHER row happened to mention `getUploadMetadata`):
 
 ```bash
 PROBE_FILE="$(find docs -maxdepth 2 -name 'SDK-PROBE.md' 2>/dev/null | head -1)"
@@ -154,7 +196,17 @@ UNPROBED_LIST=""
 while IFS=$'\t' read -r PKG METHOD; do
   [ -z "$PKG" ] && continue
   SURFACES=$((SURFACES+1))
-  if [ -f "$PROBE_FILE" ] && grep -qF "$PKG" "$PROBE_FILE" && grep -qF "$METHOD" "$PROBE_FILE"; then
+  ROW_MATCH=0
+  if [ -f "$PROBE_FILE" ]; then
+    while IFS= read -r ROW; do
+      case "$ROW" in *"|"*) ;; *) continue ;; esac
+      if printf '%s' "$ROW" | grep -qF "$PKG" && printf '%s' "$ROW" | grep -qF "$METHOD"; then
+        ROW_MATCH=1
+        break
+      fi
+    done < "$PROBE_FILE"
+  fi
+  if [ "$ROW_MATCH" -eq 1 ]; then
     PROBED=$((PROBED+1))
   else
     UNPROBED_LIST="${UNPROBED_LIST}${PKG}::${METHOD}, "

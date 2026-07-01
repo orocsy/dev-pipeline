@@ -19,6 +19,10 @@ A **channel** = one review conversation (one PR, or one design-doc ping-pong). P
 
 ```bash
 CHANNEL="${1:-$(ls .claude/co-review/*.json 2>/dev/null | grep -v cursor | head -1 | xargs -n1 basename 2>/dev/null | sed 's/\.json$//')}"
+# On the very first run (no $1, no existing channel configs) the substitution above
+# resolves to an empty string, which would scaffold the undiscoverable dotfile
+# ".claude/co-review/.json" — fall back to a real name instead.
+CHANNEL="${CHANNEL:-default}"
 CFG=".claude/co-review/${CHANNEL}.json"
 CUR=".claude/co-review/${CHANNEL}.cursor.json"
 mkdir -p ".claude/co-review/${CHANNEL}"
@@ -109,7 +113,16 @@ For each configured source, spawn the adapter to return only items newer than th
 
 Pass the adapter: the source config, its cursor, and the `falsePositiveLedger`. It returns canonical Findings (see `agents/co-review-adapter.md`) + a `cursorAfter`.
 
-- **Turn guard (doc channels):** if `turn != "claude"`, run detect **report-only** — do NOT write acks/edits/flip. You may report "waiting on <otherAgent>".
+- **Turn guard (doc channels):** `$CUR`'s cached `turn` is only OUR local record of the last handoff — the OTHER agent flips `<!-- TURN -->` in the doc itself (per PROTOCOL.md), not in our cursor file. Re-sync from the live doc BEFORE gating, or a Codex round that already handed the turn back would still look like "not our turn" forever:
+  ```bash
+  DOCPATH="$(jq -r '.sources[] | select(.adapter=="doc") | .path // empty' "$CFG" 2>/dev/null | head -1)"
+  if [ -n "$DOCPATH" ] && [ -f "$DOCPATH" ]; then
+    git pull --ff-only 2>/dev/null || true
+    LIVE_TURN="$(grep -oE '<!-- TURN: [a-z]+ -->' "$DOCPATH" | grep -oE '[a-z]+' | tail -1)"
+    [ -n "$LIVE_TURN" ] && jq --arg t "$LIVE_TURN" '.turn = $t' "$CUR" > "${CUR}.tmp" && mv "${CUR}.tmp" "$CUR"
+  fi
+  ```
+  THEN: if `turn != "claude"`, run detect **report-only** — do NOT write acks/edits/flip. You may report "waiting on <otherAgent>".
 - If **nothing new** across all sources → append one `coreview.detect` event with `new:0`, print "Nothing to integrate; turn=<turn>", and exit (or, if `--watch`, go to PHASE 5).
 
 For EACH source `$SID` in `$CFG`'s `sources[]` (looping): `$NEW` is the count of Findings that source's adapter just returned; `$ROUND` is `$CUR`'s current `round` value (unchanged until PHASE 4 advances it). Emit one event per source:
@@ -186,9 +199,11 @@ fi
 # THIS_ROUND_NEW_IDS = the finding ids this round's PHASE 2 just parsed (a JSON array).
 # REAPPEARED>0 means one of them was already in some PRIOR round's resolvedIds — the bot
 # re-flagging something we already fixed, the exact pattern that ran 7 rounds without
-# converging.
+# converging. `roundHistory[0:-1]` (all entries EXCEPT the last) — PHASE 4 step 3 already
+# appended THIS round's own resolvedIds before PHASE 5 runs, so scanning the full array
+# would count a finding resolved in THIS SAME round as "reappeared," stalling after round 1.
 REAPPEARED="$(jq --argjson new "$THIS_ROUND_NEW_IDS" '
-  ([.roundHistory[].resolvedIds[]] | unique) as $everResolved
+  ([.roundHistory[0:-1][].resolvedIds[]] | unique) as $everResolved
   | [$new[] | select(. as $id | $everResolved | index($id) != null)] | length
 ' "$CUR" 2>/dev/null)"
 ```

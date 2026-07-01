@@ -72,7 +72,7 @@ For GitHub PR review bots — Codex (`chatgpt-codex-connector[bot]`) and any gen
 REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
 gh api "repos/$REPO/pulls/$PR/comments" --paginate \
   --jq "[.[] | select(.user.login==\"$BOT\") | select(.created_at > \"$CURSOR\") | {id, path, line, body, url:.html_url, created_at}]"
-gh api "repos/$REPO/pulls/$PR/reviews" \
+gh api "repos/$REPO/pulls/$PR/reviews" --paginate \
   --jq "[.[] | select(.user.login==\"$BOT\") | select(.submitted_at > \"$CURSOR\") | {body, commit_id, submitted_at}]"
 ```
 **New-vs-re-anchored (critical):** GitHub re-anchors a bot's OLD inline comment to a new line as the diff shifts, but `created_at` does **not** change on re-anchor. So `created_at > cursor` correctly treats re-anchored old comments as *not new*. This is the exact fix for the re-processing loop that turned a real review into 7 rounds. Never filter by `line` or `commit_id` for newness — only `created_at`/`submitted_at`.
