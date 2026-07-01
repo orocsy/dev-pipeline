@@ -12,6 +12,35 @@ Conventions:
 
 ---
 
+## 2026-07-01 — hardening pass on both 2026-06-30 additions
+
+Both entries below were adversarially reviewed after landing; each surfaced real,
+verified-by-execution bugs (not just prose review) that are now fixed:
+
+- **SDK reality-check** (Rule 22 / `verify-sdk-surface.md`): fixed 6 mechanical gaps —
+  detection missed scoped `require('@scope/pkg')` and dynamic `import()`; `$PKG`
+  extraction from matched import lines was undefined; the untyped-package fallback
+  ("prove it exists in runtime dist / not borrowed from a different package") was
+  asserted with no procedure — now has concrete greps that reproduce the reference bug
+  at 3 independent checkpoints; the return-shape check only operationalized the
+  declared side, not the diff's actual consumption; the probe-row enforcement had no
+  checkable join (`$SURFACES`/`$PROBED` referenced, never assigned) — now a mechanical
+  diff of a persisted surface list against the probe table. **Generalized Rule 22 from
+  "verify SDK method calls" (implementation-time) to "verify any third-party surface a
+  DESIGN depends on" (design-time)** — `technical-architect` now runs the same
+  context7 + installed-types check before finalizing an architecture, with a
+  "Third-Party Surfaces Verified" table in its output. The original bug's design doc
+  already *claimed* verification; a post-hoc code gate alone doesn't stop a design
+  from assuming something false in the first place.
+- **Co-review**: fixed a cold-start bug (a brand-new doc channel's `REVIEW-CYCLE.md`
+  was never scaffolded, so the adapter had nothing to detect against — the channel
+  was permanently stuck) and wired `roundHistory` into the cursor schema so the
+  convergence safeguard's "trending up" / "reappeared after resolved" checks read
+  real per-round data instead of being narrated with nothing backing them. The first
+  draft of that fix was itself broken (jq scalars wrapped in arrays, a false-positive
+  on round 1) — caught by actually running it against synthetic data, not by re-reading
+  the prose.
+
 ## 2026-06-30 — SDK/API reality-check gate (Rule 22)
 
 - **`/dev-pipeline:verify-sdk-surface` command** (`commands/verify-sdk-surface.md`, Phase 7.6).
