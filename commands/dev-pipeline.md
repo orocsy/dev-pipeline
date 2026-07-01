@@ -110,7 +110,9 @@ Launch the **technical-architect** agent with:
 - CLAUDE.md rules
 - Key files and patterns found
 
-Present the architecture design to the user:
+The architect verifies every third-party surface the design depends on via context7 + (if installed) the package's own types (CLAUDE.md Rule 22) BEFORE finalizing — not satisfied by "I recall how this SDK works."
+
+Present the architecture design to the user, INCLUDING the "Third-Party Surfaces Verified" table:
 - Component design with file paths
 - Data flow
 - Trade-offs considered
