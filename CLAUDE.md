@@ -254,6 +254,21 @@ Hard rules:
 
 **Failure mode this prevents:** a real session ran 7 manual `@codex review` rounds that never converged to zero — the bot re-flagged already-fixed lines (e.g. `os.getenv` already covered by an existing pattern) and a fix introduced a fresh regression each round. Cursor-gating + the convergence safeguard turn that unbounded manual loop into a bounded, auto-stopping relay. See `commands/co-review.md` and `agents/co-review-adapter.md`.
 
+### Rule 22: SDK/API Reality-Check — never type or call a third-party surface you haven't verified against the INSTALLED package + latest docs
+
+Your training knowledge of a third-party SDK is a guess. A hand-written type stub is a guess. Both compile. Neither runs. Before you **call** a third-party SDK/API method, or **write/alter a type stub** for a third-party module, you MUST verify the surface against BOTH sources — this is not optional and not satisfied by "the skill is installed" or "the design says verified":
+
+1. **The INSTALLED package** — open `node_modules/<pkg>/**/*.d.ts` (or, if untyped, the package's actual `dist`/source). This is the **compile + runtime ground truth** for the version you ship. Grep for the exact method; read its real signature and **exact return shape** (including nesting — `data.url` is not `url`).
+2. **The latest published docs via context7** — `mcp__context7__resolve-library-id` → `query-docs`. Docs catch deprecations / newer signatures / semantics the installed `.d.ts` doesn't convey. If context7 is silent on the method (it often is for narrow server methods), the installed `.d.ts` is authoritative — but you still record that you checked.
+
+Hard rules:
+- **Record a probe artifact** `docs/<feature>/SDK-PROBE.md` (or `.claude/sdk-probes/<pkg>.md`): one row per method — `package@version · method · signature · exact return shape · evidence (context7 source URL + installed .d.ts path:line)`. A design doc that merely *claims* "verified against X@ver" without this artifact **does not count** (that exact gap shipped the bug below).
+- **Untyped packages:** a hand-written stub may declare ONLY methods proven to exist on THAT package at runtime, and **MUST NOT borrow a method that belongs to a DIFFERENT package**. If the method you need lives on another SDK, **inject that SDK explicitly** — never fake it onto the wrong type to make TS pass.
+- **Derive types from the installed types**, never invent field names/nesting from memory.
+- **Enforcement:** `/dev-pipeline:verify-sdk-surface` runs in the validation/review gate. For every third-party SDK method call (or third-party `.d.ts` stub) in the diff, it fails if there is no matching probe entry, or if the call's expected shape diverges from the installed `.d.ts`. It is auto-invoked by `/dev-pipeline:validate` and `/dev-pipeline:review` whenever the diff imports/uses a third-party package or edits a `*.d.ts`.
+
+**Failure mode this prevents (real, production 500):** a media-upload feature hand-wrote `getUploadMetadata` onto the `wx-server-sdk` type (which ships **no** types and doesn't have the method) with an **invented** shape (`uploadUrl/cloudObjectMeta/cloudObjectId`). The real method lives on `@cloudbase/node-sdk`'s storage class and returns `{ data: { url, authorization, token, fileId, cosFileId, download_url } }` — sitting in `node_modules/@cloudbase/node-sdk/types/index.d.ts` the whole time, never opened. TS passed; `createUploadIntent` 500'd in production. The design doc even said "verified against @cloudbase/node-sdk@2.10.0" — but no one produced the probe, so the claim was hollow. This rule makes the probe a required, checkable artifact. Long-form: `docs/PHILOSOPHY.md §14`.
+
 ---
 
 ## MANDATORY WORKFLOW ROUTING

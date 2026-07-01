@@ -12,6 +12,25 @@ Conventions:
 
 ---
 
+## 2026-06-30 — SDK/API reality-check gate (Rule 22)
+
+- **`/dev-pipeline:verify-sdk-surface` command** (`commands/verify-sdk-surface.md`, Phase 7.6).
+  Proves every third-party SDK method the diff *calls* or *type-stubs* actually exists — with
+  the right signature and **exact return shape** — in the INSTALLED package
+  (`node_modules/<pkg>/**/*.d.ts`), cross-checked against latest docs via **context7**, and
+  requires a recorded `docs/<feature>/SDK-PROBE.md`. Blocks on: method absent from installed
+  types, a stub borrowing a method from the wrong package, or a return-shape mismatch (reading
+  `x.url` when the type is `x.data.url`).
+- **CLAUDE.md Rule 22** — "never type or call a third-party surface you haven't verified against
+  the installed package + latest docs." Types are derived from installed `.d.ts`, never invented;
+  untyped packages may only stub runtime-proven methods and must not fake another SDK's method.
+- **Wired to fire** (not aspirational): `commands/review.md` STEP 1.6 and `commands/validate.md`
+  STEP 2.6 auto-invoke it whenever the diff imports/uses a third-party package or edits a `*.d.ts`.
+- **Failure mode it prevents:** a real production 500 — `getUploadMetadata` hand-stubbed onto
+  `wx-server-sdk` (no types, no such method) with an invented shape; the real method + shape were
+  in `@cloudbase/node-sdk`'s `.d.ts` the whole time. A design doc *claimed* "verified against
+  @cloudbase/node-sdk@2.10.0" but produced no probe — Rule 22 makes the probe a checkable artifact.
+
 ## 2026-06-30 — cross-agent co-review relay
 
 - **`/dev-pipeline:co-review` command** (`commands/co-review.md`, optional/opt-in). Fetches

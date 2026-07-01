@@ -118,6 +118,23 @@ If no engineering-craft rules were loaded (diff didn't trigger any category), st
 
 ---
 
+## STEP 1.6: SDK/API Reality-Check (MANDATORY when the diff touches a third-party surface)
+
+Before the parallel reviewers, if the diff imports/uses a third-party package or edits any `*.d.ts`, invoke **`/dev-pipeline:verify-sdk-surface`** (CLAUDE.md Rule 22). It proves every third-party SDK method called or type-stubbed in the diff actually exists — with the correct signature and return shape — in the INSTALLED package (`node_modules/<pkg>/**/*.d.ts`) cross-checked against latest docs (context7), and requires a recorded `docs/<feature>/SDK-PROBE.md` entry.
+
+```bash
+# Loose trigger — err toward invoking; verify-sdk-surface STEP 0 does the precise
+# filtering and skips cleanly if the diff has no genuine third-party surface.
+NEED_SDK=0
+git diff "$BASE"..HEAD --name-only | grep -qE '\.d\.ts$' && NEED_SDK=1
+git diff "$BASE"..HEAD | grep -qE '^\+.*(import |require\()' && NEED_SDK=1
+[ "$NEED_SDK" = 1 ] && echo "→ invoking /dev-pipeline:verify-sdk-surface"
+```
+
+If it BLOCKS (a called/stubbed method is absent from the installed types, borrowed from the wrong package, or its return shape diverges — e.g. reading `x.url` when the type is `x.data.url`), treat it as a **P1** in this review: route to `/dev-pipeline:fix` and re-run. This is the gate that would have caught the `getUploadMetadata`-on-`wx-server-sdk` production 500.
+
+---
+
 ## STEP 2: Run Parallel Reviewers (MANDATORY)
 
 Announce before spawning each agent:

@@ -69,6 +69,22 @@ fi
 
 Fail immediately on type errors.
 
+**Type-check passing is necessary but NOT sufficient for third-party surfaces** — a hand-written `.d.ts` stub can make `tsc` pass against a method that does not exist at runtime. See STEP 2.6.
+
+---
+
+## STEP 2.6: SDK/API Reality-Check (Phase 7.6)
+
+If the diff imports/uses a third-party package or edits any `*.d.ts`, invoke **`/dev-pipeline:verify-sdk-surface`** (CLAUDE.md Rule 22). `tsc` trusts your stubs; this step trusts only the INSTALLED package's own `.d.ts` (+ context7 latest docs) and requires a recorded `SDK-PROBE.md`. It FAILS Phase 8 if a called/stubbed third-party method is absent from the installed types, borrowed from the wrong package, or its return shape diverges from the installed declaration.
+
+```bash
+# Loose trigger — verify-sdk-surface STEP 0 does the precise filtering (skips if none).
+if git diff "$BASE"..HEAD --name-only | grep -qE '\.d\.ts$' \
+   || git diff "$BASE"..HEAD | grep -qE '^\+.*(import |require\()'; then
+  echo "→ Phase 7.6: running /dev-pipeline:verify-sdk-surface"
+fi
+```
+
 ---
 
 ## STEP 3: Unit Tests
