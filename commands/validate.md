@@ -69,6 +69,30 @@ fi
 
 Fail immediately on type errors.
 
+**Type-check passing is necessary but NOT sufficient for third-party surfaces** — a hand-written `.d.ts` stub can make `tsc` pass against a method that does not exist at runtime. See STEP 2.6.
+
+---
+
+## STEP 2.6: SDK/API Reality-Check (Phase 7.6)
+
+If the diff imports/uses a third-party package or edits any `*.d.ts`, invoke **`/dev-pipeline:verify-sdk-surface`** (CLAUDE.md Rule 22). `tsc` trusts your stubs; this step trusts only the INSTALLED package's own `.d.ts` (+ context7 latest docs) and requires a recorded `SDK-PROBE.md`. It FAILS Phase 8 if a called/stubbed third-party method is absent from the installed types, borrowed from the wrong package, or its return shape diverges from the installed declaration.
+
+```bash
+# Loose trigger — verify-sdk-surface STEP 0 does the precise filtering (skips if none).
+# $BASE was never set in this file — with it unset, "$BASE"..HEAD expanded to "..HEAD",
+# which git treats as HEAD..HEAD (an empty range), so this trigger silently NEVER fired.
+# Also: no "..HEAD" — this step runs pre-commit (per this file's own Phase 8 framing,
+# "before commit/deliver"), so the diff must include the working tree, not just what's
+# already committed. Third line mirrors review.md's own fix: fires on any added call-like
+# pattern too, not just new import/require lines (a call on an ALREADY-imported package).
+BASE="$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD main 2>/dev/null || echo HEAD~1)"
+if git diff "$BASE" --name-only | grep -qE '\.d\.ts$' \
+   || git diff "$BASE" | grep -qE '^\+.*(import |require\()' \
+   || git diff "$BASE" | grep -qE '^\+.*\.[A-Za-z_][A-Za-z0-9_]*\('; then
+  echo "→ Phase 7.6: running /dev-pipeline:verify-sdk-surface"
+fi
+```
+
 ---
 
 ## STEP 3: Unit Tests

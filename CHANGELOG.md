@@ -12,6 +12,75 @@ Conventions:
 
 ---
 
+## 2026-07-01 — hardening pass on both 2026-06-30 additions
+
+Both entries below were adversarially reviewed after landing; each surfaced real,
+verified-by-execution bugs (not just prose review) that are now fixed:
+
+- **SDK reality-check** (Rule 22 / `verify-sdk-surface.md`): fixed 6 mechanical gaps —
+  detection missed scoped `require('@scope/pkg')` and dynamic `import()`; `$PKG`
+  extraction from matched import lines was undefined; the untyped-package fallback
+  ("prove it exists in runtime dist / not borrowed from a different package") was
+  asserted with no procedure — now has concrete greps that reproduce the reference bug
+  at 3 independent checkpoints; the return-shape check only operationalized the
+  declared side, not the diff's actual consumption; the probe-row enforcement had no
+  checkable join (`$SURFACES`/`$PROBED` referenced, never assigned) — now a mechanical
+  diff of a persisted surface list against the probe table. **Generalized Rule 22 from
+  "verify SDK method calls" (implementation-time) to "verify any third-party surface a
+  DESIGN depends on" (design-time)** — `technical-architect` now runs the same
+  context7 + installed-types check before finalizing an architecture, with a
+  "Third-Party Surfaces Verified" table in its output. The original bug's design doc
+  already *claimed* verification; a post-hoc code gate alone doesn't stop a design
+  from assuming something false in the first place.
+- **Co-review**: fixed a cold-start bug (a brand-new doc channel's `REVIEW-CYCLE.md`
+  was never scaffolded, so the adapter had nothing to detect against — the channel
+  was permanently stuck) and wired `roundHistory` into the cursor schema so the
+  convergence safeguard's "trending up" / "reappeared after resolved" checks read
+  real per-round data instead of being narrated with nothing backing them. The first
+  draft of that fix was itself broken (jq scalars wrapped in arrays, a false-positive
+  on round 1) — caught by actually running it against synthetic data, not by re-reading
+  the prose.
+
+## 2026-06-30 — SDK/API reality-check gate (Rule 22)
+
+- **`/dev-pipeline:verify-sdk-surface` command** (`commands/verify-sdk-surface.md`, Phase 7.6).
+  Proves every third-party SDK method the diff *calls* or *type-stubs* actually exists — with
+  the right signature and **exact return shape** — in the INSTALLED package
+  (`node_modules/<pkg>/**/*.d.ts`), cross-checked against latest docs via **context7**, and
+  requires a recorded `docs/<feature>/SDK-PROBE.md`. Blocks on: method absent from installed
+  types, a stub borrowing a method from the wrong package, or a return-shape mismatch (reading
+  `x.url` when the type is `x.data.url`).
+- **CLAUDE.md Rule 22** — "never type or call a third-party surface you haven't verified against
+  the installed package + latest docs." Types are derived from installed `.d.ts`, never invented;
+  untyped packages may only stub runtime-proven methods and must not fake another SDK's method.
+- **Wired to fire** (not aspirational): `commands/review.md` STEP 1.6 and `commands/validate.md`
+  STEP 2.6 auto-invoke it whenever the diff imports/uses a third-party package or edits a `*.d.ts`.
+- **Failure mode it prevents:** a real production 500 — `getUploadMetadata` hand-stubbed onto
+  `wx-server-sdk` (no types, no such method) with an invented shape; the real method + shape were
+  in `@cloudbase/node-sdk`'s `.d.ts` the whole time. A design doc *claimed* "verified against
+  @cloudbase/node-sdk@2.10.0" but produced no probe — Rule 22 makes the probe a checkable artifact.
+
+## 2026-06-30 — cross-agent co-review relay
+
+- **`/dev-pipeline:co-review` command** (`commands/co-review.md`, optional/opt-in). Fetches
+  external reviews from MULTIPLE sources/formats, integrates them, responds back, and manages
+  Claude↔Codex turn-taking so a review relay never deadlocks, both-edits-at-once, or loops
+  forever. Generalizes the manual `@codex review` loop into a bounded, auto-stopping flow.
+  Two resolution paths by `Finding.kind`: `code` → `/dev-pipeline:fix` → re-bless → push;
+  `design` → edit the design doc, no code gate (the doc-ping-pong case).
+- **`co-review-adapter` agent** (`agents/co-review-adapter.md`). The pluggable "not one format"
+  contract — each source implements detect / parse / respond / retrigger / cursorAfter and
+  normalizes to one canonical `Finding` shape (a superset of the review-findings table). Ships
+  two MVP adapters: `gh-pr-bot` (delegates parse to `review-analyzer` for live-code verification
+  + the re-flag trap) and `doc` (git-tracked `REVIEW-CYCLE.md`, turn-marker handoff).
+- **Convergence safeguard** (baked from a real 7-round relay that never hit zero). `--watch`
+  auto-stops on round-cap / stall / trend-up / a resolved finding reappearing, and a
+  false-positive ledger suppresses re-flags (e.g. "`os.getenv` already covered"). Cursor-gating
+  (timestamp / doc-SHA) means re-anchored old comments are never re-processed.
+- **Opt-in session-start nudge** (`hooks/co-review-nudge.sh`). Gated on
+  `.claude/co-review/enabled`; surfaces `CO-REVIEW PENDING` when another agent left new input.
+  Suggestion only — NOT auto-run (see CLAUDE.md Rule 21).
+
 ## 2026-06-24 — engineering-craft auto-bootstrap
 
 - **Layered, self-healing `engineering-craft` skill bootstrap.** Three independently

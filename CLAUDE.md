@@ -243,6 +243,38 @@ PHASE 12.5 (Rule 17) already encodes this. Rule 20 names it explicitly so it can
 
 Long-form: `docs/PHILOSOPHY.md §13` (combined with Rule 19 — same root cause).
 
+### Rule 21: Co-Review is OPT-IN — never auto-invoke it
+
+`/dev-pipeline:co-review` relays review between Claude and another agent (Codex) across multiple sources (GitHub PR bots, shared design docs) and manages the turn-taking. It is a **deliberately optional** flow: it is NOT part of the default `plan→implement→review→deliver` pipeline and MUST NOT be wired into Rule 1 (route every request) or Rule 5 (auto-resume). It activates only when (a) the user runs it, or (b) the user opts in per-project via `touch .claude/co-review/enabled`, which surfaces a `CO-REVIEW PENDING` nudge at session start (a suggestion, not an auto-run).
+
+Hard rules:
+- Detection is ALWAYS cursor-gated (timestamp for PR bots, doc commit SHA for docs). Re-anchored/re-flagged old items are NOT new — never re-process them (this is the fix for the runaway-relay failure below).
+- In `--watch` mode the **convergence safeguard is mandatory**: auto-STOP and hand back to the user on round-cap, stall (≥ threshold findings again), a resolved/false-positive finding reappearing, or findings trending up. Confirmed false positives go to a suppression ledger. Never loop indefinitely.
+- Turn-taking is a cooperative lock: write only when it's your turn, flip + commit to hand off, and NEVER force-push a co-review doc (last-writer reconciles).
+
+**Failure mode this prevents:** a real session ran 7 manual `@codex review` rounds that never converged to zero — the bot re-flagged already-fixed lines (e.g. `os.getenv` already covered by an existing pattern) and a fix introduced a fresh regression each round. Cursor-gating + the convergence safeguard turn that unbounded manual loop into a bounded, auto-stopping relay. See `commands/co-review.md` and `agents/co-review-adapter.md`.
+
+### Rule 22: Third-Party Reality-Check — never DESIGN, type, or call a third-party surface you haven't verified against the INSTALLED package + latest docs
+
+This is a general discipline, not a narrow "check SDK methods" rule. It applies to ANY third-party library, framework, SDK, API, CLI tool, or cloud service — and it starts at DESIGN TIME, before a single line of code exists. Your training knowledge of a third-party surface is a guess. A hand-written type stub is a guess. A design doc's prose claim of "verified" is a guess unless it produced evidence. All three compile/read fine and are equally capable of being wrong.
+
+**Two checkpoints, same standard:**
+- **Design time** (`technical-architect` agent, Phase 4 of `/dev-pipeline:plan` / `/dev-pipeline:dev-pipeline`) — before finalizing an architecture that depends on ANY third-party behavior (a method's existence/return shape, a config key, an event name, a lifecycle guarantee, a default), verify it and record it in the design's "Third-Party Surfaces Verified" table. This is the cheap place to catch it — before the wrong assumption is baked into file structure and interfaces.
+- **Implementation time** (`/dev-pipeline:verify-sdk-surface`, Phase 7.6) — mechanically re-verifies every third-party method actually called or type-stubbed in the diff, because designs drift from what gets built.
+
+Before you **design against**, **call**, or **write/alter a type stub for** a third-party surface, you MUST verify it against BOTH sources — not optional, and not satisfied by "the skill is installed" or "the design says verified":
+
+1. **The INSTALLED package** (implementation time) or **its published docs** (design time, before it may even be installed) — open `node_modules/<pkg>/**/*.d.ts` (or, if untyped, the package's actual `dist`/source). This is the **compile + runtime ground truth** for the version you ship. Grep for the exact method; read its real signature and **exact return shape** (including nesting — `data.url` is not `url`).
+2. **The latest published docs via context7** — `mcp__context7__resolve-library-id` → `query-docs`. Docs catch deprecations / newer signatures / semantics the installed `.d.ts` doesn't convey, and are the ONLY source available before a package is installed. If context7 is silent on the surface (common for narrow server methods), the installed `.d.ts` is authoritative — but you still record that you checked.
+
+Hard rules:
+- **Record a probe artifact** `docs/<feature>/SDK-PROBE.md` (or `.claude/sdk-probes/<pkg>.md`): one row per method/surface — `package@version · method · signature · exact return shape · evidence (context7 source URL + installed .d.ts path:line)`. A design doc that merely *claims* "verified against X@ver" without this artifact **does not count** (that exact gap shipped the bug below — the design doc said the words, produced no evidence).
+- **Untyped packages:** a hand-written stub may declare ONLY methods proven to exist on THAT package at runtime, and **MUST NOT borrow a method that belongs to a DIFFERENT package**. If the method you need lives on another SDK, **inject that SDK explicitly** — never fake it onto the wrong type to make TS pass.
+- **Derive types from the installed types**, never invent field names/nesting from memory.
+- **Enforcement:** `/dev-pipeline:verify-sdk-surface` runs in the validation/review gate. For every third-party surface call (or third-party `.d.ts` stub) in the diff, it fails if there is no matching probe entry, or if the call's expected shape diverges from the installed `.d.ts`. Auto-invoked by `/dev-pipeline:validate` and `/dev-pipeline:review` whenever the diff imports/uses a third-party package or edits a `*.d.ts`. The `technical-architect` agent runs the same check at design time, before code exists.
+
+**Failure mode this prevents (real, production 500):** a media-upload feature hand-wrote `getUploadMetadata` onto the `wx-server-sdk` type (which ships **no** types and doesn't have the method) with an **invented** shape (`uploadUrl/cloudObjectMeta/cloudObjectId`). The real method lives on `@cloudbase/node-sdk`'s storage class and returns `{ data: { url, authorization, token, fileId, cosFileId, download_url } }` — sitting in `node_modules/@cloudbase/node-sdk/types/index.d.ts` the whole time, never opened. TS passed; `createUploadIntent` 500'd in production. The design doc even said "verified against @cloudbase/node-sdk@2.10.0" — but no one produced the probe, so the claim was hollow. This rule makes the probe a required, checkable artifact. Long-form: `docs/PHILOSOPHY.md §14`.
+
 ---
 
 ## MANDATORY WORKFLOW ROUTING
