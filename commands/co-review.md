@@ -15,12 +15,19 @@ Reuses (do NOT reinvent): `agents/co-review-adapter.md` (detect/parse), `agents/
 
 ## PHASE 0: Resolve the channel + scaffold state
 
-A **channel** = one review conversation (one PR, or one design-doc ping-pong). Parse `$1` as the channel name (or the single active channel if omitted) and the flags.
-
+A **channel** = one review conversation (one PR, or one design-doc ping-pong). Parse the positional args: any token starting with `--` is a flag (per `argument-hint`: `--source=`, `--watch`, `--once`, `--respond`, `--retrigger`), the first non-flag token (if any) is the channel name. Flags are order-independent and can appear with or without an explicit channel (`co-review --watch` and `co-review media-upload --watch` must both work — taking `$1` unconditionally as the channel, with no flag-stripping, would set `CHANNEL="--watch"` for the first form):
 ```bash
-CHANNEL="${1:-$(ls .claude/co-review/*.json 2>/dev/null | grep -v cursor | head -1 | xargs -n1 basename 2>/dev/null | sed 's/\.json$//')}"
-# On the very first run (no $1, no existing channel configs) the substitution above
-# resolves to an empty string, which would scaffold the undiscoverable dotfile
+FLAGS=()
+CHAN_ARG=""
+for a in "$@"; do
+  case "$a" in
+    --*) FLAGS+=("$a") ;;
+    *) [ -z "$CHAN_ARG" ] && CHAN_ARG="$a" ;;
+  esac
+done
+CHANNEL="${CHAN_ARG:-$(ls .claude/co-review/*.json 2>/dev/null | grep -v cursor | head -1 | xargs -n1 basename 2>/dev/null | sed 's/\.json$//')}"
+# On the very first run (no channel arg, no existing channel configs) the substitution
+# above resolves to an empty string, which would scaffold the undiscoverable dotfile
 # ".claude/co-review/.json" — fall back to a real name instead.
 CHANNEL="${CHANNEL:-default}"
 CFG=".claude/co-review/${CHANNEL}.json"

@@ -35,6 +35,11 @@ for _cfg in "$_cr_root"/.claude/co-review/*.json; do
         _c="$(jq -r --arg s "$_sid" '.sources[$s].cursor // "1970-01-01T00:00:00Z"' "$_cur" 2>/dev/null || echo '1970-01-01T00:00:00Z')"
         _repo="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null)" || continue
         _n="$(gh api "repos/$_repo/pulls/$_pr/comments" --jq "[.[] | select(.user.login==\"$_bot\") | select(.created_at > \"$_c\")] | length" 2>/dev/null || echo 0)"
+        # Also count submitted PR REVIEWS, not just inline comments — a review-only pass
+        # (approve/comment with no inline threads) would otherwise never surface the nudge,
+        # even though the gh-pr-bot adapter itself treats reviews as review input too.
+        _nr="$(gh api "repos/$_repo/pulls/$_pr/reviews" --jq "[.[] | select(.user.login==\"$_bot\") | select(.submitted_at > \"$_c\")] | length" 2>/dev/null || echo 0)"
+        _n=$(( ${_n:-0} + ${_nr:-0} ))
         if [ "${_n:-0}" -gt 0 ] 2>/dev/null; then _pending=1; _detail="${_detail} ${_sid}(+${_n} on PR#${_pr})"; fi
         ;;
       doc)
@@ -60,5 +65,5 @@ for _cfg in "$_cr_root"/.claude/co-review/*.json; do
   fi
 done
 
-unset _cr_root _cr_now _cfg _ch _cur _pending _detail _sid _adapter _pr _bot _docpath _c _repo _n
+unset _cr_root _cr_now _cfg _ch _cur _pending _detail _sid _adapter _pr _bot _docpath _c _repo _n _nr
 return 0 2>/dev/null || exit 0

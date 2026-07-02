@@ -108,15 +108,17 @@ Codex: TTL isn't capped; a leaked URL is valid forever. Cap at 15 min.
 Capped TTL to 15m. Open question to Codex: rotate the signing key too?
 ```
 
-**`detect(cursor)`** — cursor is the last-processed commit SHA of the doc file. Pull the shared branch if configured, then find rounds authored by the OTHER agent newer than the cursor:
+**`detect(cursor)`** — cursor is the last-processed commit SHA of the doc file. Pull the shared branch if configured, then find rounds authored by the OTHER agent newer than the cursor. **If `$CURSOR` is empty** (first run against an already-existing doc — distinct from PHASE 0's cold-start scaffold, which only covers a doc that doesn't exist yet), `"$CURSOR"..HEAD` would literally expand to `..HEAD`, which git treats as `HEAD..HEAD` — an empty range, NOT "whole doc is new" as intended. Diff against git's well-known empty-tree SHA instead:
 ```bash
 DOC=".claude/co-review/$CHANNEL/REVIEW-CYCLE.md"
 git -C "$REPO_ROOT" pull --ff-only 2>/dev/null || true   # last-writer-reconciles; NEVER force-push
-git -C "$REPO_ROOT" log --format=%H "$CURSOR"..HEAD -- "$DOC"   # any new commits touching the doc?
-# Extract "## Round N — <otherAgent>" sections present at HEAD but not at $CURSOR:
-git -C "$REPO_ROOT" diff "$CURSOR"..HEAD -- "$DOC" | grep -E '^\+## Round [0-9]+ — '"$OTHER_AGENT"
+EMPTY_TREE="4b825dc642cb6eb9a060e54bf8d69288fbee4904"   # git's canonical empty-tree object
+FROM="${CURSOR:-$EMPTY_TREE}"
+git -C "$REPO_ROOT" log --format=%H "$FROM"..HEAD -- "$DOC"   # any new commits touching the doc?
+# Extract "## Round N — <otherAgent>" sections present at HEAD but not at $FROM:
+git -C "$REPO_ROOT" diff "$FROM"..HEAD -- "$DOC" | grep -E '^\+## Round [0-9]+ — '"$OTHER_AGENT"
 ```
-A "new review section" = a `## Round N — <otherAgent>` heading block that did not exist at `cursor`. If `cursor` is empty/missing → the whole doc is new (first run).
+A "new review section" = a `## Round N — <otherAgent>` heading block that did not exist at `cursor`. If `cursor` is empty/missing → `$FROM` falls back to the empty-tree SHA, so the whole doc is correctly treated as new (first run).
 
 **`parse(rawItem)`** — each `### [Pn] design: <title> — locator: <anchor>` line → one Finding (`kind:design`, `severity` from `[Pn]`, `locator` = the anchor, `issue`/`proposedFix` from the body). An untagged free-prose section from the other agent → ONE coarse `kind:design` Finding with the section text as `issue` (graceful degradation — never mis-parse into wrong fields). Set `sourceUrl` to `<DOC>#round-<n>`.
 
@@ -124,7 +126,7 @@ A "new review section" = a `## Round N — <otherAgent>` heading block that did 
 
 **`retrigger()`** — flip `<!-- TURN: claude -->` → `<!-- TURN: codex -->`. Optionally emit a handoff *signal* via `mcp__ccd_session_mgmt__send_message` to a configured Codex session id — signal only, never a poll (it is permission-gated and absent in headless).
 
-**`cursorAfter(rawItems)`** — the doc file's current `git rev-parse HEAD:<doc>` blob commit (i.e. `git log -1 --format=%H -- "$DOC"`).
+**`cursorAfter(rawItems)`** — `git log -1 --format=%H -- "$DOC"`, the commit SHA that last touched the doc. (Not `git rev-parse HEAD:<doc>` — that returns a BLOB sha, which is not a valid endpoint for the commit ranges `detect()` uses above; only the commit-SHA form is correct.)
 
 ---
 

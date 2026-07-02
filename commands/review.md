@@ -124,10 +124,15 @@ Before the parallel reviewers, if the diff imports/uses a third-party package or
 
 ```bash
 # Loose trigger — err toward invoking; verify-sdk-surface STEP 0 does the precise
-# filtering and skips cleanly if the diff has no genuine third-party surface.
+# filtering and skips cleanly if the diff has no genuine third-party surface. The third
+# line ALSO fires on any added call-like line regardless of new import/require lines —
+# a diff that only adds `client.newMethod(...)` to a file with an ALREADY-existing
+# third-party import matched neither of the first two checks, so verify-sdk-surface was
+# never invoked at all (its own Signal C fix for this exact case never got a chance to run).
 NEED_SDK=0
 git diff "$BASE"..HEAD --name-only | grep -qE '\.d\.ts$' && NEED_SDK=1
 git diff "$BASE"..HEAD | grep -qE '^\+.*(import |require\()' && NEED_SDK=1
+git diff "$BASE"..HEAD | grep -qE '^\+.*\.[A-Za-z_][A-Za-z0-9_]*\(' && NEED_SDK=1
 [ "$NEED_SDK" = 1 ] && echo "→ invoking /dev-pipeline:verify-sdk-surface"
 ```
 
