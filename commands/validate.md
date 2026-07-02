@@ -79,8 +79,16 @@ If the diff imports/uses a third-party package or edits any `*.d.ts`, invoke **`
 
 ```bash
 # Loose trigger — verify-sdk-surface STEP 0 does the precise filtering (skips if none).
-if git diff "$BASE"..HEAD --name-only | grep -qE '\.d\.ts$' \
-   || git diff "$BASE"..HEAD | grep -qE '^\+.*(import |require\()'; then
+# $BASE was never set in this file — with it unset, "$BASE"..HEAD expanded to "..HEAD",
+# which git treats as HEAD..HEAD (an empty range), so this trigger silently NEVER fired.
+# Also: no "..HEAD" — this step runs pre-commit (per this file's own Phase 8 framing,
+# "before commit/deliver"), so the diff must include the working tree, not just what's
+# already committed. Third line mirrors review.md's own fix: fires on any added call-like
+# pattern too, not just new import/require lines (a call on an ALREADY-imported package).
+BASE="$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD main 2>/dev/null || echo HEAD~1)"
+if git diff "$BASE" --name-only | grep -qE '\.d\.ts$' \
+   || git diff "$BASE" | grep -qE '^\+.*(import |require\()' \
+   || git diff "$BASE" | grep -qE '^\+.*\.[A-Za-z_][A-Za-z0-9_]*\('; then
   echo "→ Phase 7.6: running /dev-pipeline:verify-sdk-surface"
 fi
 ```

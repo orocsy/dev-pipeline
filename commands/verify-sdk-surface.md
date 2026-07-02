@@ -88,7 +88,11 @@ while IFS= read -r F; do
   FULL_HIT="$(printf '%s\n' "$FILE_JOINED" | grep -oE "import[^;()]* from ['\"][^.][^'\"]*['\"]|require\(['\"][^.][^'\"]*['\"]\)" | grep -vE '@/|workspace:' || true)"
   [ -z "$FULL_HIT" ] && continue
   FILE_DIFF_ADDED="$(git diff "$BASE" -- "$F" | grep -E '^\+' || true)"
-  echo "$FILE_DIFF_ADDED" | grep -qE '\.[A-Za-z_][A-Za-z0-9_]*\(' && PKG_IMPORTS="$(printf '%s\n%s\n' "$PKG_IMPORTS" "$FULL_HIT")"
+  # Member-call OR bare/constructor-call — a member-call-only check misses a bare call on
+  # an already-imported named binding (e.g. `format(...)` after `import { format } from
+  # 'date-fns'`), which is exactly the surface form STEP 1c is built to verify. Broad is
+  # correct here (matches this file's own "over-match, never under-match" philosophy).
+  echo "$FILE_DIFF_ADDED" | grep -qE '\.[A-Za-z_][A-Za-z0-9_]*\(|\b[A-Za-z_][A-Za-z0-9_]*\(' && PKG_IMPORTS="$(printf '%s\n%s\n' "$PKG_IMPORTS" "$FULL_HIT")"
 done <<< "$(echo "$FILES" | grep -vE '\.d\.ts$' || true)"
 # NOTE: this loop uses `while read` rather than `for F in $(...)` — word-splitting a
 # multi-line command substitution via `for` depends on the ambient $IFS, which is not
@@ -137,53 +141,110 @@ SURF_FILE=".claude/sdk-surfaces-${SHA}.txt"
 
 while IFS= read -r PKG; do
   [ -z "$PKG" ] && continue
+  # (Reads from the workspace-FILTERED tmp file below, not the raw $PKG_LIST — a prior
+  # draft read $PKG_LIST directly here, so first-party/workspace packages that 1b just
+  # filtered OUT were re-enumerated as false third-party surfaces.)
   # This package's import/require line(s), searched across every touched file's FULL
   # CURRENT content (covers both a brand-new import and a pre-existing one).
   PKG_LINES=""
   while IFS= read -r F; do
     [ -z "$F" ] && continue
     [ -f "$F" ] || continue
-    HIT="$(grep -E "(import.* from |require\().*['\"]${PKG}(/|['\"])" "$F" 2>/dev/null || true)"
+    # Collapse multiline import blocks first — this loop's own grep, run against raw file
+    # content, has the SAME single-line limitation STEP 0 already fixed for its own scan;
+    # fixing it there did not fix it here too (they're separate scans of the same file).
+    F_JOINED="$(awk '
+      BEGIN { buf="" }
+      /^[[:space:]]*import[[:space:]{*]/ && !/ from [\x27"]/ { buf=$0; next }
+      buf != "" { buf = buf " " $0; if ($0 ~ / from [\x27"]/) { print buf; buf=""; next }; next }
+      { print }
+    ' "$F" 2>/dev/null)"
+    # Also matches dynamic `import('pkg')` — no `from `/`require(` needed for that form.
+    HIT="$(printf '%s\n' "$F_JOINED" | grep -E "(import.* from |require\(|import\().*['\"]${PKG}(/|['\"])" 2>/dev/null || true)"
     [ -n "$HIT" ] && PKG_LINES="${PKG_LINES}
 ${HIT}"
   done <<< "$(echo "$FILES" | grep -vE '\.d\.ts$' || true)"
   PKG_LINES="$(printf '%s\n' "$PKG_LINES" | grep -v '^$' || true)"
   [ -z "$PKG_LINES" ] && continue
 
-  # Bindings: named (incl. `as` aliases), default, namespace, plain require(), destructured require().
+  # Bindings as LOCAL<TAB>EXPORTED pairs — a bare-call/constructor surface must be
+  # verified under its EXPORTED name (what the .d.ts declares), not whatever local alias
+  # the importer chose (`import { format as fmt } from 'date-fns'` calls it "fmt" in code
+  # but the SDK's .d.ts declares "format"; writing "fmt" to $SURF_FILE would check the
+  # wrong name — a false P1 on a perfectly valid import). Call-DETECTION still searches
+  # for the LOCAL name (that's what's actually written in the code); the EXPORTED name is
+  # only substituted at the point of writing to $SURF_FILE. Non-aliased forms have
+  # LOCAL==EXPORTED, so this is a no-op for the common case.
   BINDINGS=""
   while IFS= read -r LINE; do
     [ -z "$LINE" ] && continue
-    NAMED="$(printf '%s' "$LINE" | grep -oE '\{[^}]*\}' | tr -d '{}' | tr ',' '\n' | sed -E 's/.*as[[:space:]]+//' | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')"
+    while IFS= read -r ITEM; do
+      [ -z "$ITEM" ] && continue
+      if printf '%s' "$ITEM" | grep -q ' as '; then
+        EXP="$(printf '%s' "$ITEM" | sed -E 's/[[:space:]]+as[[:space:]]+.*//')"
+        LOC="$(printf '%s' "$ITEM" | sed -E 's/.*[[:space:]]as[[:space:]]+//')"
+      else
+        EXP="$ITEM"; LOC="$ITEM"
+      fi
+      BINDINGS="${BINDINGS}
+${LOC}	${EXP}"
+    done <<< "$(printf '%s' "$LINE" | grep -oE '\{[^}]*\}' | tr -d '{}' | tr ',' '\n' | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')"
     DEFAULT="$(printf '%s' "$LINE" | grep -oE '^\+?import[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*' | grep -oE '[A-Za-z_$][A-Za-z0-9_$]*$' | grep -v '^import$')"
     NS="$(printf '%s' "$LINE" | grep -oE '\*[[:space:]]+as[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*' | grep -oE '[A-Za-z_$][A-Za-z0-9_$]*$')"
     REQ_PLAIN="$(printf '%s' "$LINE" | grep -oE '(const|let|var)[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*=[[:space:]]*require\(' | grep -oE '[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*=[[:space:]]*require' | grep -oE '^[A-Za-z_$][A-Za-z0-9_$]*')"
-    REQ_NAMED="$(printf '%s' "$LINE" | grep -oE '\{[^}]*\}[[:space:]]*=[[:space:]]*require\(' | grep -oE '\{[^}]*\}' | tr -d '{}' | tr ',' '\n' | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')"
-    BINDINGS="${BINDINGS}
-${NAMED}
-${DEFAULT}
-${NS}
-${REQ_PLAIN}
-${REQ_NAMED}"
+    [ -n "$DEFAULT" ] && BINDINGS="${BINDINGS}
+${DEFAULT}	${DEFAULT}"
+    [ -n "$NS" ] && BINDINGS="${BINDINGS}
+${NS}	${NS}"
+    [ -n "$REQ_PLAIN" ] && BINDINGS="${BINDINGS}
+${REQ_PLAIN}	${REQ_PLAIN}"
+    while IFS= read -r ITEM; do
+      [ -z "$ITEM" ] && continue
+      if printf '%s' "$ITEM" | grep -q ':'; then
+        EXP="$(printf '%s' "$ITEM" | sed -E 's/:.*//' | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')"
+        LOC="$(printf '%s' "$ITEM" | sed -E 's/.*://' | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')"
+      else
+        EXP="$ITEM"; LOC="$ITEM"
+      fi
+      BINDINGS="${BINDINGS}
+${LOC}	${EXP}"
+    done <<< "$(printf '%s' "$LINE" | grep -oE '\{[^}]*\}[[:space:]]*=[[:space:]]*require\(' | grep -oE '\{[^}]*\}' | tr -d '{}' | tr ',' '\n' | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')"
   done <<< "$PKG_LINES"
   BINDINGS="$(printf '%s\n' "$BINDINGS" | grep -v '^$' | sort -u)"
 
-  while IFS= read -r B; do
+  while IFS=$'\t' read -r B EXPORTED_B; do
     [ -z "$B" ] && continue
-    # Member calls: binding.method( — method is the surface. (Also catches namespace
+    # Member calls: binding.method( — method is the surface (comes from the call site
+    # text itself, so aliasing the RECEIVER doesn't affect it). Also catches namespace
     # member-calls, e.g. AWS.S3( after `import * as AWS from 'aws-sdk'` — "S3" is the
-    # method verified against the AWS package.)
+    # method verified against the AWS package.
     while IFS= read -r M; do
       [ -n "$M" ] && printf '%s\t%s\n' "$PKG" "$M" >> "$SURF_FILE"
-    done < <(printf '%s\n' "$DIFF_ADDED" | grep -oE "\b${B}\.[A-Za-z_][A-Za-z0-9_]*\(" | sed -E "s/^${B}\.//; s/\($//")
-    # Bare/constructor calls: binding( or new binding( — the binding itself is the surface.
-    printf '%s\n' "$DIFF_ADDED" | grep -qE "\b${B}\(" && printf '%s\t%s\n' "$PKG" "$B" >> "$SURF_FILE"
+    done < <(printf '%s\n' "$DIFF_ADDED" | grep -oE "\b${B}\.[A-Za-z_$][A-Za-z0-9_$]*\(" | sed -E "s/^${B}\.//; s/\($//")
+    # Bare/constructor calls: binding( or new binding( — search for the LOCAL name (what
+    # the code calls), but write the EXPORTED name (what the .d.ts declares) as the surface.
+    printf '%s\n' "$DIFF_ADDED" | grep -qE "\b${B}\(" && printf '%s\t%s\n' "$PKG" "$EXPORTED_B" >> "$SURF_FILE"
   done <<< "$BINDINGS"
-done <<< "$PKG_LIST"
+done < .claude/co-review-thirdparty-packages.tmp
 sort -u -o "$SURF_FILE" "$SURF_FILE"
 ```
 
-Also add every method name declared in an added/edited `.d.ts` stub for a third-party module — a type-only surface (never called yet) must ALSO be proven per STEP 2.
+**Also concretely extract every method name declared in an added/edited `.d.ts` stub** (`$STUB_HITS`) — a type-only surface (never called yet) must ALSO be proven per STEP 2. This was previously prose only ("also add...") with no executable code, so a hand-written stub added without a matching call or import — the EXACT shape of the reference bug — iterated an empty surface list and passed with zero checks:
+```bash
+while IFS= read -r SF; do
+  [ -z "$SF" ] && continue
+  [ -f "$SF" ] || continue
+  # Infer the target package: prefer an explicit `declare module 'pkg'` wrapper; fall
+  # back to the filename (the reference bug's actual stub, wx-server-sdk.d.ts, used this
+  # bare-interface-file convention with no module wrapper).
+  STUB_PKG="$(grep -oE "declare module ['\"][^'\"]+['\"]" "$SF" | head -1 | grep -oE "['\"][^'\"]+['\"]" | tr -d "'\"")"
+  [ -z "$STUB_PKG" ] && STUB_PKG="$(basename "$SF" .d.ts)"
+  grep -oE '^[[:space:]]*[A-Za-z_$][A-Za-z0-9_$]*\(' "$SF" | grep -oE '[A-Za-z_$][A-Za-z0-9_$]*' | while read -r SM; do
+    [ -n "$SM" ] && printf '%s\t%s\n' "$STUB_PKG" "$SM" >> "$SURF_FILE"
+  done
+done <<< "$STUB_HITS"
+sort -u -o "$SURF_FILE" "$SURF_FILE"
+```
 
 ---
 
@@ -202,15 +263,32 @@ while IFS=$'\t' read -r PKG METHOD; do
   # do NOT `find node_modules -path "*$PKG*"` (unanchored substring match): for a short
   # unscoped name like "is" or "ms" that matches unrelated packages too (e.g. "is-plain-
   # object", "mime-is-fake"), letting a method declared in the WRONG package's .d.ts
-  # satisfy the existence check. require.resolve also transparently handles pnpm/hoisted
-  # nesting, which a manual find would need to special-case.
+  # satisfy the existence check. `require.resolve('$PKG/package.json')` (a prior draft)
+  # THROWS for modern ESM-first packages whose `exports` map doesn't expose `./package.json`
+  # explicitly — the package and its .d.ts are still installed, but this misclassified them
+  # as untyped and checked the wrong evidence path entirely. Resolve the package's MAIN
+  # entry instead (`require.resolve('$PKG')`, which every package must expose), then walk
+  # UP from there to the nearest ancestor `package.json` whose declared `name` matches —
+  # that's the real package root, one level or several above the main entry file.
   DTS_FILES=""
-  if node -e "require.resolve('$PKG/package.json')" 2>/dev/null; then
-    PKGDIR="$(node -e "console.log(require.resolve('$PKG/package.json').replace(/\/package\.json\$/,''))" 2>/dev/null)"
+  PKGDIR="$(node -e "
+    const path=require('path'), fs=require('fs'), pkg='$PKG';
+    try {
+      let dir = path.dirname(require.resolve(pkg));
+      while (dir !== path.dirname(dir)) {
+        const pj = path.join(dir, 'package.json');
+        if (fs.existsSync(pj)) {
+          try { if (JSON.parse(fs.readFileSync(pj,'utf8')).name === pkg) { console.log(dir); process.exit(0); } } catch(e) {}
+        }
+        dir = path.dirname(dir);
+      }
+    } catch (e) {}
+  " 2>/dev/null)"
+  VERSION=""
+  if [ -n "$PKGDIR" ]; then
     DTS_FILES="$(find "$PKGDIR" -name '*.d.ts' 2>/dev/null)"
+    VERSION="$(node -e "process.stdout.write(require('$PKGDIR/package.json').version)" 2>/dev/null)"
   fi
-  # The installed pinned version — record it in the probe.
-  VERSION="$(node -e "process.stdout.write(require('$PKG/package.json').version)" 2>/dev/null)"
 
   if [ -z "$DTS_FILES" ]; then
     # Untyped package — do NOT default to "unproven, skip it." Prove it mechanically both ways.
@@ -242,9 +320,18 @@ while IFS=$'\t' read -r PKG METHOD; do
       printf '%s\n' "$DIFF_ADDED" | grep -A3 -E "\.$METHOD\(|\b$METHOD\("
       printf '%s\n' "$DIFF_ADDED" | grep -oE "(const|let)[^=]*=[[:space:]]*(await )?(new )?[A-Za-z0-9_.]*\b$METHOD\([^)]*\)|\.$METHOD\([^)]*\)\.[A-Za-z0-9_.]+"
       # Reading top-level `x.url` in the consumption context when the declared shape is
-      # `x.data.url` → P1 (the exact production-500 pattern). This comparison is a judgment
-      # call against the printed DECL above, not a regex — shape structure isn't
-      # mechanically diffable without a real type parser. If it's wrong: P1=$((P1+1)).
+      # `x.data.url` → P1 (the exact production-500 pattern). Shape structure isn't
+      # mechanically diffable without a real type parser, so this comparison is a genuine
+      # judgment call — but it must NOT silently default to "pass" if the agent doesn't
+      # act on it (a prior draft's comment said "if it's wrong: P1++" with no code that
+      # ever ran, so an unjudged surface always passed). FAIL-CLOSED instead: the agent
+      # MUST set SHAPE_OK=1 after actually comparing DECL vs the consumption context
+      # above; if it's never set, this surface is treated as unverified and counted P1.
+      SHAPE_OK=""   # <- the agent sets this to 1 here, after reading DECL + consumption
+      if [ "${SHAPE_OK:-0}" != "1" ]; then
+        P1=$((P1+1))
+        echo "🛑 P1: $PKG::$METHOD — consumption shape not confirmed against DECL (fail-closed default; compare the printed shapes above, then re-run)"
+      fi
     fi
   fi
 done < "$SURF_FILE"
@@ -282,9 +369,11 @@ Do NOT take your own word for "every surface has a probe row" — diff `$SURF_FI
 # PLURAL — STEP 4's documented fallback is one file PER PACKAGE
 # (.claude/sdk-probes/<pkg>.md), not a single hardcoded probe.md. A hardcoded singular
 # filename meant a project following the documented fallback was silently never read
-# here, so every surface reported unprobed regardless of real probe work done.
-PROBE_FILES="$(find docs -maxdepth 2 -name 'SDK-PROBE.md' 2>/dev/null)"
-[ -z "$PROBE_FILES" ] && PROBE_FILES="$(find .claude/sdk-probes -maxdepth 1 -name '*.md' 2>/dev/null)"
+# here, so every surface reported unprobed regardless of real probe work done. Read BOTH
+# locations, not either/or — a project can legitimately have one feature's probe under
+# docs/ and another package's probe only under the fallback; either/or meant the fallback
+# rows were never read once ANY docs/*/SDK-PROBE.md existed anywhere in the repo.
+PROBE_FILES="$( { find docs -maxdepth 2 -name 'SDK-PROBE.md' 2>/dev/null; find .claude/sdk-probes -maxdepth 1 -name '*.md' 2>/dev/null; } )"
 
 SURFACES=0
 PROBED=0
@@ -298,7 +387,17 @@ while IFS=$'\t' read -r PKG METHOD; do
     [ -f "$PF" ] || continue
     while IFS= read -r ROW; do
       case "$ROW" in *"|"*) ;; *) continue ;; esac
-      if printf '%s' "$ROW" | grep -qF "$PKG" && printf '%s' "$ROW" | grep -qF "$METHOD"; then
+      # EXACT-cell match, not substring — a substring check lets a short method name
+      # (e.g. "get") falsely match an unrelated row's longer method ("getUploadMetadata").
+      # Cell 1 is "pkg@version" (match PKG as an exact prefix before @, or exact); cell 2
+      # is "method" or "Class.method" (match METHOD exactly, allowing a class-scope prefix).
+      C1="$(printf '%s' "$ROW" | awk -F'|' '{gsub(/^[ \t]+|[ \t]+$/,"",$2); print $2}')"
+      C2="$(printf '%s' "$ROW" | awk -F'|' '{gsub(/^[ \t]+|[ \t]+$/,"",$3); print $3}')"
+      PKG_MATCH=0
+      case "$C1" in "$PKG"@*|"$PKG") PKG_MATCH=1 ;; esac
+      METHOD_MATCH=0
+      case "$C2" in "$METHOD"|*.$METHOD) METHOD_MATCH=1 ;; esac
+      if [ "$PKG_MATCH" -eq 1 ] && [ "$METHOD_MATCH" -eq 1 ]; then
         ROW_MATCH=1
         break 2
       fi
