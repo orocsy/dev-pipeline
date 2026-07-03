@@ -53,7 +53,7 @@ Before any code is written, decide whether THIS request needs me at all. One tes
 
 The trap: a request can *look* technical ("the total is wrong") but be business ("…because we never decided how tax rounds on multi-currency orders"). When the report names a wrong number/behaviour but not the *rule* that should produce the right one, that's a business bug — run me.
 
-This is the canonical definition of the test. `CLAUDE.md` Rule 21 and the command flows (`fix`, `update`, `plan`, `dev-pipeline`) all point here.
+This is the canonical definition of the test. `CLAUDE.md` Rule 23 and the command flows (`fix`, `update`, `plan`, `dev-pipeline`) all point here.
 
 ---
 
@@ -301,4 +301,4 @@ Assistant (turn 2 — acknowledge + drill into Problem):
 
 ---
 
-*Skill owned by `dev-pipeline`. See `deps.json → owned[]`. Referenced by `commands/plan.md` Phase 1, `commands/dev-pipeline.md` Phase 1, and `commands/scaffold-from-prd.md` Phase 2a (Mode A); and by `commands/update.md` Phase 1 + `commands/fix.md` Step 1.5 (Mode B). The business-vs-technical test above is the canonical definition referenced by `CLAUDE.md` Rule 21.*
+*Skill owned by `dev-pipeline`. See `deps.json → owned[]`. Referenced by `commands/plan.md` Phase 1, `commands/dev-pipeline.md` Phase 1, and `commands/scaffold-from-prd.md` Phase 2a (Mode A); and by `commands/update.md` Phase 1 + `commands/fix.md` Step 1.5 (Mode B). The business-vs-technical test above is the canonical definition referenced by `CLAUDE.md` Rule 23.*

@@ -30,7 +30,7 @@ Before starting, invoke `@planning-with-files` to initialize persistent planning
 
 Do NOT skip the elicitor for "small" features — the SPEC is what makes Phase 8.6 traceability work. A 4-turn elicitation is cheaper than a wrong implementation.
 
-> *Whether* a request needs clarification at all is governed by the canonical business-vs-technical test in `skills/spec-elicitor/SKILL.md` → "When to run me" (and `CLAUDE.md` Rule 21). A brand-new feature almost always does (Mode A — full SPEC); the test mainly gates the lighter `fix` / `update` flows, which use Scope-Lock (Mode B).
+> *Whether* a request needs clarification at all is governed by the canonical business-vs-technical test in `skills/spec-elicitor/SKILL.md` → "When to run me" (and `CLAUDE.md` Rule 23). A brand-new feature almost always does (Mode A — full SPEC); the test mainly gates the lighter `fix` / `update` flows, which use Scope-Lock (Mode B).
 
 ### PHASE 1.1: Codebase Analysis
 

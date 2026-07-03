@@ -18,7 +18,7 @@ This skill is the single decision point for "which skill / MCP / adapter do I us
 
 ## Requirements / Intent Routing (Phase 1 — before any design)
 
-Before design or code, decide WHETHER the request needs a Socratic intent-clarification pass. This router does NOT own that decision — it is governed by the canonical **business-vs-technical test** in `skills/spec-elicitor/SKILL.md` → "When to run me" (and `CLAUDE.md` Rule 21). Summary:
+Before design or code, decide WHETHER the request needs a Socratic intent-clarification pass. This router does NOT own that decision — it is governed by the canonical **business-vs-technical test** in `skills/spec-elicitor/SKILL.md` → "When to run me" (and `CLAUDE.md` Rule 23). Summary:
 
 | Request | Decision | Mode |
 |---|---|---|

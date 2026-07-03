@@ -510,7 +510,7 @@ START OF TURN:
 ├─ Is the user requesting a code change?
 │  └─ YES → Classify (new feature / enhancement / bug fix / hotfix / PR review)
 │           → Invoke the matching /dev-pipeline:* command from routing table
-│           → If the change carries business-intent ambiguity, the routed command runs the Socratic gate first (Rule 21)
+│           → If the change carries business-intent ambiguity, the routed command runs the Socratic gate first (Rule 23)
 │           → Do NOT write code outside a pipeline flow
 │
 └─ Is the user asking a question / non-code task?

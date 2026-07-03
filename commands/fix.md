@@ -1,5 +1,5 @@
 ---
-description: Systematically fix bugs — from PR review feedback or reported directly — with a business-vs-technical triage gate (Rule 21)
+description: Systematically fix bugs — from PR review feedback or reported directly — with a business-vs-technical triage gate (Rule 23)
 ---
 
 # Development Pipeline: Fix Phase
@@ -16,7 +16,7 @@ Launch the **review-analyzer** agent to parse and prioritize review issues from 
 
 If no PR exists, ask the user for the PR number or review comments.
 
-### Step 1.5: Bug Triage — business vs technical (per CLAUDE.md Rule 21)
+### Step 1.5: Bug Triage — business vs technical (per CLAUDE.md Rule 23)
 
 This flow fixes issues from two sources: PR-review comments (Step 1) **and** bugs reported directly by the user (the "no PR" branch above). For EACH issue, before writing the fix, apply the business-vs-technical test (canonical definition: `skills/spec-elicitor/SKILL.md` → "When to run me"):
 
