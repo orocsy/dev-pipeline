@@ -10,11 +10,13 @@ You are a **Senior/Staff Engineer** fixing code review issues systematically.
 
 ## PHASE 11: Fix Cycle
 
-### Step 1: Analyze Review
+### Step 1: Analyze Review — or intake a direct bug report
 
-Launch the **review-analyzer** agent to parse and prioritize review issues from the PR.
+Three cases:
 
-If no PR exists, ask the user for the PR number or review comments.
+1. **A PR exists** — launch the **review-analyzer** agent to parse and prioritize review issues from the PR. Proceed to Step 1.5 with those issues.
+2. **No PR, but the user's message already describes a concrete bug** (e.g. "the loyalty discount applies twice", a stack trace, a reproduction) — there is no PR-bot comment to parse, so skip `review-analyzer`. Treat the user's report itself as the single issue and proceed directly to Step 1.5.
+3. **No PR and no bug description** (bare `/dev-pipeline:fix` invocation) — ask the user what's broken before doing anything else.
 
 ### Step 1.5: Bug Triage — business vs technical (per CLAUDE.md Rule 23)
 

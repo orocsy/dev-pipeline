@@ -1,6 +1,6 @@
 ---
 name: spec-elicitor
-description: Socratic requirements/intent elicitation (苏格拉底式提问). Clarifies WHAT the behaviour should be — before any code — by asking exactly one numbered-options question per turn. Two modes — FULL SPEC (a vague new idea → complete five-section SPEC: Problem, Solution, Constraints, Non-goals, Success; output `docs/<slug>/SPEC.md`) and SCOPE-LOCK (one ambiguous axis → 2–4 questions → a file-less "Intent Lock" handed back to the caller). Fires whenever a request carries business-intent ambiguity, not just a literal requirements phase: new features (/dev-pipeline:plan, /dev-pipeline:dev-pipeline, /dev-pipeline:scaffold-from-prd), enhancements (/dev-pipeline:update), and business/behavioural bugs (/dev-pipeline:fix Step 1.5). Triggers on "I want to build…", "我要做一个…", "help me brainstorm", "spec out a feature", AND on behavioural cues like "it does the wrong thing", "should it do Y or Z", "behaves incorrectly". Skips purely technical faults (TypeError, build break, crash). Never writes code. Never skips ahead. Holds the canonical business-vs-technical test (see inside).
+description: Socratic requirements/intent elicitation (苏格拉底式提问). Clarifies WHAT the behaviour should be — before any code — by asking exactly one numbered-options question per turn. Two modes — FULL SPEC (a vague new idea → complete five-section SPEC covering Problem, Solution, Constraints, Non-goals, Success; output `docs/<slug>/SPEC.md`) and SCOPE-LOCK (one ambiguous axis → 2–4 questions → a file-less "Intent Lock" handed back to the caller). Fires whenever a request carries business-intent ambiguity, not just a literal requirements phase — new features (/dev-pipeline:plan, /dev-pipeline:dev-pipeline, /dev-pipeline:scaffold-from-prd), enhancements (/dev-pipeline:update), and business/behavioural bugs (/dev-pipeline:fix Step 1.5). Triggers on "I want to build…", "我要做一个…", "help me brainstorm", "spec out a feature", AND on behavioural cues like "it does the wrong thing", "should it do Y or Z", "behaves incorrectly". Skips purely technical faults (TypeError, build break, crash). Never writes code. Never skips ahead. Holds the canonical business-vs-technical test (see inside).
 ---
 
 # spec-elicitor — Socratic Requirements Skill
@@ -104,9 +104,11 @@ Every question MUST include 2-4 numbered options the user can pick by typing a s
 
 If you can't think of plausible options, your question is too abstract — refine it before asking.
 
-### Rule 3 — Follow the five-section coverage tracker
+### Rule 3 — Follow the five-section coverage tracker (Mode A only)
 
-You are filling these five sections, in roughly this order. Each must be substantively populated before the SPEC is "complete":
+**Mode B does not use this rule.** Scope-Lock tracks and terminates against the single ambiguous axis, not these five sections — see "Mode B rules" above. Applying this tracker in Mode B is exactly the full-SPEC march Mode B exists to avoid.
+
+In Mode A, you are filling these five sections, in roughly this order. Each must be substantively populated before the SPEC is "complete":
 
 | # | Section | What it captures | Sample probing questions |
 |---|---------|------------------|--------------------------|
@@ -122,9 +124,11 @@ Maintain a mental checklist. After every user answer, decide which section the n
 
 Each turn, briefly reflect back what you understood from the prior answer ("Got it — so the pain is X and the workaround is Y."), THEN ask the next question. This catches mishearings early and shows the user you're listening.
 
-### Rule 5 — Print progress every turn
+### Rule 5 — Print progress every turn (Mode A only)
 
-After the acknowledgement and before the question, print a one-line tracker so the user knows how close they are to a complete SPEC:
+**Mode B does not print this tracker** — there are no five sections to be "close to complete" against. Mode B's only progress signal is its own termination artifact (the 🔒 Intent Lock, see "Mode B rules" above).
+
+In Mode A: after the acknowledgement and before the question, print a one-line tracker so the user knows how close they are to a complete SPEC:
 
 ```
 📋 SPEC progress: [✓ Problem] [✓ Solution] [◐ Constraints] [ ] Non-goals [ ] Success
