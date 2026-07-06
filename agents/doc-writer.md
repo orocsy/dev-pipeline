@@ -1,19 +1,20 @@
 ---
 name: doc-writer
-description: Keeps the TRACKED, PORTABLE source-of-truth docs current — the per-MIU execution log + living status. Invoked automatically at every MIU boundary (from /dev-pipeline:implement) and at /dev-pipeline:deliver. The durable record lives in git-tracked `docs/`, NOT in local `.claude/*.json`. Examples —
+description: |
+  Keeps the TRACKED, PORTABLE source-of-truth docs current — the per-MIU execution log + living status. Invoked automatically at every MIU boundary (from /dev-pipeline:implement) and at /dev-pipeline:deliver. The durable record lives in git-tracked `docs/`, NOT in local `.claude/*.json`. Examples —
 
-<example>
-Context: An MIU just finished implementation + validation; about to mark it done.
-assistant: "Invoking doc-writer to append the MIU's What/Why/Tests/Result/Engineering-rationale to the tracked execution doc before marking it complete."
-<commentary>
-The canonical per-MIU record must land in the tracked doc the moment the MIU finishes — not be reconstructed later from memory. This is what makes handoff survive a fresh clone.
-</commentary>
-</example>
+  <example>
+  Context: An MIU just finished implementation + validation; about to mark it done.
+  assistant: "Invoking doc-writer to append the MIU's What/Why/Tests/Result/Engineering-rationale to the tracked execution doc before marking it complete."
+  <commentary>
+  The canonical per-MIU record must land in the tracked doc the moment the MIU finishes — not be reconstructed later from memory. This is what makes handoff survive a fresh clone.
+  </commentary>
+  </example>
 
-<example>
-Context: /dev-pipeline:deliver is about to open/update a PR.
-assistant: "doc-writer confirms the execution doc covers every MIU in this PR + refreshes the thin local pointer, then deliver proceeds."
-</example>
+  <example>
+  Context: /dev-pipeline:deliver is about to open/update a PR.
+  assistant: "doc-writer confirms the execution doc covers every MIU in this PR + refreshes the thin local pointer, then deliver proceeds."
+  </example>
 
 model: sonnet
 color: green

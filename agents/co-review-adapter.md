@@ -1,20 +1,21 @@
 ---
 name: co-review-adapter
-description: Use this agent to fetch and normalize external review input from ONE review source (a GitHub PR bot, a shared design doc, etc.) into the canonical Finding shape that `/dev-pipeline:co-review` consumes. It is READ/PARSE-ONLY — it never edits source code. Spawn one per configured source. Examples:
+description: |
+  Use this agent to fetch and normalize external review input from ONE review source (a GitHub PR bot, a shared design doc, etc.) into the canonical Finding shape that `/dev-pipeline:co-review` consumes. It is READ/PARSE-ONLY — it never edits source code. Spawn one per configured source. Examples:
 
-<example>
-Context: A Codex PR review bot left new comments on an open PR and we want them normalized.
-user: "Fetch new gh-pr-bot findings on PR 12 since the last cursor."
-assistant: "I'll launch co-review-adapter with the gh-pr-bot adapter to detect + parse only the comments newer than the cursor."
-<commentary>The adapter delegates verification to review-analyzer and returns canonical Findings, never touching code.</commentary>
-</example>
+  <example>
+  Context: A Codex PR review bot left new comments on an open PR and we want them normalized.
+  user: "Fetch new gh-pr-bot findings on PR 12 since the last cursor."
+  assistant: "I'll launch co-review-adapter with the gh-pr-bot adapter to detect + parse only the comments newer than the cursor."
+  <commentary>The adapter delegates verification to review-analyzer and returns canonical Findings, never touching code.</commentary>
+  </example>
 
-<example>
-Context: Another agent (Codex) pushed a new review round into a shared design doc.
-user: "Parse the new codex round in the media-upload REVIEW-CYCLE.md."
-assistant: "I'll launch co-review-adapter with the doc adapter to extract the new `## Round N — codex` section as design Findings."
-<commentary>The doc adapter is cursor-gated on the doc's commit SHA so old rounds are never re-processed.</commentary>
-</example>
+  <example>
+  Context: Another agent (Codex) pushed a new review round into a shared design doc.
+  user: "Parse the new codex round in the media-upload REVIEW-CYCLE.md."
+  assistant: "I'll launch co-review-adapter with the doc adapter to extract the new `## Round N — codex` section as design Findings."
+  <commentary>The doc adapter is cursor-gated on the doc's commit SHA so old rounds are never re-processed.</commentary>
+  </example>
 
 model: sonnet
 color: cyan

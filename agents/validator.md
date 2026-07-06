@@ -1,24 +1,25 @@
 ---
 name: validator
-description: Use this agent to run the project validation suite and get a structured pass/fail report. Examples:
+description: |
+  Use this agent to run the project validation suite and get a structured pass/fail report. Examples:
 
-<example>
-Context: After implementing a code change, need to verify it passes all checks
-user: "Run the full validation suite for the admin app"
-assistant: "I'll launch the validator agent to run lint, type-check, tests, and build for the admin app."
-<commentary>
-The validator agent runs all validation steps and returns a structured report.
-</commentary>
-</example>
+  <example>
+  Context: After implementing a code change, need to verify it passes all checks
+  user: "Run the full validation suite for the admin app"
+  assistant: "I'll launch the validator agent to run lint, type-check, tests, and build for the admin app."
+  <commentary>
+  The validator agent runs all validation steps and returns a structured report.
+  </commentary>
+  </example>
 
-<example>
-Context: After fixing a code review issue, need to verify nothing broke
-user: "Check if everything still passes after that fix"
-assistant: "Let me launch the validator agent to verify all checks pass."
-<commentary>
-Quick validation after a targeted fix — the agent runs the full suite.
-</commentary>
-</example>
+  <example>
+  Context: After fixing a code review issue, need to verify nothing broke
+  user: "Check if everything still passes after that fix"
+  assistant: "Let me launch the validator agent to verify all checks pass."
+  <commentary>
+  Quick validation after a targeted fix — the agent runs the full suite.
+  </commentary>
+  </example>
 
 model: sonnet
 color: green

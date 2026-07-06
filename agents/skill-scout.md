@@ -1,24 +1,25 @@
 ---
 name: skill-scout
-description: Use this agent to discover what skills are currently installed, auto-detect the project's tech stack, and identify gaps for a given task. Examples:
+description: |
+  Use this agent to discover what skills are currently installed, auto-detect the project's tech stack, and identify gaps for a given task. Examples:
 
-<example>
-Context: Starting a new feature, want to know what tools are available
-user: "What skills do I have installed that could help with this React feature?"
-assistant: "I'll launch the skill-scout to audit installed skills and identify any gaps."
-<commentary>
-The skill scout checks what's available and recommends what's missing.
-</commentary>
-</example>
+  <example>
+  Context: Starting a new feature, want to know what tools are available
+  user: "What skills do I have installed that could help with this React feature?"
+  assistant: "I'll launch the skill-scout to audit installed skills and identify any gaps."
+  <commentary>
+  The skill scout checks what's available and recommends what's missing.
+  </commentary>
+  </example>
 
-<example>
-Context: Want to improve the development workflow
-user: "Are there any skills I should install for better code quality?"
-assistant: "Let me launch the skill-scout to analyze your current setup and recommend additions."
-<commentary>
-The scout identifies gaps in the current tooling setup.
-</commentary>
-</example>
+  <example>
+  Context: Want to improve the development workflow
+  user: "Are there any skills I should install for better code quality?"
+  assistant: "Let me launch the skill-scout to analyze your current setup and recommend additions."
+  <commentary>
+  The scout identifies gaps in the current tooling setup.
+  </commentary>
+  </example>
 
 model: sonnet
 color: yellow

@@ -1,24 +1,25 @@
 ---
 name: review-analyzer
-description: Use this agent to parse and prioritize code review comments from a GitHub PR. Examples:
+description: |
+  Use this agent to parse and prioritize code review comments from a GitHub PR. Examples:
 
-<example>
-Context: Code review found issues, need to understand and prioritize them
-user: "Analyze the code review comments on PR #10"
-assistant: "I'll launch the review-analyzer to fetch, categorize, and prioritize the review issues."
-<commentary>
-The review analyzer parses review comments and creates an actionable fix plan.
-</commentary>
-</example>
+  <example>
+  Context: Code review found issues, need to understand and prioritize them
+  user: "Analyze the code review comments on PR #10"
+  assistant: "I'll launch the review-analyzer to fetch, categorize, and prioritize the review issues."
+  <commentary>
+  The review analyzer parses review comments and creates an actionable fix plan.
+  </commentary>
+  </example>
 
-<example>
-Context: Need to understand what a reviewer is asking for
-user: "What issues did the code review find?"
-assistant: "Let me launch the review-analyzer to parse the review and create a prioritized fix plan."
-<commentary>
-The analyzer categorizes issues by severity and suggests fix approaches.
-</commentary>
-</example>
+  <example>
+  Context: Need to understand what a reviewer is asking for
+  user: "What issues did the code review find?"
+  assistant: "Let me launch the review-analyzer to parse the review and create a prioritized fix plan."
+  <commentary>
+  The analyzer categorizes issues by severity and suggests fix approaches.
+  </commentary>
+  </example>
 
 model: sonnet
 color: red

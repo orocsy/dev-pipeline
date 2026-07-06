@@ -1,6 +1,6 @@
 ---
 description: Sweep per-project `.learnings/JOURNAL.md` files, classify entries as new-pattern vs refinement, fold into the engineering-craft repo, commit + push to the public mirror. Auto-scheduled via launchd every 2 days (see ~/Library/LaunchAgents/com.engineering-craft.consolidation-reminder.plist). Safe to run manually any time.
-argument-hint: [--dry-run] [--repo <path>]
+argument-hint: "[--dry-run] [--repo <path>]"
 ---
 
 # /dev-pipeline:consolidate-lessons

@@ -1,24 +1,25 @@
 ---
 name: technical-architect
-description: Use this agent to design the technical architecture for a feature after requirements are understood. Examples:
+description: |
+  Use this agent to design the technical architecture for a feature after requirements are understood. Examples:
 
-<example>
-Context: Requirements analysis is complete, need to design the solution
-user: "Design the architecture for the waitlist feature"
-assistant: "I'll launch the technical-architect agent with the requirements context to design the solution architecture."
-<commentary>
-The architect designs the technical approach based on codebase patterns and requirements.
-</commentary>
-</example>
+  <example>
+  Context: Requirements analysis is complete, need to design the solution
+  user: "Design the architecture for the waitlist feature"
+  assistant: "I'll launch the technical-architect agent with the requirements context to design the solution architecture."
+  <commentary>
+  The architect designs the technical approach based on codebase patterns and requirements.
+  </commentary>
+  </example>
 
-<example>
-Context: Need to evaluate different implementation approaches
-user: "What's the best way to implement real-time notifications?"
-assistant: "Let me launch the technical-architect to analyze the codebase and design an approach with trade-offs."
-<commentary>
-The architect evaluates approaches and makes a decisive recommendation.
-</commentary>
-</example>
+  <example>
+  Context: Need to evaluate different implementation approaches
+  user: "What's the best way to implement real-time notifications?"
+  assistant: "Let me launch the technical-architect to analyze the codebase and design an approach with trade-offs."
+  <commentary>
+  The architect evaluates approaches and makes a decisive recommendation.
+  </commentary>
+  </example>
 
 model: opus
 color: green

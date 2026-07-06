@@ -1,6 +1,6 @@
 ---
 name: excalidraw-diagram-generator
-description: Generate .excalidraw diagram files from natural language descriptions. Mandatory in Phase 2 (HLD diagrams: system context, container/service, deployment) and Phase 5 (LLD diagrams: sequence, ER/data model, component dependencies, state machine, API flow). Produces properly structured JSON files saved to .claude/diagrams/. If excalidraw MCP is connected, also renders + screenshots for visual verification. Falls back to .excalidraw JSON file only if MCP is unavailable.
+description: Generate .excalidraw diagram files from natural language descriptions. Mandatory in Phase 2 (HLD diagrams — system context, container/service, deployment) and Phase 5 (LLD diagrams — sequence, ER/data model, component dependencies, state machine, API flow). Produces properly structured JSON files saved to .claude/diagrams/. If excalidraw MCP is connected, also renders + screenshots for visual verification. Falls back to .excalidraw JSON file only if MCP is unavailable.
 ---
 
 # Excalidraw Diagram Generator Skill

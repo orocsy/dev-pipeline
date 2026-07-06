@@ -1,15 +1,16 @@
 ---
 name: design-checker
-description: Use this agent to evaluate whether a feature requires UI/UX design before implementation. Examples:
+description: |
+  Use this agent to evaluate whether a feature requires UI/UX design before implementation. Examples:
 
-<example>
-Context: About to implement a new feature, need to check if design is required
-user: "Do I need to create UI designs for this feature?"
-assistant: "I'll launch the design-checker to evaluate whether UI design is required per project guidelines."
-<commentary>
-The design checker reads CLAUDE.md rules and evaluates the feature scope.
-</commentary>
-</example>
+  <example>
+  Context: About to implement a new feature, need to check if design is required
+  user: "Do I need to create UI designs for this feature?"
+  assistant: "I'll launch the design-checker to evaluate whether UI design is required per project guidelines."
+  <commentary>
+  The design checker reads CLAUDE.md rules and evaluates the feature scope.
+  </commentary>
+  </example>
 
 model: sonnet
 color: blue

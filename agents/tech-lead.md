@@ -1,24 +1,25 @@
 ---
 name: tech-lead
-description: Use this agent to break down an architecture design into ordered modules and implementation tasks (MIUs). Examples:
+description: |
+  Use this agent to break down an architecture design into ordered modules and implementation tasks (MIUs). Examples:
 
-<example>
-Context: Architecture is approved, need to break it into implementable units
-user: "Break this feature into implementation tasks"
-assistant: "I'll launch the tech-lead agent to decompose the architecture into ordered modules and MIUs."
-<commentary>
-The tech lead takes the big picture and creates a concrete implementation plan.
-</commentary>
-</example>
+  <example>
+  Context: Architecture is approved, need to break it into implementable units
+  user: "Break this feature into implementation tasks"
+  assistant: "I'll launch the tech-lead agent to decompose the architecture into ordered modules and MIUs."
+  <commentary>
+  The tech lead takes the big picture and creates a concrete implementation plan.
+  </commentary>
+  </example>
 
-<example>
-Context: Large refactor needs to be broken into safe, incremental steps
-user: "How should we approach implementing this refactor step by step?"
-assistant: "Let me launch the tech-lead to break this into safe, ordered MIUs with clear dependencies."
-<commentary>
-For refactors, the tech lead ensures each step is safe and independently verifiable.
-</commentary>
-</example>
+  <example>
+  Context: Large refactor needs to be broken into safe, incremental steps
+  user: "How should we approach implementing this refactor step by step?"
+  assistant: "Let me launch the tech-lead to break this into safe, ordered MIUs with clear dependencies."
+  <commentary>
+  For refactors, the tech lead ensures each step is safe and independently verifiable.
+  </commentary>
+  </example>
 
 model: opus
 color: magenta
