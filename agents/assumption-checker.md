@@ -1,34 +1,35 @@
 ---
 name: assumption-checker
-description: Use this agent automatically at MIU boundaries and before /dev-pipeline:review to catch silent assumption drift — i.e. the implementing agent baking in an assumption (URL structure, file path, API shape, deploy topology) that contradicts project docs. The agent does NOT re-run tests; it audits the DIFF against the DOCS. Examples —
+description: |
+  Use this agent automatically at MIU boundaries and before /dev-pipeline:review to catch silent assumption drift — i.e. the implementing agent baking in an assumption (URL structure, file path, API shape, deploy topology) that contradicts project docs. The agent does NOT re-run tests; it audits the DIFF against the DOCS. Examples —
 
-<example>
-Context: Implementing agent finished MIU 3 of a feature; about to mark MIU complete.
-user: "MIU 3 implementation done."
-assistant: "Before marking MIU 3 done I'll launch the assumption-checker to audit the diff against ARCHITECTURE.md / README.md / URL_TOPOLOGY.md."
-<commentary>
-Catches drift BEFORE the next MIU starts on top of a bad assumption.
-</commentary>
-</example>
+  <example>
+  Context: Implementing agent finished MIU 3 of a feature; about to mark MIU complete.
+  user: "MIU 3 implementation done."
+  assistant: "Before marking MIU 3 done I'll launch the assumption-checker to audit the diff against ARCHITECTURE.md / README.md / URL_TOPOLOGY.md."
+  <commentary>
+  Catches drift BEFORE the next MIU starts on top of a bad assumption.
+  </commentary>
+  </example>
 
-<example>
-Context: Agent assumed admin app lives at app.example.com/admin (path-based), built OAuth pages there. README says admin lives at admin.example.com (subdomain + basePath).
-assistant launches assumption-checker which reports:
-  HIGH: diff references app.example.com/admin/* as the admin URL.
-        README.md:42 (Production URL Topology) declares admin at admin.example.com/admin/.
-        Recommendation: rebase changes to the admin app's actual URL or update README if topology actually changed.
-<commentary>
-The exact failure that triggered creation of this agent. Caught at MIU boundary, not three turns later by the user.
-</commentary>
-</example>
+  <example>
+  Context: Agent assumed admin app lives at app.example.com/admin (path-based), built OAuth pages there. README says admin lives at admin.example.com (subdomain + basePath).
+  assistant launches assumption-checker which reports:
+    HIGH: diff references app.example.com/admin/* as the admin URL.
+          README.md:42 (Production URL Topology) declares admin at admin.example.com/admin/.
+          Recommendation: rebase changes to the admin app's actual URL or update README if topology actually changed.
+  <commentary>
+  The exact failure that triggered creation of this agent. Caught at MIU boundary, not three turns later by the user.
+  </commentary>
+  </example>
 
-<example>
-Context: Agent restructured a database schema mid-feature without updating prisma/schema.prisma comment about ON DELETE behavior.
-assistant launches assumption-checker which reports:
-  MEDIUM: diff drops ON DELETE CASCADE on Booking.customerId.
-        prisma/schema.prisma:142 (the comment) explicitly justified the cascade as "customer deletion soft-cleans booking history".
-        Recommendation: either keep the cascade or update the comment + migration to reflect the new policy.
-</example>
+  <example>
+  Context: Agent restructured a database schema mid-feature without updating prisma/schema.prisma comment about ON DELETE behavior.
+  assistant launches assumption-checker which reports:
+    MEDIUM: diff drops ON DELETE CASCADE on Booking.customerId.
+          prisma/schema.prisma:142 (the comment) explicitly justified the cascade as "customer deletion soft-cleans booking history".
+          Recommendation: either keep the cascade or update the comment + migration to reflect the new policy.
+  </example>
 
 model: sonnet
 color: yellow

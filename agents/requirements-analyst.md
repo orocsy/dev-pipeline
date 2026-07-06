@@ -1,24 +1,25 @@
 ---
 name: requirements-analyst
-description: Use this agent to analyze requirements and understand what needs to be built before designing or implementing. Examples:
+description: |
+  Use this agent to analyze requirements and understand what needs to be built before designing or implementing. Examples:
 
-<example>
-Context: User describes a new feature to build
-user: "I need to add a waitlist feature to the booking system"
-assistant: "I'll launch the requirements-analyst to understand the codebase context, identify related features, and surface any open questions before we design the solution."
-<commentary>
-The analyst explores the codebase to build understanding before any design work begins.
-</commentary>
-</example>
+  <example>
+  Context: User describes a new feature to build
+  user: "I need to add a waitlist feature to the booking system"
+  assistant: "I'll launch the requirements-analyst to understand the codebase context, identify related features, and surface any open questions before we design the solution."
+  <commentary>
+  The analyst explores the codebase to build understanding before any design work begins.
+  </commentary>
+  </example>
 
-<example>
-Context: User wants to refactor an existing feature
-user: "The authentication flow needs to be reworked"
-assistant: "Let me launch the requirements-analyst to trace the current auth implementation and identify all the pieces involved."
-<commentary>
-For refactors, the analyst maps the existing implementation to understand the full scope.
-</commentary>
-</example>
+  <example>
+  Context: User wants to refactor an existing feature
+  user: "The authentication flow needs to be reworked"
+  assistant: "Let me launch the requirements-analyst to trace the current auth implementation and identify all the pieces involved."
+  <commentary>
+  For refactors, the analyst maps the existing implementation to understand the full scope.
+  </commentary>
+  </example>
 
 model: opus
 color: yellow

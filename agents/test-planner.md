@@ -1,24 +1,25 @@
 ---
 name: test-planner
-description: Use this agent to enumerate all test scenarios for a feature or MIU before writing any test code. Examples:
+description: |
+  Use this agent to enumerate all test scenarios for a feature or MIU before writing any test code. Examples:
 
-<example>
-Context: About to implement an MIU, need test scenarios first (TDD)
-user: "What test cases do I need for the booking creation service?"
-assistant: "I'll launch the test-planner to enumerate all test scenarios before we write any code."
-<commentary>
-TDD requires knowing ALL test scenarios before implementation. The test planner provides this.
-</commentary>
-</example>
+  <example>
+  Context: About to implement an MIU, need test scenarios first (TDD)
+  user: "What test cases do I need for the booking creation service?"
+  assistant: "I'll launch the test-planner to enumerate all test scenarios before we write any code."
+  <commentary>
+  TDD requires knowing ALL test scenarios before implementation. The test planner provides this.
+  </commentary>
+  </example>
 
-<example>
-Context: Reviewing test coverage for a completed feature
-user: "Are we missing any test cases for the auth flow?"
-assistant: "Let me launch the test-planner to audit what scenarios should be covered."
-<commentary>
-The test planner can also audit existing tests against what SHOULD be tested.
-</commentary>
-</example>
+  <example>
+  Context: Reviewing test coverage for a completed feature
+  user: "Are we missing any test cases for the auth flow?"
+  assistant: "Let me launch the test-planner to audit what scenarios should be covered."
+  <commentary>
+  The test planner can also audit existing tests against what SHOULD be tested.
+  </commentary>
+  </example>
 
 model: opus
 color: cyan
