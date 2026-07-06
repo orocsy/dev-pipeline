@@ -30,9 +30,13 @@ if [[ -f "$MIU_FILE" ]]; then
 fi
 
 # 3. Default doc locations
+#    ISSUE.md is the minimal anchor written by the technical-fault skip branch
+#    (dev-pipeline.md / plan.md Phase 1.0) — its "Done when" line IS the
+#    acceptance criterion for no-SPEC bug runs.
 for candidate in \
   docs/**/*-execution.md \
   docs/**/*-plan.md \
+  docs/**/ISSUE.md \
   docs/PROJECT_STATUS.md \
   .claude/docs/PROJECT_STATUS.md; do
   for f in $candidate; do

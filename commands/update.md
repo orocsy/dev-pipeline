@@ -54,7 +54,7 @@ For each MIU in order:
 2. Implement the change (green)
 3. Refactor if needed
 4. `npx tsc --noEmit && npm test -- --passWithNoTests`
-5. Commit: `git commit -m "feat([scope]): [MIU description]"`
+5. Commit: `git commit -m "feat([scope]): [MIU description]"` — and if a 🔒 Intent Lock was produced at Phase 1, append it to the commit BODY verbatim (the `Decided:` / `Rejected:` lines). The lock is file-less by design, so the commit body and the PR body (Phase 5 deliver) are its only durable record — a decision that lives solely in the approval chat evaporates.
 
 Do not proceed to next MIU if tests are failing.
 
@@ -75,7 +75,7 @@ All must pass.
 
 ## PHASE 5: Deliver
 
-Delegate to `/dev-pipeline:deliver`.
+Delegate to `/dev-pipeline:deliver`. If a 🔒 Intent Lock exists, include it in the PR body under an `## Intent Lock` heading — reviewers must see WHAT behaviour was decided (and what was rejected) without digging through the approval chat.
 
 ---
 

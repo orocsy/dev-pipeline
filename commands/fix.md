@@ -10,13 +10,13 @@ You are a **Senior/Staff Engineer** fixing code review issues systematically.
 
 ## PHASE 11: Fix Cycle
 
-### Step 1: Analyze Review — or intake a direct bug report
+### Step 1: Intake — direct bug report first, then PR review
 
-Three cases:
+Three cases, checked IN THIS ORDER (a direct report always wins — the user's own words outrank a bot's comments, even when a PR happens to be open on the branch):
 
-1. **A PR exists** — launch the **review-analyzer** agent to parse and prioritize review issues from the PR. Proceed to Step 1.5 with those issues.
-2. **No PR, but the user's message already describes a concrete bug** (e.g. "the loyalty discount applies twice", a stack trace, a reproduction) — there is no PR-bot comment to parse, so skip `review-analyzer`. Treat the user's report itself as the single issue and proceed directly to Step 1.5.
-3. **No PR and no bug description** (bare `/dev-pipeline:fix` invocation) — ask the user what's broken before doing anything else.
+1. **The user's message describes a concrete bug** (e.g. "the loyalty discount applies twice", a stack trace, a reproduction) — treat the user's report itself as the primary issue and proceed directly to Step 1.5 with it. Do NOT let an open PR's review comments displace the reported bug; if a PR exists, its findings may be ADDED to the issue list after the reported bug, never instead of it.
+2. **No direct report, but a PR exists** — launch the **review-analyzer** agent to parse and prioritize review issues from the PR. Proceed to Step 1.5 with those issues.
+3. **No direct report and no PR** (bare `/dev-pipeline:fix` invocation) — ask the user what's broken before doing anything else.
 
 ### Step 1.5: Bug Triage — business vs technical (per CLAUDE.md Rule 23)
 
