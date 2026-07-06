@@ -1,0 +1,2 @@
+timestamp	plugin_sha	scope	mean_total	per_case	decision	change_summary	note
+2026-06-09T00:00	EXAMPLE	all-6-cases	-	"01:- 02:- 03:- 04:- 05:- 06:-"	baseline	"example row — delete after first real run"	"run: python3 score.py --batch runs/<sha>/ ; paste mean + per-case totals here"

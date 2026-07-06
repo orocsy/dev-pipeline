@@ -1,0 +1,2 @@
+{ "name": "api", "dependencies": { "@nestjs/core": "10.4.0", "@nestjs/common": "10.4.0", "drizzle-orm": "0.36.0" },
+  "devDependencies": { "typescript": "5.6.0", "jest": "29.7.0", "@nestjs/cli": "10.4.0" } }

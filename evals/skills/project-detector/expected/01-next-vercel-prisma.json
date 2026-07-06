@@ -1,0 +1,15 @@
+{
+  "language": "typescript",
+  "runtime": "node",
+  "framework": "next",
+  "router": "app",
+  "monorepo": false,
+  "testFrameworks": ["vitest", "playwright"],
+  "linter": "eslint",
+  "formatter": "prettier",
+  "orm": "prisma",
+  "db": "postgres",
+  "deployTargets": ["vercel"],
+  "_soft": { "frameworkVersion": "15" },
+  "_ignore": ["packages", "scaffoldingMIUs", "detectedAt", "detectionSource"]
+}

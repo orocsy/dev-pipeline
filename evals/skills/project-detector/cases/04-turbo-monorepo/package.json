@@ -1,0 +1,1 @@
+{ "name": "monorepo-root", "private": true, "workspaces": ["apps/*", "packages/*"], "devDependencies": { "turbo": "2.3.0", "typescript": "5.7.0" } }

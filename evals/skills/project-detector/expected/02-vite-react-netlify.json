@@ -1,0 +1,11 @@
+{
+  "language": "typescript",
+  "runtime": "node",
+  "framework": "react",
+  "monorepo": false,
+  "testFrameworks": ["vitest"],
+  "linter": "eslint",
+  "deployTargets": ["netlify"],
+  "_soft": { "framework": "react|vite", "buildTool": "vite" },
+  "_ignore": ["router", "frameworkVersion", "formatter", "orm", "db", "packages", "scaffoldingMIUs", "detectedAt", "detectionSource"]
+}

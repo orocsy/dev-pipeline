@@ -1,0 +1,8 @@
+{
+  "language": "rust",
+  "runtime": "rust",
+  "monorepo": false,
+  "deployTargets": ["docker-compose"],
+  "_soft": { "deployTargets": "docker-compose|docker|local docker compose", "framework": "none|null" },
+  "_ignore": ["framework", "router", "frameworkVersion", "testFrameworks", "linter", "formatter", "orm", "db", "packages", "scaffoldingMIUs", "detectedAt", "detectionSource"]
+}

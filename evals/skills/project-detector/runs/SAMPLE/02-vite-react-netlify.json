@@ -1,0 +1,1 @@
+{"language":"typescript","runtime":"node","framework":"vite","monorepo":false,"testFrameworks":["vitest"],"linter":"eslint","deployTargets":[]}

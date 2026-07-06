@@ -9,9 +9,9 @@
 > 2026-07-06. Content is unchanged except this header.
 
 
-This file auto-loads whenever the `dev-pipeline` plugin is enabled. It contains ALL pipeline-specific rules. The user-level `~/.claude/CLAUDE.md` deliberately stays thin; everything below is plugin territory.
+This file does NOT auto-load — `CLAUDE.md` does, and carries the operative one-line form of every rule below. This file is the reference you load on demand for a rule's full rationale. The user-level `~/.claude/CLAUDE.md` deliberately stays thin; everything below is plugin territory.
 
-If you are reading this, you MUST follow every rule here in addition to the user-level rules.
+Every rule below is binding — the one-liner in `CLAUDE.md` is the enforced form; this file is its explanation, not a separate, optional layer.
 
 **What's new:** read [`CHANGELOG.md`](CHANGELOG.md) for recently-added skills, gates, and agents. New capabilities are easy to add and then forget exist — the changelog is the one place that lists them so they actually get used. Skim it at session start; anything added there is in force.
 
