@@ -1,6 +1,7 @@
 ---
 description: Fetch, integrate, and respond to external reviews from multiple sources (PR bots, design docs) and manage Claude↔Codex turn-taking. Optional/opt-in — NOT part of the default pipeline and never auto-invoked.
 argument-hint: "[channel] [--source=gh-pr-bot|doc] [--watch] [--once] [--respond] [--retrigger]"
+disable-model-invocation: true
 ---
 
 # Development Pipeline: Co-Review (cross-agent review relay)
@@ -256,7 +257,7 @@ State:     [waiting | converged | stalled | integrated]
 
 ## Opt-in auto-trigger (session-start nudge)
 
-Enable per-project with `touch .claude/co-review/enabled`. When present, `~/.claude/hooks/session-start.sh` runs a lightweight cursor-compare per channel (one `gh api` or one `git log` call) and, on new input, prints a **CO-REVIEW PENDING** directive (mirroring the AUTO-REVIEW DIRECTIVE pattern). It only *surfaces a suggestion* — you still run this command. It is NOT wired into Rule 1/Rule 5 auto-invoke.
+Enable per-project with `touch .claude/co-review/enabled`. When present, `the plugin SessionStart hook (`hooks/session-start.sh`, registered via `hooks/hooks.json`)` runs a lightweight cursor-compare per channel (one `gh api` or one `git log` call) and, on new input, prints a **CO-REVIEW PENDING** directive (mirroring the AUTO-REVIEW DIRECTIVE pattern). It only *surfaces a suggestion* — you still run this command. It is NOT wired into Rule 1/Rule 5 auto-invoke.
 
 ## State & config files (per project, git-tracked)
 - `.claude/co-review/PROTOCOL.md` — the cross-agent convention (scaffolded above; read by both agents).
