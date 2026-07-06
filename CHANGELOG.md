@@ -12,6 +12,34 @@ Conventions:
 
 ---
 
+## 2026-07-06 — CLAUDE.md diet + real lifecycle hooks (measured by the eval harness)
+
+- **CLAUDE.md 562 → ~94 lines.** The always-loaded file now carries ONLY the routing
+  table, the G1–G4 gate table, the one-line normative form of Rules 1–23, session
+  lifecycle, and pointers. Full rule bodies (rationale, failure-mode narratives,
+  decision trees) relocated wholesale to `docs/RULES.md` — same rule numbers, zero
+  content loss. Rationale: official guidance — an over-long always-loaded file makes
+  the model ignore half of it; the churn history showed every incident becoming a new
+  prose paragraph in always-on space.
+- **Real Claude Code lifecycle hooks** (`hooks/hooks.json`): SessionStart
+  (`session-start.sh` — pipeline-state resume signal, rate-limited engineering-craft
+  refresh, opt-in co-review nudge; the file Rules 5 had referenced but which never
+  existed) and Stop (`stop-review-guard.sh` — blocks turn-end while an unblessed
+  commit has a pending AUTO-REVIEW DIRECTIVE; loop-safe via stop_hook_active;
+  fail-open). Rules 2/5 are now deterministic instead of prose-hopeful.
+- **Trivial-change bypass** (Rule 1): one-sentence diff, ≤2 files, no
+  schema/env/auth/payment/URL surface → implement directly with a test + an audit log
+  line. Ends the routing tax on typo-class changes; everything larger still routes.
+- **`disable-model-invocation: true`** on `co-review` (Rule 21 opt-in made mechanical)
+  and `setup-machine` (machine mutation, human-initiated only). Deliberately NOT
+  applied to deliver/deploy/hotfix — their auto-invocation is core design (Rule 3/14)
+  and their side effects are gated internally (blessing, gates, smoke).
+- **Living-docs precedence softened**: docs are the first read, but code remains
+  ground truth for load-bearing answers (the phantom-hooks incident this very change
+  fixes was a stale-doc artifact).
+- Measured: eval-harness baseline (T03/T05/T07) recorded before this change; post-diet
+  re-score in `evals/results.tsv`.
+
 ## 2026-07-01 — hardening pass on both 2026-06-30 additions
 
 Both entries below were adversarially reviewed after landing; each surfaced real,

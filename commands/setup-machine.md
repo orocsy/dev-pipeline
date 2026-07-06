@@ -1,5 +1,6 @@
 ---
 description: Bootstrap a fresh machine — install engineering-craft + dev-pipeline + spec-forge + hooks + settings + launchd. Idempotent. Use on first run on a new device.
+disable-model-invocation: true
 ---
 
 # /dev-pipeline:setup-machine

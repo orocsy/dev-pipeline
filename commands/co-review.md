@@ -256,7 +256,9 @@ State:     [waiting | converged | stalled | integrated]
 
 ## Opt-in auto-trigger (session-start nudge)
 
-Enable per-project with `touch .claude/co-review/enabled`. When present, `~/.claude/hooks/session-start.sh` runs a lightweight cursor-compare per channel (one `gh api` or one `git log` call) and, on new input, prints a **CO-REVIEW PENDING** directive (mirroring the AUTO-REVIEW DIRECTIVE pattern). It only *surfaces a suggestion* — you still run this command. It is NOT wired into Rule 1/Rule 5 auto-invoke.
+Enable per-project with `touch .claude/co-review/enabled`. When present, the plugin SessionStart hook (`hooks/session-start.sh`, registered via `hooks/hooks.json`) runs a lightweight cursor-compare per channel (one `gh api` or one `git log` call) and, on new input, prints a **CO-REVIEW PENDING** directive (mirroring the AUTO-REVIEW DIRECTIVE pattern). It only *surfaces a suggestion* — you still run this command. It is NOT wired into Rule 1/Rule 5 auto-invoke.
+
+**Why this command carries no `disable-model-invocation`, unlike other side-effect commands (`deploy`, `setup-machine`)**: `--watch=cron` (below) self-schedules a re-invocation of this very command via `mcp__scheduled-tasks__create_scheduled_task`. Claude Code's scheduled-task execution treats a scheduled prompt's slash-command text as subject to the SAME model-invocation gating as an in-session call — so `disable-model-invocation: true` would silently turn the cron job's prompt into inert plain text, breaking the feature outright (this was tried and reverted — see CHANGELOG). Rule 21's "never auto-invoke" is already satisfied structurally without the flag: this command is absent from Rule 1's routing table and Rule 5's auto-resume, so nothing routes here without the user explicitly running it or explicitly opting into `--watch=cron`. The flag would add no real safety here, only break a legitimate opt-in automation.
 
 ## State & config files (per project, git-tracked)
 - `.claude/co-review/PROTOCOL.md` — the cross-agent convention (scaffolded above; read by both agents).

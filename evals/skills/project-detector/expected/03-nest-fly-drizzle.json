@@ -1,0 +1,11 @@
+{
+  "language": "typescript",
+  "runtime": "node",
+  "framework": "nestjs",
+  "monorepo": false,
+  "testFrameworks": ["jest"],
+  "orm": "drizzle",
+  "deployTargets": ["fly"],
+  "_soft": { "framework": "nestjs|nest" },
+  "_ignore": ["router", "frameworkVersion", "linter", "formatter", "db", "packages", "scaffoldingMIUs", "detectedAt", "detectionSource"]
+}

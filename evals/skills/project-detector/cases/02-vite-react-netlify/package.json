@@ -1,0 +1,2 @@
+{ "name": "spa", "dependencies": { "react": "18.3.1", "react-dom": "18.3.1" },
+  "devDependencies": { "vite": "6.0.3", "typescript": "5.6.3", "vitest": "2.1.8", "eslint": "9.15.0", "@vitejs/plugin-react": "4.3.4" } }

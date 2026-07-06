@@ -1,0 +1,9 @@
+{
+  "language": "python",
+  "runtime": "python",
+  "framework": "fastapi",
+  "monorepo": false,
+  "deployTargets": ["docker"],
+  "_soft": { "deployTargets": "docker|generic docker" },
+  "_ignore": ["router", "frameworkVersion", "testFrameworks", "linter", "formatter", "orm", "db", "packages", "scaffoldingMIUs", "detectedAt", "detectionSource"]
+}

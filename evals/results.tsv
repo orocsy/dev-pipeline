@@ -1,0 +1,7 @@
+timestamp	plugin_sha	task_id	judge_run	old_total	new_total	delta	decision	weakest_dim	change_summary	note
+2026-07-06T03:10	4cc79c3	T03	batchA-1	-	86.0	-	baseline	D3	"pre-diet baseline"	"fix.md lacks own never-do block; D7 LOW (thin prod verify for money math)"
+2026-07-06T03:10	4cc79c3	T05	batchA-1	-	87.8	-	baseline	D1	"pre-diet baseline"	"hotfix.md happy-path thin: no revert-vs-forward rule, no reset--hard prohibition"
+2026-07-06T03:10	4cc79c3	T07	batchA-1	-	92.9	-	baseline	D1	"pre-diet baseline"	"no staleness check at accept; analyzer prompts improvised"
+2026-07-06T03:20	ad767fe	T03	batchB-1	86.0	89.1	+3.1	keep	D1	"CLAUDE.md diet 562->94 + hooks + trivial bypass"	"bypass correctly refused (payment surface); judge: Rule-11 sweep may defer in-class consumer"
+2026-07-06T03:20	ad767fe	T05	batchB-1	87.8	91.4	+3.6	keep	D1	"CLAUDE.md diet 562->94 + hooks + trivial bypass"	"judge: G4 consent text says direct-to-main but flow branches+PRs; no revert-fail branch"
+2026-07-06T03:20	ad767fe	T07	batchB-1	92.9	92.0	-0.9	keep	D1	"CLAUDE.md diet 562->94 + hooks + trivial bypass"	"single-task dip within noise; mean ratchet 88.9->90.8 strictly up => KEEP"

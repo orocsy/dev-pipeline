@@ -1,0 +1,28 @@
+{
+  "description": "dev-pipeline lifecycle hooks — deterministic versions of Rules 2/5. SessionStart surfaces pipeline state + refreshes the engineering-craft skill; Stop blocks turn-end while an unblessed commit has a pending auto-review.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/stop-review-guard.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

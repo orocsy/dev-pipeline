@@ -1,0 +1,1 @@
+{"language":"python","runtime":"python","framework":"fastapi","monorepo":false,"deployTargets":["generic docker"]}

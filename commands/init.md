@@ -64,7 +64,7 @@ No manual action needed in init — the skill is bootstrapped by layered, self-h
 each independently rate-limited (the hook and detect use *separate* 24h markers so a
 mirror-only refresh can't suppress a skill pull), so it converges without a dedicated step here:
 
-1. **SessionStart hook (`session-start.sh`) — primary.** Runs once per session; clones the
+1. **SessionStart hook (the plugin SessionStart hook) — primary.** Runs once per session; clones the
    skill if missing, else fast-forward-refreshes it (and refreshes the read-write mirror
    when that already exists — it does not provision the mirror itself).
 2. **`/dev-pipeline:detect` STEP 0 — secondary safety net.** Runs at Phase 0 of flows that

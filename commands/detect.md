@@ -20,7 +20,7 @@ NOT bundled with the plugin (knowledge has a different lifecycle than workflow
 harness — see "Harness isn't the goal, knowledge is the moat").
 
 This step is a **secondary safety net**. The primary engineering-craft bootstrap is the
-SessionStart hook (`session-start.sh`), which runs once per session and clones the skill
+SessionStart hook (the plugin SessionStart hook), which runs once per session and clones the skill
 if missing (it fast-forward-refreshes the read-write mirror only when that already exists —
 provisioning the mirror itself is `setup-machine` / `consolidate-lessons` territory). STEP 0
 rate-limits its own SKILL refresh with a **skill-specific** marker (`.last-skill-sync`) —

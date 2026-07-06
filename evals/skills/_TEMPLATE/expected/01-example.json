@@ -1,0 +1,1 @@
+{"should_catch": ["example-bug"], "should_not_flag": ["example-nonissue"]}

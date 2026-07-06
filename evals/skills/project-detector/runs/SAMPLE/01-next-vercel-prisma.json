@@ -1,0 +1,1 @@
+{"language":"typescript","runtime":"node","framework":"next","router":"app","monorepo":false,"testFrameworks":["vitest","playwright"],"linter":"eslint","formatter":"prettier","orm":"prisma","db":"postgres","deployTargets":["vercel"],"frameworkVersion":"15.1"}

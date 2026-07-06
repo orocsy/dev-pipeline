@@ -1,0 +1,8 @@
+{
+  "language": "typescript",
+  "runtime": "node",
+  "monorepo": true,
+  "deployTargets": ["vercel", "fly"],
+  "_soft": { "packages": "web|api", "framework": "next|nestjs|turborepo" },
+  "_ignore": ["router", "frameworkVersion", "testFrameworks", "linter", "formatter", "orm", "db", "scaffoldingMIUs", "detectedAt", "detectionSource"]
+}
