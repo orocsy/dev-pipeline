@@ -1,5 +1,5 @@
 ---
-description: Phase 8.6 requirements traceability — re-reads the original spec/MIU criteria and verifies each acceptance criterion has matching implementation + test. Catches "we shipped a feature that's missing the requirement we promised." Auto-invoked from /dev-pipeline:validate.
+description: Phase 8.6 requirements traceability — re-reads the original spec/MIU criteria and verifies each acceptance criterion has matching implementation + test. Catches "we shipped a feature that's missing the requirement we promised." Invoked as Phase 8.6 of /dev-pipeline:pipeline (the full feature flow).
 ---
 
 # Development Pipeline: Requirements Traceability (Phase 8.6)
@@ -30,9 +30,13 @@ if [[ -f "$MIU_FILE" ]]; then
 fi
 
 # 3. Default doc locations
+#    ISSUE.md is the minimal anchor written by the technical-fault skip branch
+#    (dev-pipeline.md / plan.md Phase 1.0) — its "Done when" line IS the
+#    acceptance criterion for no-SPEC bug runs.
 for candidate in \
   docs/**/*-execution.md \
   docs/**/*-plan.md \
+  docs/**/ISSUE.md \
   docs/PROJECT_STATUS.md \
   .claude/docs/PROJECT_STATUS.md; do
   for f in $candidate; do

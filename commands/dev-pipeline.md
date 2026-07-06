@@ -34,9 +34,12 @@ Invoke `@planning-with-files` to initialize persistent planning files:
 
 - If `$ARGUMENTS` is a path to an existing SPEC/PRD, or contains a multi-paragraph structured spec → SKIP to Phase 1.1.
 - If `docs/<feature-slug>/SPEC.md` already exists for this feature → READ it and SKIP to Phase 1.1.
-- Otherwise (raw sentence / vague idea / "I want to build…" / "我要做…") → invoke the **`dev-pipeline:spec-elicitor`** skill via the Skill tool BEFORE anything else. It Socratically walks the user through five sections (Problem / Solution / Constraints / Non-goals / Success Criteria) one question at a time and writes `docs/<slug>/SPEC.md`. Wait for that to complete. The SPEC becomes the input to Phase 1.1.
+- If the request is a **self-evident technical fault** — a stack trace, `TypeError`, compile/lint/test failure, a crash, a 500 with an obvious cause (per the business-vs-technical test in `skills/spec-elicitor/SKILL.md` → "When to run me") — → SKIP elicitation, but do NOT skip the traceability anchor: write a minimal `docs/<slug>/ISSUE.md` (3 lines — **Symptom** as reported, **Repro** if known, **Done when**: e.g. "the 500 no longer occurs under X; regression test added"). Takes seconds, and it is what Phase 1.1 uses as primary input and what Phase 8.6 (verify-traceability) traces against in place of a SPEC — without it, 8.6 blocks at the end of the pipeline for lack of any spec. (This is why `BUG_FIX_COMPLEX` routes to this command in CLAUDE.md's routing table — a technical bug must NOT be forced through full-SPEC elicitation, but it still needs a done-when.)
+- Otherwise (raw sentence / vague idea / "I want to build…" / "我要做…" / a business-behavioural report whose correct behaviour is itself undecided) → invoke the **`dev-pipeline:spec-elicitor`** skill via the Skill tool BEFORE anything else. It Socratically walks the user through five sections (Problem / Solution / Constraints / Non-goals / Success Criteria) one question at a time and writes `docs/<slug>/SPEC.md`. Wait for that to complete. The SPEC becomes the input to Phase 1.1.
 
 Do NOT skip the elicitor for "small" features — Phase 8.6 (verify-traceability) re-reads this SPEC to check every acceptance criterion shipped. No SPEC = no traceability check possible.
+
+> *Whether* a request needs clarification at all is governed by the canonical business-vs-technical test in `skills/spec-elicitor/SKILL.md` → "When to run me" (and `CLAUDE.md` Rule 23). A brand-new feature almost always does (Mode A — full SPEC); the test mainly gates the lighter `fix` / `update` flows, which use Scope-Lock (Mode B).
 
 ### PHASE 1.1: Codebase Analysis
 

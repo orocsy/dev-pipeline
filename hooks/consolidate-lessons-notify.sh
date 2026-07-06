@@ -21,8 +21,13 @@ for journal in "$PROJECTS_DIR"/*/.learnings/JOURNAL.md; do
   # Count entries: lines starting with "## [JNL-" minus lines with a real
   # consolidated marker. The marker pattern requires a 4-digit year so the
   # header documentation line ("<!-- consolidated: ... -->") doesn't match.
-  TOTAL_IN_FILE="$(grep -c '^## \[JNL-' "$journal" 2>/dev/null || echo 0)"
-  CONSOLIDATED_IN_FILE="$(grep -cE '<!-- consolidated: [0-9]{4}' "$journal" 2>/dev/null || echo 0)"
+  # NOTE: `grep -c` prints "0" AND exits 1 on zero matches, so `|| echo 0`
+  # would append a SECOND zero ("0\n0") and crash the arithmetic below.
+  # `|| true` keeps set-e safe; the printed count is already correct.
+  TOTAL_IN_FILE="$(grep -c '^## \[JNL-' "$journal" 2>/dev/null || true)"
+  CONSOLIDATED_IN_FILE="$(grep -cE '<!-- consolidated: [0-9]{4}' "$journal" 2>/dev/null || true)"
+  TOTAL_IN_FILE="${TOTAL_IN_FILE:-0}"
+  CONSOLIDATED_IN_FILE="${CONSOLIDATED_IN_FILE:-0}"
   UNCONSOLIDATED=$((TOTAL_IN_FILE - CONSOLIDATED_IN_FILE))
 
   if [[ $UNCONSOLIDATED -gt 0 ]]; then

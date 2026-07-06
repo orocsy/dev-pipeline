@@ -275,6 +275,21 @@ Hard rules:
 
 **Failure mode this prevents (real, production 500):** a media-upload feature hand-wrote `getUploadMetadata` onto the `wx-server-sdk` type (which ships **no** types and doesn't have the method) with an **invented** shape (`uploadUrl/cloudObjectMeta/cloudObjectId`). The real method lives on `@cloudbase/node-sdk`'s storage class and returns `{ data: { url, authorization, token, fileId, cosFileId, download_url } }` — sitting in `node_modules/@cloudbase/node-sdk/types/index.d.ts` the whole time, never opened. TS passed; `createUploadIntent` 500'd in production. The design doc even said "verified against @cloudbase/node-sdk@2.10.0" — but no one produced the probe, so the claim was hollow. This rule makes the probe a required, checkable artifact. Long-form: `docs/PHILOSOPHY.md §14`.
 
+### Rule 23: Clarify business intent before building or fixing — the Socratic gate
+
+Before writing code for any request that carries **business-intent ambiguity**, run a Socratic clarification pass (the `dev-pipeline:spec-elicitor` skill, 苏格拉底式提问) to lock *what the behaviour should be* BEFORE deciding *how* to build it. This is automatic (Rule 14), not opt-in, and it fires across flows — new features (`pipeline` / `plan`), enhancements (`update`), and business/behavioural bugs (`fix` Step 1.5) — not only a literal "requirements" phase.
+
+The test — **is the *correct behaviour* self-evident, or is it itself the thing in question?**
+
+- **Self-evident → SKIP (technical / mechanical).** Stack trace, `TypeError`, compile/lint/test failure, 500, crash, null deref, dependency bump. The desired outcome is obvious ("don't crash"); only the mechanism is unknown. Go straight to the fix.
+- **Must be decided → RUN the Socratic pass (business / behavioural).** "the discount applies twice", "shows status X but should show Y", "who should receive this email". The desired outcome IS the ambiguity — lock it before you touch code, or you'll faithfully implement the wrong thing.
+
+Watch for the disguise: a report can *look* technical ("the total is wrong") but be business ("we never decided how tax rounds"). If it names a wrong result but not the *rule* that yields the right one, it's business — run the pass.
+
+Modes: new features run the **full** elicitor (writes `docs/<slug>/SPEC.md`); enhancements and business bugs run **Scope-Lock** — 2–4 questions, no file, a 🔒 Intent Lock folded into the gate (`update` G1 / `fix` Step 1.5) and the commit/PR body. **Exempt:** `hotfix` (production-down = restore known-good behaviour = technical by definition; speed wins).
+
+Canonical test + the two modes live in `skills/spec-elicitor/SKILL.md`. **Readiness test (per Rule 14):** if a behavioural bug or fuzzy enhancement can reach code without anyone deciding what the behaviour *should* be, the gate didn't fire — find the missing trigger.
+
 ---
 
 ## MANDATORY WORKFLOW ROUTING
@@ -495,6 +510,7 @@ START OF TURN:
 ├─ Is the user requesting a code change?
 │  └─ YES → Classify (new feature / enhancement / bug fix / hotfix / PR review)
 │           → Invoke the matching /dev-pipeline:* command from routing table
+│           → If the change carries business-intent ambiguity, the routed command runs the Socratic gate first (Rule 23)
 │           → Do NOT write code outside a pipeline flow
 │
 └─ Is the user asking a question / non-code task?

@@ -16,6 +16,19 @@ description: Auto-select the correct skills and MCP tools for each pipeline phas
 
 This skill is the single decision point for "which skill / MCP / adapter do I use right now?" Agents MUST consult this router before reaching for any tool; the router reads `project-profile.json` (from `project-detector`) and emits a decision.
 
+## Requirements / Intent Routing (Phase 1 — before any design)
+
+Before design or code, decide WHETHER the request needs a Socratic intent-clarification pass. This router does NOT own that decision — it is governed by the canonical **business-vs-technical test** in `skills/spec-elicitor/SKILL.md` → "When to run me" (and `CLAUDE.md` Rule 23). Summary:
+
+| Request | Decision | Mode |
+|---|---|---|
+| New feature / project, no written spec | run `spec-elicitor` | Mode A (full SPEC → `docs/<slug>/SPEC.md`) |
+| Enhancement with an undecided scope axis (`/dev-pipeline:update`) | run `spec-elicitor` | Mode B (Scope-Lock → 🔒 Intent Lock, no file) |
+| Business/behavioural bug (`/dev-pipeline:fix` Step 1.5) | run `spec-elicitor` | Mode B (Scope-Lock) |
+| Purely technical fault (TypeError, crash, build break) / `/dev-pipeline:hotfix` | SKIP — straight to the fix | — |
+
+Record the decision in the event log like any other routing call (see Output Contract below).
+
 ## Design Phase Routing
 
 Applies during Phase 2 (HLD) and Phase 3 (design spec) of `/dev-pipeline:pipeline` and `/dev-pipeline:update`.

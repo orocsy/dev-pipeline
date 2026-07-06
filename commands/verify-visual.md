@@ -1,5 +1,5 @@
 ---
-description: Phase 8.2 visual verification — opens headed browser, captures screenshots of every UI surface touched in the diff, surfaces them for human inspection. Catches "tests pass but UI is broken" and "implementation diverges from design spec." Auto-invoked from /dev-pipeline:validate when UI files change.
+description: Phase 8.2 visual verification — opens headed browser, captures screenshots of every UI surface touched in the diff, surfaces them for human inspection. Catches "tests pass but UI is broken" and "implementation diverges from design spec." Invoked as Phase 8.2 of /dev-pipeline:pipeline when UI files change.
 ---
 
 # Development Pipeline: Visual Verification (Phase 8.2)

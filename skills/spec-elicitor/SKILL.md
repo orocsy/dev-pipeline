@@ -1,6 +1,6 @@
 ---
 name: spec-elicitor
-description: Socratic requirements elicitation. Walks the user from a vague idea ("I want to build…", "我要做一个…", "help me brainstorm", "flesh out an idea", "spec out a feature", "let's discuss a requirement") to a complete SPEC document with five sections — Problem Statement, Proposed Solution, Technical Constraints, Non-goals, Success Criteria — by asking exactly one numbered-options question per turn. Fires at the very start of /dev-pipeline:plan, /dev-pipeline:dev-pipeline, and /dev-pipeline:scaffold-from-prd whenever the user has not already supplied a written SPEC or PRD. Output is `docs/<feature-slug>/SPEC.md`. Never writes code. Never skips ahead.
+description: Socratic requirements/intent elicitation (苏格拉底式提问). Locks WHAT the behaviour should be — before any code — one numbered-options question per turn. Two modes — FULL SPEC (vague new idea → five-section SPEC at `docs/<slug>/SPEC.md`) and SCOPE-LOCK (one ambiguous axis → 2–4 questions → file-less Intent Lock). Fires on business-intent ambiguity in any flow — new features (plan / dev-pipeline / scaffold-from-prd), enhancements (update), business/behavioural bugs (fix Step 1.5). Triggers on "I want to build…", "我要做一个…", "help me brainstorm", "spec out a feature", and behavioural cues like "should it do Y or Z", "it does the wrong thing". Skips self-evident technical faults (TypeError, crash, build break). Never writes code. Holds the canonical business-vs-technical test (see inside).
 ---
 
 # spec-elicitor — Socratic Requirements Skill
@@ -8,8 +8,9 @@ description: Socratic requirements elicitation. Walks the user from a vague idea
 ## Activation Banner (print exactly once when this skill loads)
 
 ```
-🔧 [dev-pipeline] skill: spec-elicitor — Socratic spec elicitation active
-   One question per turn → numbered options → SPEC.md when all 5 sections are filled.
+🔧 [dev-pipeline] skill: spec-elicitor — Socratic intent elicitation active
+   One question per turn → numbered options.
+   Mode A (full SPEC): write SPEC.md when all 5 sections are filled · Mode B (Scope-Lock): 2–4 Qs → 🔒 Intent Lock, no file.
 ```
 
 ---
@@ -23,17 +24,62 @@ Fire automatically when the user opens a session with any of:
 - "help me brainstorm" / "let's discuss a requirement" / "let's spec this out"
 - "flesh out an idea" / "think through this with me" / "I have an idea for…"
 - They pasted a one-line feature wish without any structure
+- A behavioural-bug or enhancement cue where the intended behaviour is undecided — "it does the wrong thing", "should it do Y or Z?", "behaves incorrectly", "the discount applies twice"
 
-Also fire when a pipeline command (`/dev-pipeline:plan`, `/dev-pipeline:dev-pipeline`, `/dev-pipeline:scaffold-from-prd`) detects that the user request is a raw sentence rather than a structured spec or PRD.
+Fire across flows, not only a literal requirements phase — the full rule is "When to run me — the business-vs-technical test" below:
+- **New features** — `/dev-pipeline:plan`, `/dev-pipeline:dev-pipeline`, `/dev-pipeline:scaffold-from-prd` detect a raw sentence rather than a structured spec/PRD → **Mode A** (full SPEC).
+- **Enhancements** — `/dev-pipeline:update` Phase 1 finds an undecided scope axis → **Mode B** (Scope-Lock).
+- **Business/behavioural bugs** — `/dev-pipeline:fix` Step 1.5 classifies the bug as business (not a technical fault) → **Mode B** (Scope-Lock).
 
 ## When NOT to use this skill
 
 - The user has already supplied a PRD, design doc, or written SPEC — skip directly to `prd-parser` or `requirements-analyst`.
 - The user is asking a **question** about the codebase (not proposing a new build).
-- The user explicitly asks for code or to fix a bug — those are pipeline flows (`/dev-pipeline:hotfix`, `/dev-pipeline:fix`), not elicitation.
+- The user reports a purely **technical** fault (crash, `TypeError`, build/lint/test failure) — that's a straight fix (`/dev-pipeline:fix`, `/dev-pipeline:hotfix`), not elicitation. (A **business/behavioural** bug is different — see "When to run me — the business-vs-technical test" below; `/dev-pipeline:fix` Step 1.5 invokes me in Scope-Lock mode for those.)
 - A SPEC.md already exists at `docs/<feature-slug>/SPEC.md` and the user is iterating inside it — read it first; only re-invoke this skill if the user explicitly asks to redo the spec.
 
 If unsure, ASK the user: "It sounds like you have an idea you want to think through. Do you want me to walk you through it as a structured discussion (one question at a time), or do you already have a written spec to hand me?"
+
+---
+
+## When to run me — the business-vs-technical test
+
+Before any code is written, decide whether THIS request needs me at all. One test:
+
+> **Is the *correct behaviour* self-evident, or is it itself the thing in question?**
+
+- **Self-evident → SKIP me (technical / mechanical).** Stack trace, `TypeError`, compile / lint / test failure, 500, crash, null deref, dependency or version bump. The desired outcome is obvious — "don't crash", "compile", "return 200". Only the *mechanism* is unknown. Go straight to the fix; Socratic questioning adds nothing.
+- **Must be decided → RUN me (business / behavioural).** "the loyalty discount applies twice at checkout", "it shows status X but should show Y", "who should receive this email", "after checkout it should…". The desired outcome IS the ambiguity. Lock it *before* touching code — otherwise you will faithfully implement the wrong behaviour.
+
+The trap: a request can *look* technical ("the total is wrong") but be business ("…because we never decided how tax rounds on multi-currency orders"). When the report names a wrong number/behaviour but not the *rule* that should produce the right one, that's a business bug — run me.
+
+This is the canonical definition of the test. `CLAUDE.md` Rule 23 and the command flows (`fix`, `update`, `plan`, `dev-pipeline`) all point here.
+
+---
+
+## Two operating modes — Full SPEC vs Scope-Lock
+
+Same Socratic discipline (one question per turn, numbered options); two depths.
+
+| | **Mode A — Full SPEC** | **Mode B — Scope-Lock** |
+|---|---|---|
+| Trigger | A vague NEW feature/project with no written spec | One ambiguous axis inside an otherwise-scoped change (an enhancement, or a business bug) |
+| Depth | All five sections, 6–12 turns | The single open axis only, 2–4 turns |
+| Output | Writes `docs/<slug>/SPEC.md` (the contract) | **Writes NO file.** Returns a short "Intent Lock" to the calling flow |
+| Used by | `plan`, `dev-pipeline`, `scaffold-from-prd` | `update` (folds into G1), `fix` (Step 1.5 triage) |
+
+**Mode B rules:**
+- Ask only the questions needed to resolve the *specific* ambiguity. Do NOT march the user through Problem/Solution/Constraints/Non-goals/Success — that's Mode A.
+- Cap at ~4 turns. If it's taking more, the change is bigger than an enhancement/bug — escalate to Mode A (`/dev-pipeline:plan`).
+- Terminate by printing an **Intent Lock** and handing back — do not write `SPEC.md`, do not create `docs/<slug>/`:
+
+```
+🔒 Intent Lock — <one-line restatement of the now-unambiguous behaviour>
+Decided: <the choice the user made, e.g. "discount applies once per order, to the highest-priced eligible item">
+Rejected: <the alternative(s) ruled out>
+```
+
+The caller folds this into its gate (the `update` G1 scope statement, or the `fix` triage note) and the eventual commit/PR body. Keeping it file-less avoids dragging a two-line bug fix into Phase 8.6 traceability machinery.
 
 ---
 
@@ -58,9 +104,11 @@ Every question MUST include 2-4 numbered options the user can pick by typing a s
 
 If you can't think of plausible options, your question is too abstract — refine it before asking.
 
-### Rule 3 — Follow the five-section coverage tracker
+### Rule 3 — Follow the five-section coverage tracker (Mode A only)
 
-You are filling these five sections, in roughly this order. Each must be substantively populated before the SPEC is "complete":
+**Mode B does not use this rule.** Scope-Lock tracks and terminates against the single ambiguous axis, not these five sections — see "Mode B rules" above. Applying this tracker in Mode B is exactly the full-SPEC march Mode B exists to avoid.
+
+In Mode A, you are filling these five sections, in roughly this order. Each must be substantively populated before the SPEC is "complete":
 
 | # | Section | What it captures | Sample probing questions |
 |---|---------|------------------|--------------------------|
@@ -76,9 +124,11 @@ Maintain a mental checklist. After every user answer, decide which section the n
 
 Each turn, briefly reflect back what you understood from the prior answer ("Got it — so the pain is X and the workaround is Y."), THEN ask the next question. This catches mishearings early and shows the user you're listening.
 
-### Rule 5 — Print progress every turn
+### Rule 5 — Print progress every turn (Mode A only)
 
-After the acknowledgement and before the question, print a one-line tracker so the user knows how close they are to a complete SPEC:
+**Mode B does not print this tracker** — there are no five sections to be "close to complete" against. Mode B's only progress signal is its own termination artifact (the 🔒 Intent Lock, see "Mode B rules" above).
+
+In Mode A: after the acknowledgement and before the question, print a one-line tracker so the user knows how close they are to a complete SPEC:
 
 ```
 📋 SPEC progress: [✓ Problem] [✓ Solution] [◐ Constraints] [ ] Non-goals [ ] Success
@@ -102,7 +152,9 @@ Target: 6–12 turns total for a typical feature. If you hit 15+ turns without c
 
 ## Termination & Output
 
-When all five sections have substantive content, do this in a SINGLE turn:
+> **Mode B (Scope-Lock):** the steps below are Mode A only. In Mode B you terminate by printing the **Intent Lock** (see "Two operating modes — Full SPEC vs Scope-Lock") and handing back to the calling flow — you do NOT write any file. Skip the rest of this section.
+
+**Mode A (Full SPEC)** — when all five sections have substantive content, do this in a SINGLE turn:
 
 ### Step 1 — Confirm
 
@@ -216,8 +268,9 @@ User: "我要做一个让客户在等位列表里自动收到位置开放通知�
 Assistant (turn 1 — banner + acknowledge + first question on Problem):
 
 ```
-🔧 [dev-pipeline] skill: spec-elicitor — Socratic spec elicitation active
-   One question per turn → numbered options → SPEC.md when all 5 sections are filled.
+🔧 [dev-pipeline] skill: spec-elicitor — Socratic intent elicitation active
+   One question per turn → numbered options.
+   Mode A (full SPEC): write SPEC.md when all 5 sections are filled · Mode B (Scope-Lock): 2–4 Qs → 🔒 Intent Lock, no file.
 
 明白了 — 你想做的是等位列表的自动通知功能。先从「问题」开始。
 
@@ -252,4 +305,4 @@ Assistant (turn 2 — acknowledge + drill into Problem):
 
 ---
 
-*Skill owned by `dev-pipeline`. See `deps.json → owned[]`. Referenced by `commands/plan.md` Phase 1, `commands/dev-pipeline.md` Phase 1, and `commands/scaffold-from-prd.md` Phase 2.*
+*Skill owned by `dev-pipeline`. See `deps.json → owned[]`. Referenced by `commands/plan.md` Phase 1, `commands/dev-pipeline.md` Phase 1, and `commands/scaffold-from-prd.md` Phase 2a (Mode A); and by `commands/update.md` Phase 1 + `commands/fix.md` Step 1.5 (Mode B). The business-vs-technical test above is the canonical definition referenced by `CLAUDE.md` Rule 23.*
