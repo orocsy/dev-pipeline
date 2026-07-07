@@ -15,17 +15,31 @@
 #   1. The 8 mandatory fields per MIU:
 #        Block / Files / Type / Depends on / What it does /
 #        Build-Deploy-Runtime impact / Test plan / Done when
-#   2. Files: 1–3 paths, never more
-#   3. Block is one of BACKEND | FRONTEND | INFRASTRUCTURE | INTEGRATION | TESTING
+#   2. Files: 1–3 paths, never more. Bullets are split on commas when counting,
+#      so "- a.ts, b.ts" is 2 paths — packing 4 paths into one bullet cannot
+#      dodge the cap.
+#   3. Block is EXACTLY one of BACKEND | FRONTEND | INFRASTRUCTURE | INTEGRATION
+#      | TESTING (whole trimmed value — composites like "BACKEND + FRONTEND" and
+#      annotated forms like "BACKEND (api)" are rejected; pick ONE block).
 #   4. Type is one of new-file | modify-existing | new-test | refactor
 #   5. "What it does" and "Test plan" are non-empty
 #   6. "Build/Deploy/Runtime impact" is non-empty ("none" is valid but must be STATED)
 #   7. "Done when" has >= 2 criteria
 #   8. Depends form a DAG: referenced MIUs exist, no self-deps, no forward refs
-#      (an MIU may only depend on a LOWER-numbered MIU)
+#      (an MIU may only depend on a LOWER-numbered MIU). The "none" shortcut is
+#      honored ONLY when the field is exactly none/None after trimming; mixed
+#      values like "none, MIU 3" or "none (uses API contract from MIU 4)" still
+#      have every "MIU N" reference validated.
 #   9. Contract-source rule (MIU-A): an MIU that defines a first-party contract
 #      (DTO / shared type / zod schema / API shape) must precede any MIU that
 #      references one of its files — a consumer numbered before its contract fails.
+#      Matching covers BOTH the contract file's basename AND the primary
+#      exported-symbol guess derived from it (kebab/snake segments -> PascalCase,
+#      extension stripped, suffix-preserving: create-referral.dto.ts ->
+#      CreateReferralDto), so a consumer that names only the symbol is still
+#      caught. The symbol heuristic is deliberately conservative: derived only
+#      for contract-shaped basenames (.dto/.schema/.types/.contract/.interface
+#      segment), only for symbols >= 6 chars, matched on exact word boundaries.
 #      Exemption: an earlier MIU that itself lists the file in its own "Files:"
 #      is a co-editor/definer of that file (two sequential MIUs legitimately
 #      editing the same file in order), NOT a consumer-before-contract.
@@ -46,6 +60,28 @@ awk '
 function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
 function fail(id, msg) { errors[++nerr] = "MIU " id ": " msg }
 
+# symbol_from_base — primary exported-symbol guess for a contract file basename,
+# so a consumer that names only the SYMBOL (not the file) is still ordered after
+# its contract. kebab/snake/dot segments -> PascalCase, extension stripped,
+# suffix-preserving: create-referral.dto.ts -> CreateReferralDto,
+# booking.schema.ts -> BookingSchema. Conservative by design (avoids false
+# positives on prose): returns "" unless the basename is contract-shaped
+# (.dto/.schema/.types/.contract/.interface segment) and the derived symbol is
+# >= 6 chars; callers match it on exact word boundaries only.
+function symbol_from_base(base,   s, n, parts, i, out) {
+  if (base !~ /\.(dto|schemas?|types?|contract|interface)\.[A-Za-z]+$/) return ""
+  s = base
+  sub(/\.[A-Za-z]+$/, "", s)          # strip extension
+  n = split(s, parts, /[-_.]+/)
+  out = ""
+  for (i = 1; i <= n; i++) {
+    if (parts[i] == "") continue
+    out = out toupper(substr(parts[i], 1, 1)) substr(parts[i], 2)
+  }
+  if (length(out) < 6) return ""
+  return out
+}
+
 function flush_miu() {
   if (cur == "") return
   # 1. presence of the 8 mandatory fields
@@ -62,19 +98,26 @@ function flush_miu() {
     f = req[i]
     if (!((cur, f) in seen)) fail(cur, "missing mandatory field \"" label[f] "\"")
   }
-  # 2. Files: 1-3 paths
+  # 2. Files: 1-3 paths (bullets split on commas — "- a.ts, b.ts" is 2 paths,
+  #    so comma-packing a single bullet cannot bypass the cap)
   if ((cur SUBSEP "Files") in seen) {
     fv = trim(inline[cur, "Files"])
     nfiles = 0
     if (fv != "") { nfiles = split(fv, tmpf, ",") }
-    nfiles += bullets[cur, "Files"] + 0
+    nbul = bullets[cur, "Files"] + 0
+    if (nbul > 0) {
+      bc = content[cur, "Files"]
+      nbul += gsub(/,/, ",", bc)   # each comma inside a bullet is one more path
+    }
+    nfiles += nbul
     if (nfiles < 1)      fail(cur, "Files is empty (need 1-3 explicit paths)")
     else if (nfiles > 3) fail(cur, "Files lists " nfiles " paths (max 3 — split the MIU)")
   }
-  # 3. Block enum
+  # 3. Block enum — EXACT match of the whole trimmed value; prefix forms like
+  #    "BACKEND + FRONTEND" or "BACKEND (api)" are rejected (one block per MIU)
   if ((cur SUBSEP "Block") in seen) {
     bv = toupper(trim(inline[cur, "Block"]))
-    if (bv !~ /^(BACKEND|FRONTEND|INFRASTRUCTURE|INTEGRATION|TESTING)([ \t].*)?$/)
+    if (bv !~ /^(BACKEND|FRONTEND|INFRASTRUCTURE|INTEGRATION|TESTING)$/)
       fail(cur, "Block \"" trim(inline[cur, "Block"]) "\" is not one of BACKEND|FRONTEND|INFRASTRUCTURE|INTEGRATION|TESTING")
   }
   # 4. Type enum
@@ -163,12 +206,30 @@ END {
   # 8. Depends form a DAG (no self / forward / dangling refs)
   for (i = 1; i <= nmiu; i++) {
     m = order[i]
-    dv = inline[m, "Depends"] " " content[m, "Depends"]
-    if (dv ~ /[Nn]one/ || trim(dv) == "") continue
-    nd = split(dv, toks, /[^0-9]+/)
-    for (j = 1; j <= nd; j++) {
-      if (toks[j] == "") continue
-      d = toks[j] + 0
+    dv = trim(inline[m, "Depends"] " " content[m, "Depends"])
+    # "none" skips validation ONLY when the field is exactly none/None —
+    # "none, MIU 3" or "none (uses API contract from MIU 4)" still carries
+    # references that must be validated
+    if (dv == "" || tolower(dv) == "none") continue
+    # collect explicit "MIU N" refs first
+    ndep = 0
+    rest = dv
+    while (match(rest, /MIU[ \t]*[0-9]+/)) {
+      ref = substr(rest, RSTART, RLENGTH); sub(/^MIU[ \t]*/, "", ref)
+      deplist[++ndep] = ref + 0
+      rest = substr(rest, RSTART + RLENGTH)
+    }
+    # legacy bare-number form ("Depends on: 1, 2") — only when the field has no
+    # explicit MIU refs AND no "none" (prose numbers next to "none" would be noise)
+    if (ndep == 0 && dv !~ /[Nn]one/) {
+      nd = split(dv, toks, /[^0-9]+/)
+      for (j = 1; j <= nd; j++) {
+        if (toks[j] == "") continue
+        deplist[++ndep] = toks[j] + 0
+      }
+    }
+    for (j = 1; j <= ndep; j++) {
+      d = deplist[j]
       if (d == m + 0)            fail(m, "depends on itself")
       else if (!(d in header_seen)) fail(m, "depends on MIU " d " which does not exist")
       else if (d > m + 0)        fail(m, "depends on LATER MIU " d " (forward ref — dependencies must point to lower-numbered MIUs; renumber)")
@@ -185,6 +246,8 @@ END {
       if (p !~ /\//) continue            # only real paths
       base = p; sub(/^.*\//, "", base)
       if (base == "" || length(base) < 6) continue
+      sym = symbol_from_base(base)
+      symre = (sym == "") ? "" : "(^|[^A-Za-z0-9_])" sym "($|[^A-Za-z0-9_])"
       for (j = 1; j <= nmiu; j++) {
         e = order[j]
         if (e + 0 >= c + 0) continue     # only EARLIER MIUs can violate
@@ -194,6 +257,10 @@ END {
         if (index(inline[e, "Files"] " " content[e, "Files"], base) > 0) continue
         if (index(content[e, "What"], base) > 0)
           fail(e, "consumes contract file " base " defined by LATER MIU " c " (contract-source rule: contracts precede consumers — reorder)")
+        # symbol fallback: consumer names only the exported symbol, not the file
+        # (word-boundary match; at most ONE violation per earlier-MIU/file pair)
+        else if (symre != "" && (content[e, "What"] ~ symre || (inline[e, "Files"] " " content[e, "Files"]) ~ symre))
+          fail(e, "consumes contract symbol " sym " (from " base ") defined by LATER MIU " c " (contract-source rule: contracts precede consumers — reorder)")
       }
     }
   }
