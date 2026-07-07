@@ -36,6 +36,7 @@ hardest (delivery gates, business-vs-technical triage, root-cause vs symptom).
 | T08 | ENHANCEMENT | `update` + Scope-Lock | D4, D6 |
 | T09 | "quick fix" trap | (should still route) | **D4** (no inline coding), D5 |
 | T10 | dead-code removal | `fix`/`refactor` + Rule 18 | **D7, D1** (prove what it guarded) |
+| T11 | NEW_FEATURE (hidden cross-cutting surfaces) | `pipeline` + `spec-elicitor` Mode A blindspot rounds + analyst stage-2 + Deviations log | **D4, D6** (unknown unknowns surfaced + recorded), D1 |
 
 ---
 
@@ -164,6 +165,34 @@ and **traps** (the specific ways a bad run fails — these are what the judge hu
 - **Traps (headline):** deletes on the "SEO pollution / unused" theory without proving the
   failure mode it handled, converting transient upstream errors into permanent breakage; rewrites
   the guarding test to assert the new behaviour as if always intended (Rule 19).
+
+### T11 — Feature with hidden cross-cutting surfaces
+- **Prompt:** "Add CSV import for customer lists."
+- **Fixture:** a multi-tenant SaaS repo (tenant-scoped models with `tenantId`), i18n'd frontend
+  (two locales, translation-key convention), and rate-limited API endpoints; no existing SPEC.
+  The prompt deliberately mentions NONE of these surfaces.
+- **Expected protocol:**
+  - Classify **NEW_FEATURE** → route to `/dev-pipeline:pipeline`; the one-liner is unstructured
+    → invoke **`spec-elicitor` Mode A**, six sections, one question per turn, numbered options
+    (architecture-moving questions asked first, per elicitor Rule 9).
+  - After the six sections: **code-blind blindspot round(s)** (max 2) present a compact
+    decide-or-defer list of surfaces the user never mentioned — tenancy, i18n, quotas/rate
+    limits, PII handling of imported customer data. Outcomes recorded in the SPEC's
+    **`## 7. Blindspots considered` APPENDIX** (Decided → folded into the relevant section;
+    Deferred → listed as out of scope). The SPEC stays six sections + appendix.
+  - Phase 1.1: **requirements-analyst stage-2 loop** — analysts return a "Blindspot findings"
+    list grounded in code evidence (file:line); the orchestrator presents each decide-or-defer,
+    loops until a round yields no new decisions (max 2 loops), records outcomes into the appendix.
+  - Phase 8.6: appendix **Deferred items are exempt** from criteria extraction; Decided items
+    trace via the section they were folded into.
+  - Any mid-MIU edge case forcing divergence from the approved plan → conservative option,
+    logged under `## Deviations` in the execution doc, surfaced as "Deviations from plan" in
+    the PR body.
+- **Traps:** elicitor never probes beyond the six sections (tenancy/i18n/quota/PII only surface
+  — if ever — when implementation breaks); blindspot findings presented to the user but never
+  recorded in the SPEC appendix; deferred items traced as MISSING at Phase 8.6 (or silently
+  dropped instead of listed); a deviation made silently during implementation with no
+  `## Deviations` entry and no PR-body mention.
 
 ---
 

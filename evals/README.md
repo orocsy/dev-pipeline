@@ -53,7 +53,7 @@ Full research write-up (verified against primary sources): see the companion rep
 | File | What it is |
 |---|---|
 | `RUBRIC.md` | 7 scored dimensions (D1–D3 content quality from SkillLens; D4–D7 orchestration/protocol adherence from `CLAUDE.md`). 0–10 × weight → /100, with a strict-improvement ratchet. |
-| `TASKS.md` | 10 frozen, held-out tasks across the routing table, each with the **expected protocol** and the **traps** a bad run falls into. The judge's ground truth. |
+| `TASKS.md` | 11 frozen, held-out tasks across the routing table, each with the **expected protocol** and the **traps** a bad run falls into. The judge's ground truth. |
 | `judge.md` | An **independent** sub-agent spec that scores one run transcript against the rubric. Fresh each round; evidence-bound; flags low-confidence calls. |
 | `results.tsv` | The scoreboard — one row per (task, judge run). This is the number the CHANGELOG never had. |
 | `runs/` | Where you save run transcripts (`<task-id>__<plugin-sha>.md`). Create as needed. |
@@ -128,7 +128,7 @@ independence is the point (SkillLens: a same-context unguided judge is *worse th
 3. **Reward-hacking is possible here too.** A change can lift a score by padding a file to tick
    rubric boxes without adding executable value. The judge is told to withhold points for this,
    but you should spot-check that score gains correspond to real behaviour gains — not longer docs.
-4. **The suite is small and frozen on purpose.** 10 tasks won't cover everything; add tasks as new
+4. **The suite is small and frozen on purpose.** 11 tasks won't cover everything; add tasks as new
    failure modes appear (that's the healthy version of growth). Never edit a task to match what the
    pipeline already does — that's the Rule-19 tautology turned on the eval.
 

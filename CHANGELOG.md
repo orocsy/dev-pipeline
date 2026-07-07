@@ -12,6 +12,37 @@ Conventions:
 
 ---
 
+## 2026-07-06 — Blindspot pass, architecture-first ordering, explicit Deviations log
+
+Field-guide review items #15–#17 (see `evals/BACKLOG.md`), landed pending ratchet. No new
+gates, no phase renumbering; the SPEC contract stays six sections.
+
+- **Blindspot pass — unknown unknowns, two stages** (`skills/spec-elicitor/SKILL.md`
+  "Blindspot rounds" + `agents/requirements-analyst.md` "Blindspot findings" +
+  `commands/dev-pipeline.md` / `commands/plan.md` Phase 1.1): after the six sections,
+  Mode A runs a code-blind decide-or-defer round over commonly-forgotten surfaces
+  (topics from installed engineering-craft categories, static fallback otherwise; max
+  2 rounds); Phase 1.1 then presents the analysts' code-grounded findings the same way
+  (max 2 loops). Outcomes land in a `## 7. Blindspots considered` SPEC APPENDIX —
+  Decided folds into the relevant section, Deferred is exempt from Phase 8.6 tracing
+  (`commands/verify-traceability.md` STEP 1). Mode B: at most ONE mini-blindspot
+  question when the locked axis touches a shared surface.
+- **Architecture-impact questions first** (`skills/spec-elicitor/SKILL.md` Rule 9):
+  among candidate questions, ask FIRST those whose answer would change component
+  boundaries, the data model, or an external contract — a late answer there
+  invalidates work; a late cosmetic answer invalidates nothing.
+- **Explicit Deviations log** (`commands/implement.md` STEP 1 + `agents/doc-writer.md`
+  + `commands/deliver.md` PHASE 9): a mid-MIU edge case forcing divergence from the
+  approved plan takes the CONSERVATIVE option and is logged immediately under
+  `## Deviations` in the tracked execution doc (what / why / conservative choice /
+  non-conservative alternative); no conservative resolution means it is NOT a
+  deviation — stop and ask. doc-writer verifies logging at MIU boundary + deliver;
+  the PR body gains a "Deviations from plan" section (omitted when empty). Log and
+  surface only — never a silent divergence, never a new gate.
+- **New frozen eval task T11** (`evals/TASKS.md`): "feature with hidden cross-cutting
+  surfaces" — instruments blindspot rounds, the stage-2 analyst loop, appendix
+  recording, deferred-item exemption at 8.6, and silent-deviation traps.
+
 ## 2026-07-06 — Factory-redesign adaptations: 4 ideas adopted, architecture rejected
 
 Per `docs/factory-redesign-assessment.md` (the external redesign plan's architecture was
