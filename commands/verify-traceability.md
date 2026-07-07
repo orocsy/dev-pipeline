@@ -1,5 +1,5 @@
 ---
-description: Phase 8.6 requirements traceability — re-reads the original spec/MIU criteria and verifies each acceptance criterion has matching implementation + test. Catches "we shipped a feature that's missing the requirement we promised." Invoked as Phase 8.6 of /dev-pipeline:pipeline (the full feature flow).
+description: Phase 8.6 requirements traceability — re-reads the original spec/MIU criteria and verifies each acceptance criterion AND each quality criterion (SPEC.md §6 measurable NFRs) has matching implementation + test. Catches "we shipped a feature that's missing the requirement we promised." Invoked as Phase 8.6 of /dev-pipeline:pipeline (the full feature flow).
 ---
 
 # Development Pipeline: Requirements Traceability (Phase 8.6)
@@ -62,15 +62,17 @@ printf '  %s\n' "${SPECS[@]}"
 
 Spawn a sub-agent to read each spec and produce a structured criteria list. Prompt:
 
-> "Read the spec(s) at the paths I'm about to give you. Extract every acceptance criterion. Look for:
+> "Read the spec(s) at the paths I'm about to give you. Extract every acceptance criterion AND every quality criterion. Look for:
 > - Lines under headings like 'Acceptance Criteria', 'Done When', 'Definition of Done'
+> - Lines under headings like 'Quality Criteria' / '质量标准' (SPEC.md section 6 — measurable NFRs: rate limits, audit logging, perf budgets)
 > - Bullet points starting with 'Must', 'Should', 'When … then …'
 > - Numbered lists describing user-visible behavior
 > - 'Test plan' / 'Verification' sections
 >
-> Output a JSON array: `[{ id: '1', criterion: '<short>', source: '<file:line>', category: 'feature|test|design|api' }]`
+> Output a JSON array: `[{ id: '1', criterion: '<short>', source: '<file:line>', category: 'feature|test|design|api|quality' }]`
 >
-> Be exhaustive. A criterion that's just a one-liner ('user sees error 410 for expired tokens') still counts."
+> Be exhaustive. A criterion that's just a one-liner ('user sees error 410 for expired tokens') still counts.
+> Quality criteria trace EXACTLY like acceptance criteria — 'p95 < 500ms' or 'send is audit-logged with tenantId' needs code + test evidence like any feature line. The one exception: an explicit simplicity trade-off entry ('polling not websockets this round') traces to the ABSENCE/choice being honored — cite the implementing file as code_evidence and mark test_evidence '—' if the choice is structural."
 
 Save to `.claude/.traceability-criteria.json`.
 
