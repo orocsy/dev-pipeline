@@ -120,3 +120,14 @@ on expected score impact), ONE change per round, revert on non-improvement:
     user reaction BEFORE converging (works in Claude Code via artifacts; claude.ai
     Design is an alternative surface, not a replacement — the workflow needs the
     artifact IN the repo/design-doc trail).
+
+## From the T11 A/B round (2026-07-07)
+
+20. **deferred-but-blocking re-open branch** (D1, branch judge): requirements-analyst
+    rules an appendix-Deferred surface "is NOT a finding" — so a code-blind deferral
+    can never be re-raised even when code evidence proves it load-bearing. Add the
+    exception: report as a finding flagged `deferred-but-blocking`.
+21. **Design-waiver artifact** (D5, branch judge): dev-pipeline Phase 3 accepts a
+    one-sentence user assertion as satisfying DESIGN_REQUIRED with no re-check and no
+    record. Add: re-invoke design-checker against the stated composition OR write a
+    logged design-waiver that verify-visual (8.2) consumes.
