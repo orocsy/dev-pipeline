@@ -33,9 +33,12 @@ fi
 #    ISSUE.md is the minimal anchor written by the technical-fault skip branch
 #    (dev-pipeline.md / plan.md Phase 1.0) — its "Done when" line IS the
 #    acceptance criterion for no-SPEC bug runs.
+#    SPEC.md carries the §6 quality criteria this phase promises to trace —
+#    it must be discovered here, not only via deprecated miu-progress.json.
 for candidate in \
   docs/**/*-execution.md \
   docs/**/*-plan.md \
+  docs/**/SPEC.md \
   docs/**/ISSUE.md \
   docs/PROJECT_STATUS.md \
   .claude/docs/PROJECT_STATUS.md; do

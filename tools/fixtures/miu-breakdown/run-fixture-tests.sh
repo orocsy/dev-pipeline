@@ -13,6 +13,19 @@
 #                             while the co-editor pattern (units 1 + 2 both
 #                             listing schema.prisma in their own Files:) must
 #                             NOT be flagged.
+#   bypass-vectors.md       → exit 1 — regressions for the four bypass vectors
+#                             closed after Codex round-1 review on PR #7:
+#                               1. "none, MIU N" / "none (… MIU N)" Depends
+#                                  values skipping ALL dep validation
+#                               2. comma-packed Files bullets dodging the ≤3 cap
+#                               3. Block enum prefix match ("BACKEND + FRONTEND")
+#                               6. consumer naming only the contract's exported
+#                                  SYMBOL (CreateReferralDto), not its file
+#   bypass-vectors-pass.md  → exit 0 — SHOULD-PASS siblings of the same four
+#                             vectors (exact "None", comma bullets summing to 3,
+#                             bare Block enums, symbol mention by a co-editor /
+#                             by a correctly-ordered consumer) — proves the
+#                             tightened checks add no false positives.
 #
 # Exit 0 = every assertion passed.
 
@@ -81,6 +94,24 @@ t "ordering-violations.md flags only the true violations" 1 "$HERE/ordering-viol
   'MIU 3: consumes contract file create-referral.dto.ts defined by LATER MIU 4' \
   '!MIU 1: consumes contract file' \
   '!MIU 2: consumes contract file'
+
+# 6. Bypass vectors (Codex round-1 on PR #7): all four previously-passing
+#    bypasses must now fail with named messages; the contract definer stays clean.
+t "bypass-vectors.md flags all four closed bypasses" 1 "$HERE/bypass-vectors.md" \
+  'FAIL: 5 violation(s) in 4 MIU(s)' \
+  'MIU 1: consumes contract symbol CreateReferralDto (from create-referral.dto.ts) defined by LATER MIU 2' \
+  'MIU 3: Block "BACKEND + FRONTEND" is not one of' \
+  'MIU 3: Files lists 4 paths' \
+  'MIU 3: depends on LATER MIU 4' \
+  'MIU 4: depends on MIU 9 which does not exist' \
+  '!MIU 2:'
+
+# 7. SHOULD-PASS siblings: legitimate forms adjacent to each closed bypass
+#    (exact "None", annotated backward "none (… MIU 2)", comma bullets summing
+#    to exactly 3, bare Block enums, symbol mentioned by co-editor and by a
+#    correctly-ordered consumer) must NOT be flagged.
+t "bypass-vectors-pass.md passes (no false positives near the closed bypasses)" 0 "$HERE/bypass-vectors-pass.md" \
+  "OK: 3 MIU(s) validated"
 
 echo ""
 if [[ $fails -eq 0 ]]; then

@@ -82,3 +82,38 @@ on expected score impact), ONE change per round, revert on non-improvement:
 14. **Eval-transcript convention**: scoped runs must use planned/future wording for
     out-of-scope phases ("would run"), never achieved tense ("G5 green") — both T01
     judges flagged the same cap-risk ambiguity.
+
+## From the Fable-5 field-guide review (2026-07-07) — design-assessed, awaiting ratchet rounds
+
+15. **Blindspot pass (unknown-unknowns) in elicitation** — VALID, high-value, cheap.
+    Today the elicitor asks about its six KNOWN sections and requirements-analyst
+    surfaces ambiguities from the codebase; neither explicitly hunts unknown-unknowns.
+    Spec: after the six sections (Mode A) or the locked axis (Mode B), run ONE
+    codebase-grounded blindspot round — "this change also touches X/Y/Z (auth,
+    tenancy, i18n, migrations, quotas) which you haven't mentioned — decide or defer
+    each." Loops until the user has no new "oh right" reactions ("keep doing blind
+    pass until you know"). Files: spec-elicitor SKILL.md + requirements-analyst.
+16. **Architecture-impact question ordering** — VALID, tiny. Elicitor Rule: among
+    candidate questions, ask FIRST those whose answer would change the architecture
+    (the field guide's interview heuristic). One paragraph in spec-elicitor Protocol.
+17. **Explicit Deviations log** — MOSTLY EXISTS (execution docs + doc-writer own
+    "what failed first / trade-offs"; tracked docs already solve the cross-device
+    /cross-account context problem by design). Gap: a named `## Deviations` subsection
+    in the per-MIU execution format + the rule "hit an edge case mid-MIU → pick the
+    conservative option, log it under Deviations, keep going — never silently deviate."
+    Files: miu-methodology output format, doc-writer, implement.md.
+18. **`/dev-pipeline:explain` — HTML change report + comprehension quiz** — NEW, good
+    fit as an OPT-IN deliver-phase artifact (not agent-global): generates an HTML
+    walkthrough of a merged change (context, intuition, what/why, diffs annotated)
+    ending with a quiz the user must pass; wire as an optional deliver Phase 12.7
+    offer + standalone command. Rationale: comprehension-verification closes the
+    "user rubber-stamps agent work" gap — same philosophy as the eval quiz idea.
+19. **Design-direction prototyping ("4 wildly different directions")** — PARTIALLY
+    EXISTS design-phase routing (skill-router: Stitch/Figma/ui-ux-pro-max) is dated;
+    ui-ux-pro-max is a deps.json external whose upstream should be re-checked by
+    /dev-pipeline:refresh-deps + skill-doctor (run in a fresh session — freshness
+    check is exactly what they exist for). Spec: design-check phase gains a
+    "divergent directions" step — produce N contrasting HTML mock directions for
+    user reaction BEFORE converging (works in Claude Code via artifacts; claude.ai
+    Design is an alternative surface, not a replacement — the workflow needs the
+    artifact IN the repo/design-doc trail).

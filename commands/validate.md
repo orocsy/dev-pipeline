@@ -146,7 +146,16 @@ if [[ -z "$CHANGED_SRC" ]]; then
   # there is nothing to mutate, and `--mutate ""` makes Stryker error noisily.
   echo "[mutation backstop: skipped — assertion rewrite with no changed source files (pure test refactor); nothing to mutate]"
 else
+  # pipefail: without it the pipeline returns tail's exit (always 0), silently
+  # masking a Stryker crash — gate semantics below say a Stryker error must
+  # surface as the review finding, never be swallowed.
+  set -o pipefail
   npx stryker run --mutate "$CHANGED_SRC" --incremental 2>&1 | tail -20
+  STRYKER_EXIT=$?
+  set +o pipefail
+  if [[ $STRYKER_EXIT -ne 0 ]]; then
+    echo "[mutation backstop: stryker exited $STRYKER_EXIT — report this error as the review finding (gate semantics); NOT a silent skip]"
+  fi
 fi
 ```
 
