@@ -85,23 +85,26 @@ on expected score impact), ONE change per round, revert on non-improvement:
 
 ## From the Fable-5 field-guide review (2026-07-07) — design-assessed, awaiting ratchet rounds
 
-15. **Blindspot pass (unknown-unknowns) in elicitation** — VALID, high-value, cheap.
-    Today the elicitor asks about its six KNOWN sections and requirements-analyst
-    surfaces ambiguities from the codebase; neither explicitly hunts unknown-unknowns.
-    Spec: after the six sections (Mode A) or the locked axis (Mode B), run ONE
-    codebase-grounded blindspot round — "this change also touches X/Y/Z (auth,
-    tenancy, i18n, migrations, quotas) which you haven't mentioned — decide or defer
-    each." Loops until the user has no new "oh right" reactions ("keep doing blind
-    pass until you know"). Files: spec-elicitor SKILL.md + requirements-analyst.
-16. **Architecture-impact question ordering** — VALID, tiny. Elicitor Rule: among
-    candidate questions, ask FIRST those whose answer would change the architecture
-    (the field guide's interview heuristic). One paragraph in spec-elicitor Protocol.
-17. **Explicit Deviations log** — MOSTLY EXISTS (execution docs + doc-writer own
-    "what failed first / trade-offs"; tracked docs already solve the cross-device
-    /cross-account context problem by design). Gap: a named `## Deviations` subsection
-    in the per-MIU execution format + the rule "hit an edge case mid-MIU → pick the
-    conservative option, log it under Deviations, keep going — never silently deviate."
-    Files: miu-methodology output format, doc-writer, implement.md.
+15. **Blindspot pass (unknown-unknowns) in elicitation** — **LANDED 2026-07-06, PENDING
+    RATCHET** (branch `feat/blindspot-deviations`). Shipped as a two-stage loop:
+    stage 1 code-blind in `spec-elicitor` Mode A (checklist from engineering-craft
+    category names, static fallback; max 2 rounds; Mode B gets at most ONE
+    mini-blindspot question on a shared-surface axis) + stage 2 code-grounded
+    "Blindspot findings" contract in `requirements-analyst`, presented decide-or-defer
+    by `dev-pipeline`/`plan` Phase 1.1 (max 2 loops). Outcomes → SPEC
+    `## 7. Blindspots considered` APPENDIX (six sections unchanged); Deferred items
+    exempt from Phase 8.6 (`verify-traceability` STEP 1). Ratchet: T01 + T11.
+16. **Architecture-impact question ordering** — **LANDED 2026-07-06, PENDING RATCHET**
+    (same branch). `spec-elicitor` Rule 9: among candidate questions, ask FIRST those
+    whose answer would change the architecture (litmus: component boundaries, data
+    model, or an external contract). Ratchet: T01 + T11 (shares #15's rounds).
+17. **Explicit Deviations log** — **LANDED 2026-07-06, PENDING RATCHET** (same branch).
+    `implement.md` STEP 1 mid-MIU rule (edge case → conservative option → log under
+    `## Deviations` in the tracked execution doc → keep going; no conservative
+    resolution = NOT a deviation → stop and ask; never silently deviate) +
+    `doc-writer` per-MIU Deviations field with boundary/deliver verification +
+    `deliver.md` PHASE 9 "Deviations from plan" PR section (omitted when empty).
+    Ratchet: T11 (deviation traps) + T01.
 18. **`/dev-pipeline:explain` — HTML change report + comprehension quiz** — NEW, good
     fit as an OPT-IN deliver-phase artifact (not agent-global): generates an HTML
     walkthrough of a merged change (context, intuition, what/why, diffs annotated)
@@ -117,3 +120,14 @@ on expected score impact), ONE change per round, revert on non-improvement:
     user reaction BEFORE converging (works in Claude Code via artifacts; claude.ai
     Design is an alternative surface, not a replacement — the workflow needs the
     artifact IN the repo/design-doc trail).
+
+## From the T11 A/B round (2026-07-07)
+
+20. **deferred-but-blocking re-open branch** (D1, branch judge): requirements-analyst
+    rules an appendix-Deferred surface "is NOT a finding" — so a code-blind deferral
+    can never be re-raised even when code evidence proves it load-bearing. Add the
+    exception: report as a finding flagged `deferred-but-blocking`.
+21. **Design-waiver artifact** (D5, branch judge): dev-pipeline Phase 3 accepts a
+    one-sentence user assertion as satisfying DESIGN_REQUIRED with no re-check and no
+    record. Add: re-invoke design-checker against the stated composition OR write a
+    logged design-waiver that verify-visual (8.2) consumes.

@@ -26,6 +26,8 @@ Stage only files related to this feature (never `git add -A`):
    - Push to remote branch
    - Create a pull request with auto-generated description
 
+**"Deviations from plan" PR section (assembled from the execution doc):** before finalizing the PR body, collect every entry under the `## Deviations` section of this feature's tracked execution doc (`docs/<feature>/<feature>-execution.md` — written mid-MIU per `commands/implement.md` STEP 1, verified by `doc-writer` above) and render them as a **"Deviations from plan"** section in the PR body: one bullet per deviation (what diverged / why / the conservative choice taken). This is surfacing, not a gate — the reviewer and the user see every point where the shipped code departs from the approved plan, without re-reading the execution doc. If the execution doc has no deviation entries, OMIT the section entirely (no empty "Deviations: none" boilerplate in the PR). If no execution doc exists at all — hotfix/fix flows that never created one — likewise omit the section.
+
 ---
 
 ## PHASE 9.5: Conflict Gate (MANDATORY — automatic, never skipped)

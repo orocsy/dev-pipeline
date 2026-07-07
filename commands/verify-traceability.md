@@ -75,6 +75,7 @@ Spawn a sub-agent to read each spec and produce a structured criteria list. Prom
 > Output a JSON array: `[{ id: '1', criterion: '<short>', source: '<file:line>', category: 'feature|test|design|api|quality' }]`
 >
 > Be exhaustive. A criterion that's just a one-liner ('user sees error 410 for expired tokens') still counts.
+> One exclusion: in a SPEC's '## 7. Blindspots considered' appendix, DEFERRED items are explicitly out of scope this round — do NOT extract criteria from them; DECIDED items need no separate extraction either, since they were folded into (and trace via) the section named on their line.
 > Quality criteria trace EXACTLY like acceptance criteria — 'p95 < 500ms' or 'send is audit-logged with tenantId' needs code + test evidence like any feature line. The one exception: an explicit simplicity trade-off entry ('polling not websockets this round') traces to the ABSENCE/choice being honored — cite the implementing file as code_evidence and mark test_evidence '—' if the choice is structural."
 
 Save to `.claude/.traceability-criteria.json`.

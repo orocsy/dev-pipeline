@@ -12,6 +12,65 @@ Conventions:
 
 ---
 
+## 2026-07-06 — Blindspot pass, architecture-first ordering, explicit Deviations log
+
+Field-guide review items #15–#17 (see `evals/BACKLOG.md`), landed pending ratchet. No new
+gates, no phase renumbering; the SPEC contract stays six sections.
+
+- **Blindspot pass — unknown unknowns, two stages** (`skills/spec-elicitor/SKILL.md`
+  "Blindspot rounds" + `agents/requirements-analyst.md` "Blindspot findings" +
+  `commands/dev-pipeline.md` / `commands/plan.md` Phase 1.1): after the six sections,
+  Mode A runs a code-blind decide-or-defer round over commonly-forgotten surfaces
+  (topics from installed engineering-craft categories, static fallback otherwise; max
+  2 rounds); Phase 1.1 then presents the analysts' code-grounded findings the same way
+  (max 2 loops). Outcomes land in a `## 7. Blindspots considered` SPEC APPENDIX —
+  Decided folds into the relevant section, Deferred is exempt from Phase 8.6 tracing
+  (`commands/verify-traceability.md` STEP 1). Mode B: at most ONE mini-blindspot
+  question when the locked axis touches a shared surface.
+- **Architecture-impact questions first** (`skills/spec-elicitor/SKILL.md` Rule 9):
+  among candidate questions, ask FIRST those whose answer would change component
+  boundaries, the data model, or an external contract — a late answer there
+  invalidates work; a late cosmetic answer invalidates nothing.
+- **Explicit Deviations log** (`commands/implement.md` STEP 1 + `agents/doc-writer.md`
+  + `commands/deliver.md` PHASE 9): a mid-MIU edge case forcing divergence from the
+  approved plan takes the CONSERVATIVE option and is logged immediately under
+  `## Deviations` in the tracked execution doc (what / why / conservative choice /
+  non-conservative alternative); no conservative resolution means it is NOT a
+  deviation — stop and ask. doc-writer verifies logging at MIU boundary + deliver;
+  the PR body gains a "Deviations from plan" section (omitted when empty). Log and
+  surface only — never a silent divergence, never a new gate.
+- **New frozen eval task T11** (`evals/TASKS.md`): "feature with hidden cross-cutting
+  surfaces" — instruments blindspot rounds, the stage-2 analyst loop, appendix
+  recording, deferred-item exemption at 8.6, and silent-deviation traps.
+
+### Deviations from the locked design
+
+Practicing this entry's own rule — the implementation diverged from the locked design in
+three places, each resolved conservatively and logged here (what diverged / why /
+conservative choice / non-conservative alternative):
+
+- **`evals/README.md` task-count fix (10 → 11).** What diverged: the design listed only
+  `evals/TASKS.md` as the eval-suite change, but the README hard-codes the frozen task
+  count in two lines. Why: adding T11 made those lines factually wrong. Conservative
+  choice: update the two counts in place, nothing else in the README. Non-conservative
+  alternative: derive the count dynamically or restructure the README so it never states
+  a number — larger blast radius than the feature warrants.
+- **Activation-banner line in `skills/spec-elicitor/SKILL.md`.** What diverged: the
+  design specified the blindspot rounds but said nothing about the skill's activation
+  banner. Why: the banner is the user's only up-front signal of what the interview will
+  do; omitting the pass there makes the batched round 1 feel like a protocol violation.
+  Conservative choice: add ONE line to the existing banner (both occurrences, incl. the
+  worked example) announcing the Mode A blindspot pass. Non-conservative alternative:
+  redesign the banner format or add a separate blindspot banner — not needed.
+- **Rule-1 exception codified in place.** What diverged: the design's "present ONE
+  compact decide-or-defer list" contradicts Protocol Rule 1 (one question per turn),
+  which the design never reconciled. Why: leaving two absolute rules in conflict invites
+  the skill to "fix" it either way at runtime. Conservative choice: codify the batched
+  list as an explicit, narrowly-scoped exception at the point of use (step 3 of the
+  stage-1 procedure), leaving Rule 1's text authoritative. Non-conservative alternative:
+  rewrite Rule 1 itself to allow batching generally, or split the round into per-surface
+  turns (doubles interview length) — both rejected.
+
 ## 2026-07-06 — Factory-redesign adaptations: 4 ideas adopted, architecture rejected
 
 Per `docs/factory-redesign-assessment.md` (the external redesign plan's architecture was

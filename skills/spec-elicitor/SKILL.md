@@ -1,6 +1,6 @@
 ---
 name: spec-elicitor
-description: Socratic requirements/intent elicitation (苏格拉底式提问). Locks WHAT the behaviour should be — before any code — one numbered-options question per turn. Two modes — FULL SPEC (vague new idea → six-section SPEC at `docs/<slug>/SPEC.md`, incl. quality goals) and SCOPE-LOCK (one ambiguous axis → 2–4 questions → file-less Intent Lock). Fires on business-intent ambiguity in any flow — new features (plan / dev-pipeline / scaffold-from-prd), enhancements (update), business/behavioural bugs (fix Step 1.5). Triggers on "I want to build…", "我要做一个…", "help me brainstorm", "spec out a feature", and behavioural cues like "should it do Y or Z", "it does the wrong thing". Skips self-evident technical faults (TypeError, crash, build break). Never writes code. Holds the canonical business-vs-technical test (see inside).
+description: Socratic requirements/intent elicitation (苏格拉底式提问). Locks WHAT the behaviour should be — before any code — one numbered-options question per turn. Two modes — FULL SPEC (vague new idea → six-section SPEC at `docs/<slug>/SPEC.md`, incl. quality goals) and SCOPE-LOCK (one ambiguous axis → 2–4 questions → file-less Intent Lock). Fires on business-intent ambiguity in any flow — new features (plan / dev-pipeline / scaffold-from-prd), enhancements (update), business/behavioural bugs (fix Step 1.5). Triggers on "I want to build…", "我要做一个…", "help me brainstorm", "spec out a feature", and behavioural cues like "should it do Y or Z", "it does the wrong thing". Skips self-evident technical faults (TypeError, crash, build break). Never writes code. Holds the canonical business-vs-technical test (see inside). Mode A closes with a code-blind blindspot pass for unknown unknowns (max 2 rounds) — decide-or-defer outcomes land in the SPEC's Blindspots appendix.
 ---
 
 # spec-elicitor — Socratic Requirements Skill
@@ -11,6 +11,7 @@ description: Socratic requirements/intent elicitation (苏格拉底式提问). L
 🔧 [dev-pipeline] skill: spec-elicitor — Socratic intent elicitation active
    One question per turn → numbered options.
    Mode A (full SPEC): write SPEC.md when all 6 sections are filled · Mode B (Scope-Lock): 2–4 Qs → 🔒 Intent Lock, no file.
+   Mode A ends with a blindspot pass (unknown unknowns, max 2 rounds) → SPEC appendix.
 ```
 
 ---
@@ -71,6 +72,7 @@ Same Socratic discipline (one question per turn, numbered options); two depths.
 **Mode B rules:**
 - Ask only the questions needed to resolve the *specific* ambiguity. Do NOT march the user through Problem/Solution/Constraints/Non-goals/Success/Quality — that's Mode A.
 - Cap at ~4 turns. If it's taking more, the change is bigger than an enhancement/bug — escalate to Mode A (`/dev-pipeline:plan`).
+- **Mini-blindspot (at most ONE question, often ZERO):** if — and only if — the locked axis touches a shared surface (auth/permissions, multi-tenancy, i18n, migrations, quotas/rate limits), you may ask ONE decide-or-defer blindspot question about that surface, inside the 2–4 turn cap. Otherwise ask none. No blindspot *rounds*, no appendix — a "decide" folds into the Intent Lock's `Decided:` line; a "defer" is noted in the Lock as out of scope.
 - Terminate by printing an **Intent Lock** and handing back — do not write `SPEC.md`, do not create `docs/<slug>/`:
 
 ```
@@ -87,7 +89,7 @@ The caller folds this into its gate (the `update` G1 scope statement, or the `fi
 
 ### Rule 1 — One question per turn
 
-Never ask more than one question per response. The whole point is to avoid overwhelming the user with a wall of clarifications. If you find yourself drafting question 2 in the same turn, stop and save it for the next turn.
+Never ask more than one question per response. The whole point is to avoid overwhelming the user with a wall of clarifications. If you find yourself drafting question 2 in the same turn, stop and save it for the next turn. (One exception: the blindspot round's batched decide-or-defer list — see "Blindspot rounds".)
 
 ### Rule 2 — Numbered options every time
 
@@ -149,20 +151,56 @@ If the user is writing in Chinese, respond in Chinese. If in English, respond in
 
 Target: 6–12 turns total for a typical feature. If you hit 15+ turns without closing a section, you're over-elaborating — summarize what you have and ask the user "is this enough detail for section X, or do you want to keep digging?"
 
+### Rule 9 — Architecture-impact questions first
+
+Among the candidate questions you could ask next, ask FIRST the ones whose answer would change the architecture. The litmus: **would a different answer change component boundaries, the data model, or an external contract?** If yes, that question outranks every cosmetic/detail question still open — a late answer to it invalidates work; a late answer to "what should the button say" invalidates nothing. This rule orders questions *within* the section you're advancing (Rule 3 still decides which section); when two candidate questions serve the same section, the architecture-moving one goes first.
+
+---
+
+## Blindspot rounds — unknown unknowns (Mode A; see Mode B rules for the one-question variant)
+
+The six sections capture what the user KNOWS to decide. Commonly-forgotten surfaces — the "oh right, this also touches auth" class — never come up because nobody thought to ask. The blindspot pass hunts these explicitly, in two stages:
+
+- **Stage 1 (this skill, code-blind):** runs here, AFTER all six sections are filled and BEFORE the draft-SPEC confirm. You have not read the codebase — you probe from a topic checklist.
+- **Stage 2 (code-grounded):** later, in Phase 1.1, the `requirements-analyst` agent reports "Blindspot findings" — surfaces the change TOUCHES per the actual codebase but the SPEC never mentions. The orchestrating command presents those the same decide-or-defer way. You do not run stage 2; you only leave the appendix for its outcomes to land in.
+
+**Stage 1 procedure:**
+
+1. **Build the topic checklist.** If the `engineering-craft` skill is installed (`~/.claude/skills/engineering-craft/categories/` exists), derive topics from its category directory names (e.g. auth-identity, observability, config-drift, time-and-timezone, concurrency-cas, enumeration-safety…). Otherwise use this static fallback list: auth/permissions, multi-tenancy, i18n, migrations/data backfill, quotas/rate limits, notifications/email, analytics/telemetry, offline/error states.
+2. **Filter to what the user never mentioned.** Drop every topic the six sections already cover. What's left is the candidate blindspot set.
+3. **Present ONE compact decide-or-defer list** (this is the exception to Rule 1's one-question cadence — the list is a single batched turn by design; asking each surface as its own turn would double the interview length):
+
+```
+🕳️ Blindspot round 1 — surfaces you haven't mentioned. For each: decide now (d) or defer (x)?
+
+1. Auth/permissions — who may trigger this? [d/x]
+2. i18n — user-facing strings in both locales? [d/x]
+3. Quotas/rate limits — can this be spammed? [d/x]
+```
+
+4. **Fold decisions in.** Each "decide" answer is folded into the RELEVANT existing section (a tenancy decision → §3 Technical Constraints; a scope cut → §4 Non-goals) — never into a new section. Each "defer" is recorded as deferred.
+5. **Loop cap — max 2 rounds** (a second round only if round 1 produced new decisions that plausibly open new surfaces). This is Rule 8's anti-drag discipline applied to blindspots: after round 2, anything still open is listed as **explicitly deferred**, not asked about again.
+
+**Where outcomes land — the appendix, NOT a seventh section.** The SPEC keeps its six sections; blindspot outcomes go in an APPENDIX titled `## 7. Blindspots considered` (template below) with two lists:
+- **Decided** — one line each, naming the section the decision was folded into. These trace through that section like any other content.
+- **Deferred** — explicitly out of scope this round. **Deferred items are exempt from Phase 8.6 traceability** — that's the point of recording them: a deliberate non-decision, visible, never silently dropped, never falsely traced as MISSING.
+
+Do not change any "six sections" language anywhere on account of this pass — the tracker (Rule 5), the confirm text, and the coverage table all stay six.
+
 ---
 
 ## Termination & Output
 
 > **Mode B (Scope-Lock):** the steps below are Mode A only. In Mode B you terminate by printing the **Intent Lock** (see "Two operating modes — Full SPEC vs Scope-Lock") and handing back to the calling flow — you do NOT write any file. Skip the rest of this section.
 
-**Mode A (Full SPEC)** — when all six sections have substantive content, do this in a SINGLE turn:
+**Mode A (Full SPEC)** — when all six sections have substantive content, FIRST run the blindspot pass (see "Blindspot rounds" above — max 2 rounds, outcomes into the `## 7. Blindspots considered` appendix), THEN do the following in a SINGLE turn:
 
 ### Step 1 — Confirm
 
-Print a draft of the SPEC inline and ask:
+Print a draft of the SPEC (including the Blindspots appendix) inline and ask:
 
 ```
-We've covered all six sections. Here's the draft SPEC:
+We've covered all six sections (+ the blindspot pass). Here's the draft SPEC:
 
 [full SPEC content]
 
@@ -250,6 +288,18 @@ Write this exact structure to `docs/<slug>/SPEC.md`:
 
 ---
 
+## 7. Blindspots considered
+
+<APPENDIX, not a seventh section — the SPEC's contract is the six sections above; this records the blindspot pass so deliberate non-decisions stay visible. See the skill's "Blindspot rounds".>
+
+**Decided** (folded into the section named — traced by Phase 8.6 via that section):
+- <surface> → §<n> <section name>: <one-line decision>
+
+**Deferred** (explicitly out of scope this round — EXEMPT from Phase 8.6 traceability):
+- <surface>: <one-line reason it can wait>
+
+---
+
 ## Elicitation Trace
 
 <Bulleted summary of the Q&A turns, for future readers who want to know how this SPEC was reached. Each bullet: "Asked X → user chose Y → captured in section Z.">
@@ -259,7 +309,7 @@ Write this exact structure to `docs/<slug>/SPEC.md`:
 
 ## Anti-patterns (do NOT do these)
 
-- ❌ Asking three questions in one turn ("What's the user role, what's the success metric, and what's the latency budget?")
+- ❌ Asking three questions in one turn ("What's the user role, what's the success metric, and what's the latency budget?") — the one sanctioned exception is the blindspot round's batched decide-or-defer list (see "Blindspot rounds")
 - ❌ Asking open-ended questions without numbered options ("Tell me more about the user.")
 - ❌ Jumping to implementation ("So we'd add a `Waitlist` table with…")
 - ❌ Skipping the acknowledgement and just firing the next question
@@ -267,6 +317,9 @@ Write this exact structure to `docs/<slug>/SPEC.md`:
 - ❌ Writing the SPEC before the user explicitly approves the draft
 - ❌ Forgetting to print the progress tracker each turn
 - ❌ Auto-invoking `/dev-pipeline:plan` after writing the SPEC — the user picks the next step
+- ❌ Skipping the blindspot pass because the six sections "feel complete" — the pass exists precisely for what feels complete
+- ❌ Running a third blindspot round — after round 2, open items are deferred, not re-asked
+- ❌ Promoting the Blindspots appendix into a seventh SPEC section, or letting a deferred item silently vanish instead of being listed
 
 ---
 
@@ -280,6 +333,7 @@ Assistant (turn 1 — banner + acknowledge + first question on Problem):
 🔧 [dev-pipeline] skill: spec-elicitor — Socratic intent elicitation active
    One question per turn → numbered options.
    Mode A (full SPEC): write SPEC.md when all 6 sections are filled · Mode B (Scope-Lock): 2–4 Qs → 🔒 Intent Lock, no file.
+   Mode A ends with a blindspot pass (unknown unknowns, max 2 rounds) → SPEC appendix.
 
 明白了 — 你想做的是等位列表的自动通知功能。先从「问题」开始。
 
@@ -310,7 +364,7 @@ Assistant (turn 2 — acknowledge + drill into Problem):
 4. Other (please describe)
 ```
 
-…and so on through the six sections. Typical close in 6–12 turns.
+…and so on through the six sections, then the blindspot pass (round 1, decide-or-defer; round 2 only if round 1 opened new surfaces), then the draft-SPEC confirm. Typical close in 6–12 turns.
 
 ---
 
