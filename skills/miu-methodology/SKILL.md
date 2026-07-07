@@ -112,10 +112,34 @@ Before approving an MIU for Phase 5 (test-writing), tech-lead checks:
 - [ ] If the MIU has observable side effects (capture/emit/audit/external call), the test plan asserts they fire with the right payload (not just return value)
 - [ ] "Done when" has ≥2 exit criteria
 - [ ] Project compilation is part of "Done when"; if there's build/deploy/runtime impact, the affected production build context is part of "Done when" too
+- [ ] **Contract-source rule:** MIUs that define first-party contracts (DTOs, shared types, zod schemas, API shapes) MUST precede their consumer MIUs in the DAG; every cross-boundary MIU names its contract file in "What it does"
 
 If ANY box is unchecked → tech-lead rejects the MIU and requires deeper analysis. No exceptions.
 
 **Why the Build/Deploy/Runtime field is mandatory (real incident):** an MIU shared a util into a workspace package — functionally correct, all unit tests green, one app's `next build` green. But the package shipped raw TS, and the design never asked "how does EACH consumer build/run this?" Result: a `tsc`+`node dist/main` service's isolated Docker build (TS2307) and runtime (can't `require` raw `.ts`) broke `main` — a build context that only runs on push to main, so it was invisible on the PR. Low-level MIU design is not just functional logic; it is also: does this build, deploy, and run in every environment that consumes it.
+
+---
+
+## Contract-source rule (ordering across interface boundaries)
+
+When a feature's MIUs span an interface boundary — backend↔frontend, service↔service, app↔shared package — the MIU that DEFINES the first-party contract (DTO, shared type, zod schema, API request/response shape) is sequenced BEFORE every MIU that consumes it, and each consumer MIU:
+
+- lists the contract MIU in `Depends on:` (or, when the consumer is on the other side of the boundary and only consumes the *shape*, states "uses API contract from MIU N" — see MIU 3 in the example below), and
+- **names the contract file** (or the route + DTO pair) in its `What it does` bullets, so the dependency is checkable, not implied.
+
+This does NOT create a "DTO only" unit where none is warranted — the contract usually ships inside its natural MIU (e.g. DTO + service, per "What IS one MIU"). The rule is about ORDER, not granularity: whichever MIU carries the contract comes first in the DAG, and consumers reference its output instead of re-declaring the shape. Tech-lead rejects a breakdown where a consumer MIU precedes the MIU that defines the contract it uses, or where a cross-boundary MIU never names its contract source.
+
+**Granularity example (contract-first ordering, unchanged 8-field format):**
+
+```
+MIU 1: BookingSummaryDto + GET /bookings/:id/summary service method   ← defines the contract
+MIU 2: BookingSummaryController route + integration test              ← Depends: MIU 1
+MIU 3: useBookingSummary hook (TanStack Query)                        ← Depends: none
+       What: consumes the API contract from MIU 1 — names
+       src/booking/dto/booking-summary.dto.ts as its response shape
+```
+
+Wrong order (rejected): the hook MIU numbered before the DTO/service MIU it consumes — the consumer would be built against a guessed shape, and the guess becomes the de-facto contract.
 
 ---
 
@@ -195,6 +219,7 @@ MIU 3: useProfile hook (TanStack Query)
 - **Max 3 files per MIU.** If you need more, split.
 - **Never mix Blocks in a single MIU.** Backend/Frontend/Infrastructure each get their own.
 - **Dependencies form a DAG.** No circular deps. Tech-lead refuses any MIU that depends on a later-numbered MIU.
+- **Contracts before consumers.** The MIU defining a first-party contract (DTO/type/schema/API shape) precedes its consumer MIUs; consumers name the contract file in "What it does". See "Contract-source rule" above.
 
 ---
 
