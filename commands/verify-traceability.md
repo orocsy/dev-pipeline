@@ -96,6 +96,8 @@ Spawn a second sub-agent. Give it `.claude/.traceability-criteria.json` and `git
 >   - 'TEST_ONLY' — test exists but no production code (likely the criterion was implemented earlier or in a dependency)
 >   - 'MISSING' — no evidence in either
 >
+> Exception (`category == 'quality'` only — mirrors the STEP 1 extraction exception): a quality criterion that records an explicit simplicity trade-off ('polling not websockets this round') traces to the ABSENCE/choice being honored, not to new code. If the diff honors the recorded choice, cite the implementing file as `code_evidence`, set `test_evidence` to '—', and set `status` 'IMPLEMENTED_AND_TESTED' — do NOT mark it 'MISSING' merely because no test asserts an absence. If the diff violates the recorded choice, mark it 'MISSING' and say which file violates it.
+>
 > Output `.claude/.traceability-report.json` with the same structure plus the new fields."
 
 ---

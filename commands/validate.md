@@ -141,7 +141,13 @@ whole repo):
 ```bash
 CHANGED_SRC=$(git diff "$BASE" --name-only -- '*.ts' '*.tsx' '*.js' '*.jsx' \
   | grep -vE '\.(spec|test)\.' | paste -sd, -)
-npx stryker run --mutate "$CHANGED_SRC" --incremental 2>&1 | tail -20
+if [[ -z "$CHANGED_SRC" ]]; then
+  # Pure test refactor: assertions were rewritten but no source file changed —
+  # there is nothing to mutate, and `--mutate ""` makes Stryker error noisily.
+  echo "[mutation backstop: skipped — assertion rewrite with no changed source files (pure test refactor); nothing to mutate]"
+else
+  npx stryker run --mutate "$CHANGED_SRC" --incremental 2>&1 | tail -20
+fi
 ```
 
 **Gate semantics (deliberately soft at introduction):**
@@ -150,7 +156,8 @@ npx stryker run --mutate "$CHANGED_SRC" --incremental 2>&1 | tail -20
   assertions may be tautological; see Rule 19"), NOT a hard Phase 8 block.
 - Mutation score ≥ 70% or step skipped → annotate and continue.
 - Never silently skip when both trigger conditions hold — if Stryker errors out, report
-  the error as the finding.
+  the error as the finding. (The empty-`CHANGED_SRC` pure-test-refactor skip above is
+  annotated, not silent.)
 
 Rule 19's three safer patterns (`docs/RULES.md`) remain the primary defense; this step is
 the mechanical detector for the case where they were bypassed.

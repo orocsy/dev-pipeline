@@ -39,8 +39,22 @@ Read `.claude/docs/ARCHITECTURE.md` / `RECENT_CHANGES.md` if present. Load the s
 **Mechanical MIU-format gate (runs here, before ANY MIU is implemented):** validate the breakdown with the plugin's validator — the tech-lead checklist made executable. A malformed breakdown (missing fields, >3 files, forward deps, consumer-before-contract) is fixed in the BREAKDOWN, not worked around during implementation.
 
 ```bash
-# The breakdown for the CURRENT feature (pointer/docs tell you which; newest as fallback)
-BREAKDOWN=$(ls -t docs/*/*-miu-breakdown.md 2>/dev/null | head -1)
+# The breakdown for the CURRENT feature. Resolve it in order — validating the
+# repo-newest breakdown unconditionally lets a stale malformed one from a
+# PREVIOUS feature block unrelated work:
+#   1. the pointer's docs.breakdown (validated earlier in STEP 0 — skip if stale)
+#   2. the task-slug glob docs/<task>/*-miu-breakdown.md
+#   3. repo-newest as LAST RESORT, with an annotation
+BREAKDOWN=$(jq -r '.docs.breakdown // empty' .claude/pipeline-state.json 2>/dev/null)
+[[ -n "$BREAKDOWN" && ! -f "$BREAKDOWN" ]] && BREAKDOWN=""
+if [[ -z "$BREAKDOWN" ]]; then
+  TASK=$(jq -r '.task // empty' .claude/pipeline-state.json 2>/dev/null)
+  [[ -n "$TASK" ]] && BREAKDOWN=$(ls -t "docs/$TASK"/*-miu-breakdown.md 2>/dev/null | head -1)
+fi
+if [[ -z "$BREAKDOWN" ]]; then
+  BREAKDOWN=$(ls -t docs/*/*-miu-breakdown.md 2>/dev/null | head -1)
+  [[ -n "$BREAKDOWN" ]] && echo "⚠️  breakdown resolved by newest-file fallback: $BREAKDOWN — confirm it belongs to THIS feature before trusting the gate (pointer/task slug did not resolve)."
+fi
 if [[ -n "$BREAKDOWN" ]]; then
   bash "${CLAUDE_PLUGIN_ROOT}/tools/validate-miu-breakdown.sh" "$BREAKDOWN" || {
     echo "🛑 MIU breakdown failed mechanical validation — fix $BREAKDOWN before implementing."

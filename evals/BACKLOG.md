@@ -41,7 +41,10 @@ on expected score impact), ONE change per round, revert on non-improvement:
 - **MIU-C landed**: quality-goals SPEC axis (`spec-elicitor` §6 + `verify-traceability`
   quality category). Ratchet: T01 + T08; SPEC in transcript contains the section.
 - **MIU-D landed**: mechanical MIU-format validator (`tools/validate-miu-breakdown.sh`
-  + `implement.md` STEP 0). Script tested standalone (compliant + broken fixtures);
+  + `implement.md` STEP 0). Fixtures committed at `tools/fixtures/miu-breakdown/`
+  (`compliant.md` / `missing-fields.md` / `ordering-violations.md`) with runner
+  `tools/fixtures/miu-breakdown/run-fixture-tests.sh` asserting exit codes +
+  named messages (incl. CRLF, column-0-bullet, and co-editor-exemption cases);
   ratchet: T01 + T04 + T07 mean.
 
 ## From the diagram audit (NEVER-RUN components — spec with zero executions)

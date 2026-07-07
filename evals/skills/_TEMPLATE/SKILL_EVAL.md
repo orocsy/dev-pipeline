@@ -41,7 +41,7 @@ Examples: `spec-elicitor`, `miu-methodology`, `cloud-design-patterns`, `code-ref
   | S1 | Correct mode/route choice | 25 | picked Mode A vs B correctly; got business-vs-technical right |
   | S2 | One-question-per-turn discipline | 15 | never batched questions; numbered options each turn |
   | S3 | Question quality (clarify/probe/alternatives) | 25 | questions actually narrow the ambiguity; no filler |
-  | S4 | Output fidelity (SPEC 5 sections / Intent Lock shape) | 20 | artifact matches the contract exactly |
+  | S4 | Output fidelity (SPEC 6 sections / Intent Lock shape) | 20 | artifact matches the contract exactly |
   | S5 | Knows when to stop / escalate | 15 | capped Mode B at ~4 turns; escalated oversized scope |
 - **The number that ratchets** = judge total. Fresh judge each round (anti-anchoring).
 

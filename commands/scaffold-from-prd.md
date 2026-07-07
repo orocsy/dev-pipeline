@@ -30,7 +30,7 @@ If `$ARGUMENTS` is empty OR is a one-line description (no structured PRD attache
 
 ### Phase 2a — Elicit a SPEC (NEW)
 
-Invoke the **`dev-pipeline:spec-elicitor`** skill via the Skill tool. It walks the user through a Socratic discussion — one numbered-options question at a time — and produces a complete SPEC covering Problem / Solution / Constraints / Non-goals / Success Criteria. Wait for it to write `docs/<slug>/SPEC.md`.
+Invoke the **`dev-pipeline:spec-elicitor`** skill via the Skill tool. It walks the user through a Socratic discussion — one numbered-options question at a time — and produces a complete SPEC covering Problem / Solution / Constraints / Non-goals / Success Criteria / Quality Criteria. Wait for it to write `docs/<slug>/SPEC.md`.
 
 For scaffold-from-prd (new project), the SPEC is the PRD — `prd-parser` in Phase 3 will read it directly. Do NOT skip elicitation for "I'll fill it in later" — the spec is what makes integration selection in Phase 3 deterministic.
 

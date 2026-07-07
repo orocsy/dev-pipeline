@@ -26,6 +26,12 @@
 #   9. Contract-source rule (MIU-A): an MIU that defines a first-party contract
 #      (DTO / shared type / zod schema / API shape) must precede any MIU that
 #      references one of its files — a consumer numbered before its contract fails.
+#      Exemption: an earlier MIU that itself lists the file in its own "Files:"
+#      is a co-editor/definer of that file (two sequential MIUs legitimately
+#      editing the same file in order), NOT a consumer-before-contract.
+#
+# Input tolerance: CRLF line endings are stripped at read time; bullets may
+# start at column 0 (field-label detection runs first, so no collision).
 
 set -u
 
@@ -95,6 +101,11 @@ function flush_miu() {
 
 BEGIN { nerr = 0; nmiu = 0; cur = ""; curfield = "" }
 
+# CRLF tolerance: strip a trailing \r from every input line so Windows-edited
+# breakdowns do not false-fail the Block/Type enum checks (trim() only strips
+# space/tab).
+{ sub(/\r$/, "") }
+
 # MIU header: "MIU 3: name", "### MIU 3 — name", "**MIU 3: name**", etc.
 /^[#> \t*]*MIU[ \t]+[0-9]+/ {
   flush_miu()
@@ -133,10 +144,11 @@ cur != "" {
     if (f == "What") content[cur, f] = trim(val)   # Depends/Files content comes from bullets only (inline lives in inline[]; storing both double-counts)
     next
   }
-  # bullet under the current field
-  if (curfield != "" && stripped ~ /^[ \t]+-[ \t]/) {
+  # bullet under the current field (leading indent optional — column-0 bullets
+  # are valid; field-label detection above runs first, so no collision)
+  if (curfield != "" && stripped ~ /^[ \t]*-[ \t]/) {
     bullets[cur, curfield]++
-    b = stripped; sub(/^[ \t]+-[ \t]+/, "", b)
+    b = stripped; sub(/^[ \t]*-[ \t]+/, "", b)
     content[cur, curfield] = content[cur, curfield] " " b
     next
   }
@@ -176,7 +188,11 @@ END {
       for (j = 1; j <= nmiu; j++) {
         e = order[j]
         if (e + 0 >= c + 0) continue     # only EARLIER MIUs can violate
-        if (index(content[e, "What"] " " inline[e, "Files"] " " content[e, "Files"], base) > 0)
+        # co-editor exemption: an earlier MIU that lists the file in its OWN
+        # Files: is a co-editor/definer of it (two sequential MIUs editing the
+        # same file in the correct order), not a consumer-before-contract
+        if (index(inline[e, "Files"] " " content[e, "Files"], base) > 0) continue
+        if (index(content[e, "What"], base) > 0)
           fail(e, "consumes contract file " base " defined by LATER MIU " c " (contract-source rule: contracts precede consumers — reorder)")
       }
     }
