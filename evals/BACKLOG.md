@@ -64,3 +64,21 @@ on expected score impact), ONE change per round, revert on non-improvement:
 - All runs so far are SIMULATED sessions from pinned worktrees. The harness's
   stronger evidence tier — judging a real session transcript — is unused; add one
   real-session transcript per shipped feature.
+
+## From the T01 A/B round (2026-07-07)
+
+11. **dev-pipeline.md — gate-rejection branches** (D1, flagged by BOTH T01 judges
+    independently): every gate defines only the approval path; "user says No/Tweak
+    at G1/G3/G4" is unwritten (which phase re-runs, which artifacts invalidate).
+    Mirror the elicitor's Approve/Tweak/Add-more pattern per gate.
+12. **CLAUDE.md gate table — G3 dual approval under-specified**: the run had to
+    invent "G3 part 2" for the MIU plan reusing the architecture wording. Give the
+    MIU-plan approval its own labeled ask (G3b) — 1-line CLAUDE.md change.
+13. **Candidate NEW frozen task T11** (do NOT edit T01): "feature with a hard
+    quality constraint" — expected protocol includes six-section SPEC quality
+    criteria traced to tests + validator gate at implement STEP 0. Extends the
+    instrument to cover the surfaces MIUs A-D added, which T01 measures only
+    incidentally (a tie today = rubric ceiling, not absence of effect).
+14. **Eval-transcript convention**: scoped runs must use planned/future wording for
+    out-of-scope phases ("would run"), never achieved tense ("G5 green") — both T01
+    judges flagged the same cap-risk ambiguity.
