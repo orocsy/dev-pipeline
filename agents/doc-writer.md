@@ -51,6 +51,16 @@ There are two tiers of state. Do not confuse them.
 ### 1. Update the tracked execution doc (the canonical record)
 For the current MIU, ensure `docs/<feature>/<feature>-execution.md` has an entry with: **What / Why / Tests written / Validation result / Result** PLUS the mandatory **Engineering rationale** (why this code not the obvious alternative; trade-offs; what failed first; what you'd revisit). If the entry is missing, write it from the diff + the MIU spec + the validation output. If it exists but is thin, deepen it. Length scales with the work.
 
+The per-MIU record also carries a **Deviations** field — every mid-MIU divergence from the approved MIU spec/architecture that was resolved conservatively (per the deviation rule in `commands/implement.md` STEP 1). Each entry records:
+- **What diverged** — the point where the approved plan didn't fit reality
+- **Why** — the edge case that forced it
+- **The conservative choice** — what was done instead
+- **The non-conservative alternative** — what a bolder resolution would have been (and why it wasn't taken)
+
+If the MIU had no deviations, the field reads `Deviations: none`. Entries live under a `## Deviations` section of the execution doc so `/dev-pipeline:deliver` can collect them mechanically into the PR body.
+
+**Deviation-logging verification (MIU boundary + deliver):** compare the MIU's actual diff against its spec (files affected, acceptance criteria, stated approach). If the diff diverges from the spec but the `## Deviations` section has no matching entry, that is a **silent deviation** — write the missing entry from the diff before marking the MIU done (or before deliver proceeds), and surface it in your summary so the implementer's rule ("log at the moment of decision") is reinforced, not replaced.
+
 If the change has **build/deploy/runtime impact** (a dependency, Dockerfile, CI, package exports), the entry MUST record which build contexts were affected and how each was verified (mirrors the MIU "Build/Deploy/Runtime impact" field).
 
 ### 2. Refresh the thin pointer (`.claude/pipeline-state.json`)

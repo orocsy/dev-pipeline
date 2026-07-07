@@ -78,6 +78,14 @@ Rules during implementation:
 - Write the test alongside the implementation, not after.
 - If you discover the spec is wrong or incomplete, STOP — surface the gap to the user, do not improvise.
 
+**Mid-MIU deviation rule (never silently deviate).** An edge case can force you to diverge from the approved MIU spec/architecture without the spec being *wrong* — the plan just didn't anticipate this case. Then:
+
+1. **Pick the CONSERVATIVE option** — the resolution that preserves existing behaviour, narrows rather than widens scope, and stays reversible.
+2. **Log it IMMEDIATELY** under a `## Deviations` section in the tracked execution doc (`docs/<feature>/<feature>-execution.md`) — at the moment of the decision, not reconstructed at the MIU boundary. Record: what diverged, why, the conservative choice made, and what a non-conservative alternative would have been (see `doc-writer` for the field format).
+3. **Keep going** — a logged conservative deviation does not pause the MIU.
+
+**Definition (this is the boundary with the STOP rule above):** a deviation is a divergence that HAS a conservative resolution. If no conservative resolution exists — every option changes behaviour, widens scope, or forecloses the approved design — it is NOT a deviation: STOP and ask the user. Silent divergence is never an option; the only two paths are "log it and continue" or "stop and ask."
+
 ---
 
 ## STEP 2: Incremental Smoke Check (after each file changed)
