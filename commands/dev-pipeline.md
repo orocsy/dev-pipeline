@@ -47,6 +47,7 @@ Launch 1-2 **requirements-analyst** agents (with the SPEC.md as their primary in
 - Explore the codebase for related features and patterns
 - Read all CLAUDE.md files for applicable rules
 - Identify open questions and ambiguities NOT covered by the SPEC
+- Report **Blindspot findings** — surfaces the change touches per the codebase but the SPEC never mentions (stage 2 of the blindspot loop; stage 1 was the elicitor's code-blind pass)
 - List 5-10 key files to read
 
 After agents return:
@@ -54,8 +55,9 @@ After agents return:
 2. Read all key files they identified to build deep understanding
 3. Present the feature understanding summary to the user
 4. Present any remaining open questions (the SPEC should have closed most)
-5. **ASK USER** to clarify any ambiguities the SPEC didn't cover
-6. Update the todo list with all phases
+5. **Present the analysts' Blindspot findings as decide-or-defer questions.** If a round yields new decisions, re-check for surfaces those decisions open and loop — **max 2 loops** — until a round yields no new decisions. Record every outcome into the SPEC's `## 7. Blindspots considered` appendix: Decided → fold into the relevant SPEC section; Deferred → list as out of scope (exempt from Phase 8.6 tracing).
+6. **ASK USER** to clarify any ambiguities the SPEC didn't cover
+7. Update the todo list with all phases
 
 ---
 
