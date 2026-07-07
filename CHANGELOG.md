@@ -12,6 +12,29 @@ Conventions:
 
 ---
 
+## 2026-07-06 — Factory-redesign adaptations: 4 ideas adopted, architecture rejected
+
+Per `docs/factory-redesign-assessment.md` (the external redesign plan's architecture was
+rejected; its four transplantable ideas landed as prompt/tool changes — no new runtime,
+no gate renumbering, zero always-loaded additions). Each awaits its own ratchet round.
+
+- **Contract-first MIU ordering** (`skills/miu-methodology/SKILL.md` "Contract-source
+  rule" + `agents/tech-lead.md`): MIUs defining first-party contracts (DTOs, shared
+  types, zod schemas, API shapes) precede their consumer MIUs in the DAG; cross-boundary
+  MIUs name their contract file in "What it does". Fires at Phase 4-5 decomposition.
+- **Mutation-testing backstop for Rule 19** (`commands/validate.md` STEP 3.5 +
+  `docs/RULES.md` Rule 19): OPT-IN — when a diff rewrites existing test assertions AND
+  the repo has Stryker configured, mutation tests run scoped to changed files; <70%
+  score surfaces as a review finding. Mechanically detects tautological test rewrites.
+- **Quality-goals axis in the SPEC** (`skills/spec-elicitor/SKILL.md` §6 "Quality
+  Criteria (质量标准)" + `commands/verify-traceability.md`): Mode A elicits measurable
+  NFRs (perf budgets, rate limits, audit logging — or an explicit "simplicity wins");
+  Phase 8.6 traces them like acceptance criteria (new `quality` category).
+- **Mechanical MIU-format validator** (`tools/validate-miu-breakdown.sh`, called from
+  `commands/implement.md` STEP 0): the tech-lead checklist made executable — 8 fields,
+  Files ≤3, enums, Build/Deploy stated, ≥2 done-when, DAG (no forward refs), and the
+  contract-source rule. Exit 1 lists every miss before any MIU is implemented.
+
 ## 2026-07-06 — CLAUDE.md diet + real lifecycle hooks (measured by the eval harness)
 
 - **CLAUDE.md 562 → ~94 lines.** The always-loaded file now carries ONLY the routing

@@ -28,6 +28,22 @@ Ordered by expected score impact. Delete entries when landed + re-scored.
    malformed YAML. Consider pinned analyzer prompt blocks (reproducible delegation)
    and emitting proposals to `docs/` instead of `.claude/` scratch.
 
+## Factory-redesign adaptations (landed 2026-07-06 — PENDING RATCHET, one per round)
+
+Per `docs/factory-redesign-assessment.md` §5. All four are IMPLEMENTED but none has been
+through its ratchet round yet — sequence them AFTER items 1–3 above (which outrank them
+on expected score impact), ONE change per round, revert on non-improvement:
+
+- **MIU-A landed**: contract-first ordering (`miu-methodology` Contract-source rule +
+  tech-lead). Ratchet: T01 + T04 mean; judge should see contract MIU ordered first.
+- **MIU-B landed**: Rule-19 mutation backstop (`validate.md` STEP 3.5, opt-in via
+  Stryker). Ratchet: T03 + T09 + T10 mean; step fires only on assertion-rewrite diffs.
+- **MIU-C landed**: quality-goals SPEC axis (`spec-elicitor` §6 + `verify-traceability`
+  quality category). Ratchet: T01 + T08; SPEC in transcript contains the section.
+- **MIU-D landed**: mechanical MIU-format validator (`tools/validate-miu-breakdown.sh`
+  + `implement.md` STEP 0). Script tested standalone (compliant + broken fixtures);
+  ratchet: T01 + T04 + T07 mean.
+
 ## From the diagram audit (NEVER-RUN components — spec with zero executions)
 
 7. **co-review**: one real `--once` round on a live PR (cold-start + cursor paths are

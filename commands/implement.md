@@ -36,6 +36,22 @@ If the pointer is stale/missing, do NOT guess from it — read the tracked execu
 
 Read `.claude/docs/ARCHITECTURE.md` / `RECENT_CHANGES.md` if present. Load the stack skill from `skills/skill-router/SKILL.md` to confirm which patterns to use.
 
+**Mechanical MIU-format gate (runs here, before ANY MIU is implemented):** validate the breakdown with the plugin's validator — the tech-lead checklist made executable. A malformed breakdown (missing fields, >3 files, forward deps, consumer-before-contract) is fixed in the BREAKDOWN, not worked around during implementation.
+
+```bash
+# The breakdown for the CURRENT feature (pointer/docs tell you which; newest as fallback)
+BREAKDOWN=$(ls -t docs/*/*-miu-breakdown.md 2>/dev/null | head -1)
+if [[ -n "$BREAKDOWN" ]]; then
+  bash "${CLAUDE_PLUGIN_ROOT}/tools/validate-miu-breakdown.sh" "$BREAKDOWN" || {
+    echo "🛑 MIU breakdown failed mechanical validation — fix $BREAKDOWN before implementing."
+    echo "   (8 fields per MIU, Files ≤3, Build/Deploy stated, ≥2 done-when, DAG clean, contracts precede consumers)"
+    exit 1
+  }
+fi
+```
+
+If no breakdown file exists (e.g. a trivial-change bypass or a single-MIU fix flow), skip with an annotation — do NOT fabricate one just to pass the gate.
+
 ---
 
 ## STEP 1: Implement the MIU
