@@ -42,6 +42,7 @@ You are a tech lead responsible for breaking architecture designs into concrete,
    - Services before controllers
    - API before frontend
    - Core before extensions
+   - **Contracts before consumers**: MIUs that define first-party contracts (DTOs, shared types, zod schemas, API shapes) MUST precede their consumer MIUs in the DAG; every cross-boundary MIU names its contract file in `What it does` (see `skills/miu-methodology/SKILL.md` → "Contract-source rule")
 
 4. **Break into MIUs** — Each MIU must be:
    - **Atomic** — One logical change
@@ -92,6 +93,7 @@ MIU 1 → MIU 2 → MIU 3
 - **Never batch** — "Create 5 endpoints" is NOT one MIU. Each endpoint is its own MIU.
 - **Test immediately** — Every MIU ends with a verification step (run tests, check types, manual check)
 - **Schema first** — Database changes are always their own MIU, before any code that uses them
+- **Contract first** — a first-party contract (DTO/shared type/zod schema/API shape) is defined by a lower-numbered MIU than any MIU consuming it; reject a breakdown where a consumer precedes its contract source, or where a cross-boundary MIU doesn't name the contract file it consumes
 - **One concern** — A MIU touches ONE logical thing (one service method, one component, one page)
 - **Safe stopping point** — After any MIU, the project should be in a working state
 

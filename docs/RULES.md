@@ -234,6 +234,8 @@ Three safer patterns:
 
 **Failure mode this prevents:** a page test asserted "renders fallback entity with ALL fields null when the fetch returns error". A change rewrote it to "calls notFound when the fetch returns error (no fallback)". Both versions passed locally — but they were asserting OPPOSITE behaviours. The rewrite gave false confidence in the change.
 
+**Mechanical backstop (opt-in):** `/dev-pipeline:validate` STEP 3.5. When a diff rewrites existing test assertions (removed `expect` lines in `*.spec.*`/`*.test.*` files) AND the repo has Stryker configured, mutation tests run scoped to the changed source files; a mutation score < 70% surfaces as a review finding ("the rewritten tests may only agree with the new code"), not a hard block. The three patterns above are the primary defense; the backstop detects the case where they were bypassed. Repos opt in by configuring Stryker — the plugin ships no runtime.
+
 Long-form: `docs/PHILOSOPHY.md §13`.
 
 ### Rule 20: Verify against PRODUCTION URLs, not preview URLs, before declaring a deploy successful

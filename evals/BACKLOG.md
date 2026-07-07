@@ -28,6 +28,25 @@ Ordered by expected score impact. Delete entries when landed + re-scored.
    malformed YAML. Consider pinned analyzer prompt blocks (reproducible delegation)
    and emitting proposals to `docs/` instead of `.claude/` scratch.
 
+## Factory-redesign adaptations (landed 2026-07-06 — PENDING RATCHET, one per round)
+
+Per `docs/factory-redesign-assessment.md` §5. All four are IMPLEMENTED but none has been
+through its ratchet round yet — sequence them AFTER items 1–3 above (which outrank them
+on expected score impact), ONE change per round, revert on non-improvement:
+
+- **MIU-A landed**: contract-first ordering (`miu-methodology` Contract-source rule +
+  tech-lead). Ratchet: T01 + T04 mean; judge should see contract MIU ordered first.
+- **MIU-B landed**: Rule-19 mutation backstop (`validate.md` STEP 3.5, opt-in via
+  Stryker). Ratchet: T03 + T09 + T10 mean; step fires only on assertion-rewrite diffs.
+- **MIU-C landed**: quality-goals SPEC axis (`spec-elicitor` §6 + `verify-traceability`
+  quality category). Ratchet: T01 + T08; SPEC in transcript contains the section.
+- **MIU-D landed**: mechanical MIU-format validator (`tools/validate-miu-breakdown.sh`
+  + `implement.md` STEP 0). Fixtures committed at `tools/fixtures/miu-breakdown/`
+  (`compliant.md` / `missing-fields.md` / `ordering-violations.md`) with runner
+  `tools/fixtures/miu-breakdown/run-fixture-tests.sh` asserting exit codes +
+  named messages (incl. CRLF, column-0-bullet, and co-editor-exemption cases);
+  ratchet: T01 + T04 + T07 mean.
+
 ## From the diagram audit (NEVER-RUN components — spec with zero executions)
 
 7. **co-review**: one real `--once` round on a live PR (cold-start + cursor paths are
@@ -45,3 +64,21 @@ Ordered by expected score impact. Delete entries when landed + re-scored.
 - All runs so far are SIMULATED sessions from pinned worktrees. The harness's
   stronger evidence tier — judging a real session transcript — is unused; add one
   real-session transcript per shipped feature.
+
+## From the T01 A/B round (2026-07-07)
+
+11. **dev-pipeline.md — gate-rejection branches** (D1, flagged by BOTH T01 judges
+    independently): every gate defines only the approval path; "user says No/Tweak
+    at G1/G3/G4" is unwritten (which phase re-runs, which artifacts invalidate).
+    Mirror the elicitor's Approve/Tweak/Add-more pattern per gate.
+12. **CLAUDE.md gate table — G3 dual approval under-specified**: the run had to
+    invent "G3 part 2" for the MIU plan reusing the architecture wording. Give the
+    MIU-plan approval its own labeled ask (G3b) — 1-line CLAUDE.md change.
+13. **Candidate NEW frozen task T11** (do NOT edit T01): "feature with a hard
+    quality constraint" — expected protocol includes six-section SPEC quality
+    criteria traced to tests + validator gate at implement STEP 0. Extends the
+    instrument to cover the surfaces MIUs A-D added, which T01 measures only
+    incidentally (a tie today = rubric ceiling, not absence of effect).
+14. **Eval-transcript convention**: scoped runs must use planned/future wording for
+    out-of-scope phases ("would run"), never achieved tense ("G5 green") — both T01
+    judges flagged the same cap-risk ambiguity.

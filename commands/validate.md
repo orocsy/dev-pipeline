@@ -110,6 +110,60 @@ Fail on any test failure. Do NOT proceed to E2E if unit tests are red — fix un
 
 ---
 
+## STEP 3.5: Mutation-Testing Backstop (OPT-IN — Rule 19 mechanical check)
+
+Green unit tests prove nothing when the diff REWROTE the assertions — a test rewritten
+alongside the behaviour passes because you wrote it to pass (Rule 19: agreement with
+yourself, not correctness). This step adds a mechanical backstop, gated on TWO conditions
+so it never taxes ordinary runs:
+
+1. **Trigger — the diff rewrites existing test expectations:**
+
+```bash
+BASE="$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD main 2>/dev/null || echo HEAD~1)"
+# Rewrite = an existing expect line REMOVED in a test file (a pure test addition — only
+# '+' expect lines — is the Rule-19-safe pattern and does NOT trigger this step).
+if git diff "$BASE" -- '*.spec.*' '*.test.*' | grep -qE '^-.*expect\('; then
+  ASSERTION_REWRITE=true
+else
+  ASSERTION_REWRITE=false
+fi
+```
+
+2. **Opt-in — the consumer repo has Stryker configured** (`stryker.conf.*` /
+   `stryker.config.*` at root or `apps/*`, or `@stryker-mutator/core` in devDependencies).
+   No Stryker → annotate `[mutation backstop: skipped — repo not opted in]` and move on.
+   The plugin ships no runtime; repos opt in simply by configuring Stryker.
+
+When BOTH hold, run mutation tests **scoped to the changed source files** (fast — not the
+whole repo):
+
+```bash
+CHANGED_SRC=$(git diff "$BASE" --name-only -- '*.ts' '*.tsx' '*.js' '*.jsx' \
+  | grep -vE '\.(spec|test)\.' | paste -sd, -)
+if [[ -z "$CHANGED_SRC" ]]; then
+  # Pure test refactor: assertions were rewritten but no source file changed —
+  # there is nothing to mutate, and `--mutate ""` makes Stryker error noisily.
+  echo "[mutation backstop: skipped — assertion rewrite with no changed source files (pure test refactor); nothing to mutate]"
+else
+  npx stryker run --mutate "$CHANGED_SRC" --incremental 2>&1 | tail -20
+fi
+```
+
+**Gate semantics (deliberately soft at introduction):**
+- Mutation score **< 70%** on the changed files → surface as a **review finding**
+  ("rewritten tests kill only N% of mutants in the code they claim to cover — the new
+  assertions may be tautological; see Rule 19"), NOT a hard Phase 8 block.
+- Mutation score ≥ 70% or step skipped → annotate and continue.
+- Never silently skip when both trigger conditions hold — if Stryker errors out, report
+  the error as the finding. (The empty-`CHANGED_SRC` pure-test-refactor skip above is
+  annotated, not silent.)
+
+Rule 19's three safer patterns (`docs/RULES.md`) remain the primary defense; this step is
+the mechanical detector for the case where they were bypassed.
+
+---
+
 ## STEP 4: Browser E2E (MANDATORY when Playwright config present)
 
 If `E2E_REQUIRED=false`, skip this step and annotate: `[E2E: skipped — no playwright config]`.
@@ -208,6 +262,7 @@ Print a summary table. ALL rows must be ✅ to proceed:
 ║ Lint                     ║  ✅    ║
 ║ TypeScript               ║  ✅    ║
 ║ Unit tests               ║  ✅    ║
+║ Mutation backstop        ║  ✅    ║  ← or [skipped — no assertion rewrite / repo not opted in]; <70% score = review finding, noted here
 ║ Browser E2E              ║  ✅    ║  ← or [skipped — no config] if not detected
 ║ Build                    ║  ✅    ║
 ║ Deploy-build parity      ║  ✅    ║  ← container/Vercel/main-only builds, or [n/a — no infra-touching change]

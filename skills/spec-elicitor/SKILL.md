@@ -1,6 +1,6 @@
 ---
 name: spec-elicitor
-description: Socratic requirements/intent elicitation (苏格拉底式提问). Locks WHAT the behaviour should be — before any code — one numbered-options question per turn. Two modes — FULL SPEC (vague new idea → five-section SPEC at `docs/<slug>/SPEC.md`) and SCOPE-LOCK (one ambiguous axis → 2–4 questions → file-less Intent Lock). Fires on business-intent ambiguity in any flow — new features (plan / dev-pipeline / scaffold-from-prd), enhancements (update), business/behavioural bugs (fix Step 1.5). Triggers on "I want to build…", "我要做一个…", "help me brainstorm", "spec out a feature", and behavioural cues like "should it do Y or Z", "it does the wrong thing". Skips self-evident technical faults (TypeError, crash, build break). Never writes code. Holds the canonical business-vs-technical test (see inside).
+description: Socratic requirements/intent elicitation (苏格拉底式提问). Locks WHAT the behaviour should be — before any code — one numbered-options question per turn. Two modes — FULL SPEC (vague new idea → six-section SPEC at `docs/<slug>/SPEC.md`, incl. quality goals) and SCOPE-LOCK (one ambiguous axis → 2–4 questions → file-less Intent Lock). Fires on business-intent ambiguity in any flow — new features (plan / dev-pipeline / scaffold-from-prd), enhancements (update), business/behavioural bugs (fix Step 1.5). Triggers on "I want to build…", "我要做一个…", "help me brainstorm", "spec out a feature", and behavioural cues like "should it do Y or Z", "it does the wrong thing". Skips self-evident technical faults (TypeError, crash, build break). Never writes code. Holds the canonical business-vs-technical test (see inside).
 ---
 
 # spec-elicitor — Socratic Requirements Skill
@@ -10,7 +10,7 @@ description: Socratic requirements/intent elicitation (苏格拉底式提问). L
 ```
 🔧 [dev-pipeline] skill: spec-elicitor — Socratic intent elicitation active
    One question per turn → numbered options.
-   Mode A (full SPEC): write SPEC.md when all 5 sections are filled · Mode B (Scope-Lock): 2–4 Qs → 🔒 Intent Lock, no file.
+   Mode A (full SPEC): write SPEC.md when all 6 sections are filled · Mode B (Scope-Lock): 2–4 Qs → 🔒 Intent Lock, no file.
 ```
 
 ---
@@ -64,12 +64,12 @@ Same Socratic discipline (one question per turn, numbered options); two depths.
 | | **Mode A — Full SPEC** | **Mode B — Scope-Lock** |
 |---|---|---|
 | Trigger | A vague NEW feature/project with no written spec | One ambiguous axis inside an otherwise-scoped change (an enhancement, or a business bug) |
-| Depth | All five sections, 6–12 turns | The single open axis only, 2–4 turns |
+| Depth | All six sections, 6–12 turns | The single open axis only, 2–4 turns |
 | Output | Writes `docs/<slug>/SPEC.md` (the contract) | **Writes NO file.** Returns a short "Intent Lock" to the calling flow |
 | Used by | `plan`, `dev-pipeline`, `scaffold-from-prd` | `update` (folds into G1), `fix` (Step 1.5 triage) |
 
 **Mode B rules:**
-- Ask only the questions needed to resolve the *specific* ambiguity. Do NOT march the user through Problem/Solution/Constraints/Non-goals/Success — that's Mode A.
+- Ask only the questions needed to resolve the *specific* ambiguity. Do NOT march the user through Problem/Solution/Constraints/Non-goals/Success/Quality — that's Mode A.
 - Cap at ~4 turns. If it's taking more, the change is bigger than an enhancement/bug — escalate to Mode A (`/dev-pipeline:plan`).
 - Terminate by printing an **Intent Lock** and handing back — do not write `SPEC.md`, do not create `docs/<slug>/`:
 
@@ -104,11 +104,11 @@ Every question MUST include 2-4 numbered options the user can pick by typing a s
 
 If you can't think of plausible options, your question is too abstract — refine it before asking.
 
-### Rule 3 — Follow the five-section coverage tracker (Mode A only)
+### Rule 3 — Follow the six-section coverage tracker (Mode A only)
 
-**Mode B does not use this rule.** Scope-Lock tracks and terminates against the single ambiguous axis, not these five sections — see "Mode B rules" above. Applying this tracker in Mode B is exactly the full-SPEC march Mode B exists to avoid.
+**Mode B does not use this rule.** Scope-Lock tracks and terminates against the single ambiguous axis, not these six sections — see "Mode B rules" above. Applying this tracker in Mode B is exactly the full-SPEC march Mode B exists to avoid.
 
-In Mode A, you are filling these five sections, in roughly this order. Each must be substantively populated before the SPEC is "complete":
+In Mode A, you are filling these six sections, in roughly this order. Each must be substantively populated before the SPEC is "complete":
 
 | # | Section | What it captures | Sample probing questions |
 |---|---------|------------------|--------------------------|
@@ -117,6 +117,7 @@ In Mode A, you are filling these five sections, in roughly this order. Each must
 | 3 | **Technical Constraints** (技术约束) | Stack, deploy target, performance/security/compliance limits, integration boundaries | "Which apps does this touch (booking / admin / api)?" "Any latency SLA?" "Multi-tenant scope?" "Locales needed?" |
 | 4 | **Non-goals** (明确不做的事) | Explicit scope cuts — what would be reasonable to include but is intentionally OUT for this round | "Should we handle X in this round, or is X a follow-up?" "Mobile native — in or out?" "Bulk operations — in or out?" |
 | 5 | **Success Criteria** (成功标准) | Observable, testable conditions that prove the feature works | "How will the user know it worked?" "What metric / log / test would prove it shipped correctly?" "What's the visible 'done' state for the operator?" |
+| 6 | **Quality Criteria** (质量标准) | The quality/NFR trade-off intent — perf, security, simplicity — each as a MEASURABLE criterion (rate limits, audit logging, perf budgets), not an adjective | "Is there a latency budget for this path (e.g. p95 < 500ms), or is 'works' enough this round?" "Does this action need an audit trail / rate limit?" "Where do we deliberately choose simple over fast/robust?" |
 
 Maintain a mental checklist. After every user answer, decide which section the next question should advance. Don't bounce randomly — finish what you started on a section before moving on.
 
@@ -126,12 +127,12 @@ Each turn, briefly reflect back what you understood from the prior answer ("Got 
 
 ### Rule 5 — Print progress every turn (Mode A only)
 
-**Mode B does not print this tracker** — there are no five sections to be "close to complete" against. Mode B's only progress signal is its own termination artifact (the 🔒 Intent Lock, see "Mode B rules" above).
+**Mode B does not print this tracker** — there are no six sections to be "close to complete" against. Mode B's only progress signal is its own termination artifact (the 🔒 Intent Lock, see "Mode B rules" above).
 
 In Mode A: after the acknowledgement and before the question, print a one-line tracker so the user knows how close they are to a complete SPEC:
 
 ```
-📋 SPEC progress: [✓ Problem] [✓ Solution] [◐ Constraints] [ ] Non-goals [ ] Success
+📋 SPEC progress: [✓ Problem] [✓ Solution] [◐ Constraints] [ ] Non-goals [ ] Success [ ] Quality
 ```
 
 Use `✓` for "done", `◐` for "in progress", `[ ]` for "not yet started".
@@ -154,14 +155,14 @@ Target: 6–12 turns total for a typical feature. If you hit 15+ turns without c
 
 > **Mode B (Scope-Lock):** the steps below are Mode A only. In Mode B you terminate by printing the **Intent Lock** (see "Two operating modes — Full SPEC vs Scope-Lock") and handing back to the calling flow — you do NOT write any file. Skip the rest of this section.
 
-**Mode A (Full SPEC)** — when all five sections have substantive content, do this in a SINGLE turn:
+**Mode A (Full SPEC)** — when all six sections have substantive content, do this in a SINGLE turn:
 
 ### Step 1 — Confirm
 
 Print a draft of the SPEC inline and ask:
 
 ```
-We've covered all five sections. Here's the draft SPEC:
+We've covered all six sections. Here's the draft SPEC:
 
 [full SPEC content]
 
@@ -239,6 +240,14 @@ Write this exact structure to `docs/<slug>/SPEC.md`:
 - [ ] <Observable, testable condition 2>
 - [ ] <Observable, testable condition 3>
 
+## 6. Quality Criteria (质量标准)
+
+<The quality/NFR trade-off intent — performance, security, simplicity. Each entry is MEASURABLE (a number, a log line, a checkable property), never an adjective. "None this round — simplicity wins" is a valid, explicit entry. These are traced by Phase 8.6 exactly like Success Criteria.>
+
+- [ ] <e.g. Notification send path p95 < 500ms under 100 concurrent waitlist entries>
+- [ ] <e.g. Every notification send is rate-limited to 1 per customer per slot and audit-logged with tenantId>
+- [ ] <e.g. Simplicity trade-off: polling (not websockets) this round — acceptable staleness ≤ 60s>
+
 ---
 
 ## Elicitation Trace
@@ -270,11 +279,11 @@ Assistant (turn 1 — banner + acknowledge + first question on Problem):
 ```
 🔧 [dev-pipeline] skill: spec-elicitor — Socratic intent elicitation active
    One question per turn → numbered options.
-   Mode A (full SPEC): write SPEC.md when all 5 sections are filled · Mode B (Scope-Lock): 2–4 Qs → 🔒 Intent Lock, no file.
+   Mode A (full SPEC): write SPEC.md when all 6 sections are filled · Mode B (Scope-Lock): 2–4 Qs → 🔒 Intent Lock, no file.
 
 明白了 — 你想做的是等位列表的自动通知功能。先从「问题」开始。
 
-📋 SPEC progress: [◐ Problem] [ ] Solution [ ] Constraints [ ] Non-goals [ ] Success
+📋 SPEC progress: [◐ Problem] [ ] Solution [ ] Constraints [ ] Non-goals [ ] Success [ ] Quality
 
 **Q1 — 这个痛点最直接影响谁?**
 
@@ -291,7 +300,7 @@ Assistant (turn 2 — acknowledge + drill into Problem):
 ```
 好 — 所以痛点是员工的人工成本,通知是手动的、容易漏掉。
 
-📋 SPEC progress: [◐ Problem] [ ] Solution [ ] Constraints [ ] Non-goals [ ] Success
+📋 SPEC progress: [◐ Problem] [ ] Solution [ ] Constraints [ ] Non-goals [ ] Success [ ] Quality
 
 **Q2 — 目前店里平均每天有多少这种「打电话通知等位客户」的动作?**
 
@@ -301,7 +310,7 @@ Assistant (turn 2 — acknowledge + drill into Problem):
 4. Other (please describe)
 ```
 
-…and so on through the five sections. Typical close in 6–12 turns.
+…and so on through the six sections. Typical close in 6–12 turns.
 
 ---
 
