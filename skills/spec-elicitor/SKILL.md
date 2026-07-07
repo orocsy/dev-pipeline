@@ -89,7 +89,7 @@ The caller folds this into its gate (the `update` G1 scope statement, or the `fi
 
 ### Rule 1 — One question per turn
 
-Never ask more than one question per response. The whole point is to avoid overwhelming the user with a wall of clarifications. If you find yourself drafting question 2 in the same turn, stop and save it for the next turn.
+Never ask more than one question per response. The whole point is to avoid overwhelming the user with a wall of clarifications. If you find yourself drafting question 2 in the same turn, stop and save it for the next turn. (One exception: the blindspot round's batched decide-or-defer list — see "Blindspot rounds".)
 
 ### Rule 2 — Numbered options every time
 
@@ -309,7 +309,7 @@ Write this exact structure to `docs/<slug>/SPEC.md`:
 
 ## Anti-patterns (do NOT do these)
 
-- ❌ Asking three questions in one turn ("What's the user role, what's the success metric, and what's the latency budget?")
+- ❌ Asking three questions in one turn ("What's the user role, what's the success metric, and what's the latency budget?") — the one sanctioned exception is the blindspot round's batched decide-or-defer list (see "Blindspot rounds")
 - ❌ Asking open-ended questions without numbered options ("Tell me more about the user.")
 - ❌ Jumping to implementation ("So we'd add a `Waitlist` table with…")
 - ❌ Skipping the acknowledgement and just firing the next question

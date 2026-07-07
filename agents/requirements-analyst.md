@@ -1,7 +1,7 @@
 ---
 name: requirements-analyst
 description: |
-  Use this agent to analyze requirements and understand what needs to be built before designing or implementing. Examples:
+  Use this agent to analyze requirements and understand what needs to be built before designing or implementing. Its report ends with a mandatory "Blindspot findings" block — surfaces the change touches per the codebase but the request never mentions, phrased decide-or-defer. Examples:
 
   <example>
   Context: User describes a new feature to build
