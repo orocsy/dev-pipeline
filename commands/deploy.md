@@ -11,6 +11,62 @@ Never ask the user what platform — it was captured in planning. Just execute.
 
 ---
 
+## Deploy-bootstrap protocol (first deploy / new target)
+
+Run this BEFORE STEP 1 whenever this is the project's first deploy, or the first deploy to a target that hasn't gone live before (new platform, new environment, new account). Already-bootstrapped, routine redeploys skip straight to STEP 1.
+
+### Step 0 — Credential probe, never assume
+
+A CLI being installed does not mean it's authenticated, and a login from a past session may have expired. Probe every surface before planning anything:
+
+```bash
+vercel whoami
+aws sts get-caller-identity
+gh auth status                    # read the scopes, not just "logged in"
+cloudflared --version
+grep '^Host' ~/.ssh/config         # enumerate configured remote hosts
+```
+
+Classify every deploy surface from what the probe actually returned:
+- **AUTONOMOUS** — working, sufficiently-scoped auth. Execute immediately.
+- **HUMAN-GATED** — missing/expired/under-scoped auth, or an account-boundary decision (which org, which payment plan, which domain).
+
+A missing CLI never blocks the whole deploy phase — it only moves that one surface to the human list. Keep going on everything else.
+
+### The split plan
+
+- **Autonomous lane** executes immediately — it doesn't wait on the human list.
+- **Human lane** becomes a precise checklist: exact commands or exact dashboard paths, one line per item. Only account-boundary items belong here — logins, OAuth grants, payment-vendor dashboard config, domain/DNS, secrets. Secrets are always handed over as env/file/`gh secret set < file`, never pasted into chat.
+- **GitHub Actions is always autonomous** whenever `gh auth status` shows repo+workflow scopes. It touches real cloud infrastructure but needs zero local cloud credentials: CI on real service containers, container-image publish via the workflow's own `GITHUB_TOKEN` (`packages:write`), and secrets-gated deploy workflows shipped dispatch-only (`workflow_dispatch`, not push-triggered) are all autonomous-lane work.
+
+### Local prod-parity gate (mandatory before any first cloud deploy)
+
+Prove the artifact boots locally under production conditions before it ever touches a real target:
+
+- Full compose stack — production builds, `NODE_ENV=production`, real datastores, not mocks or a subset of services
+- A one-shot migrate service ordered with `service_completed_successfully` so migrations finish before the app container starts, never racing it
+- A distinct port band that collides with neither the dev stack nor the E2E stack
+- Real health checks, hit for real
+- Browser verification — load the actual page, don't stop at a curl 200
+
+If it doesn't boot here, it will not boot there. Deploy artifacts are code: scaffold → build → boot → health-check is one validation loop, the same discipline as implement → validate. Evidence: a real first live-fire of freshly scaffolded deploy artifacts caught 3 config bugs in about 10 minutes — bugs that reading the Dockerfile and compose file line-by-line had not surfaced.
+
+### First-deploy footguns
+
+| Footgun | Bite | Fix |
+|---|---|---|
+| Monorepo Dockerfile copies package manifests but not the root config a `tsconfig` `extends` chain needs | `tsc` runs lib-less; TS2583 cascade inside third-party `.d.ts` files | COPY the full `extends` chain into the manifests layer, not just each package's own `tsconfig.json` |
+| ORM client generate ≠ migrate | CI that migrates but never generates leaves a TS2305 storm on generated types | Run both, explicitly, every time — never assume one implies the other |
+| `npx <tool>` from a workspace root silently downloads latest when the bin is package-local (pnpm) | Version drift between what CI runs and what's pinned in the lockfile, and it fails silently | Run from the owning package directory with `--no-install` so drift fails loud instead of quietly resolving to a stray global |
+| Repo-hygiene hooks fire on remote infra paths (hardcoded `/home/<user>` in deploy scripts) | Script breaks the moment the deploy user or box changes | Use `$HOME`-relative remote paths so the script survives a deploy-user change |
+| Push-trigger auto-deploy wired to a target that has never had a green manual deploy | Every push after that auto-fires against an unverified target — cascading failures with no manual checkpoint | Dispatch-only until the first green manual deploy; only then wire the push trigger |
+
+### Cross-reference
+
+This protocol is the generic flow. Its output, per project, is the `docs/<project>/deploy-runbook.md` convention — topology, secrets contract, and the first-deploy sequence, each step marked 🧑 (human) or 🤖 (autonomous). Write or update that runbook as this protocol runs; don't let the bootstrap knowledge live only in this session.
+
+---
+
 ## STEP 1: Load Context
 
 ```bash
