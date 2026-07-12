@@ -81,6 +81,7 @@ For each entry, decide:
 | `new-pattern` | A NON-cross-file defensive lesson NOT already in engineering-craft | Create a new `.md` file under `categories/<category>/<slug>.md` with the lesson + SHA citation |
 | `refinement` | The entry adds nuance / a new example / a counter-case to an existing pattern | Append an `Example` or `Counter-case` block to the existing rule's file, citing the new SHA |
 | `noise` | The entry is too project-specific or doesn't generalize | Skip; still mark consolidated so we don't re-evaluate it next run |
+| `payment-domain` | The lesson's trigger CANNOT fire without a payment vendor installed (boundary test below) | Route to the payment-engineering skill repo (~/projects/payment-engineering) — vendors/<vendor>/ page append or common/candidate-generalizations.md. Do NOT write it into an engineering-craft category. |
 
 Be conservative — when in doubt, prefer `noise` over a low-quality `new-pattern`. The repo's value is in curation, not volume.
 
@@ -90,6 +91,14 @@ Be conservative — when in doubt, prefer `noise` over a low-quality `new-patter
   - If `$FAILURE_MODES` already contains the general form (it usually will — the skill appends live mid-trace) → no write needed; mark the journal entry consolidated with `verdict=cross-file-already`.
   - If it's genuinely new → append a new numbered entry to `$FAILURE_MODES` (Pattern / Anti-pattern / Correct / Examples — match the existing format) and update that file's Index. Mark the journal entry `verdict=cross-file-new`.
 - **Do NOT** also write it into `config-drift` / `grep-for-siblings` / etc. Those hand-authored categories own the DEEPER, broader treatment of adjacent topics (e.g. the full 4-consumer rule); the cross-file catalog owns the operational seam check. One fact, one home. Cross-link, don't copy.
+
+**Payment-domain entries route to the payment-engineering skill, NOT to engineering-craft.**
+
+- **Boundary test**: "Can this rule's trigger fire in a codebase with NO payment vendor installed?" YES → craft. NO → payment-engineering.
+- **Destination**: `~/projects/payment-engineering` (git repo, PRIVATE — real SHAs/repo names ARE kept there, unlike craft).
+- **Where to append**: the matching `vendors/<vendor>/<topic>.md` page (webhooks / money-state / idempotency-keys / connect / billing / sdk-pins), or `common/candidate-generalizations.md` for patterns observed in only one vendor.
+- **One-way reference rule**: the payment skill may cite craft; craft never cites payment content (the knowledge-management routing-tripwire rule is the sanctioned pointer exception).
+- **Commit**: commit the payment repo with a `feat(scars): ...` message; push if a remote exists, else note "no remote yet".
 
 ### Step 4 — Apply changes
 
@@ -108,6 +117,9 @@ For `noise`:
 
 For `cross-file`:
 - Handled against `$FAILURE_MODES` per the routing note above (append-if-new, else no-op). The mirror into engineering-craft happens in Step 4.5, not here.
+
+For `payment-domain`:
+- Handled against the payment-engineering repo (`~/projects/payment-engineering`) per the routing note above; no engineering-craft write.
 
 ### Step 4.5 — Publish the cross-file catalog to the mirror (one-way)
 
@@ -193,6 +205,7 @@ Print summary:
   → new patterns added:    <count> (files: <list>)
   → refinements applied:   <count> (files: <list>)
   → cross-file (canonical): <count> appended to plugin FAILURE_MODES.md; mirror regenerated
+  → payment-domain:        <count>
   → noise (skipped):       <count>
 
   engineering-craft pushed: <sha> → https://github.com/orocsy/engineering-craft
