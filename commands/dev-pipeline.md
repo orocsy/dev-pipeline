@@ -77,7 +77,8 @@ Launch the **skill-scout** agent to:
 Present findings including:
 1. **Tech Stack Profile** — what was detected
 2. **Recommended Skills** — which skills to activate for this task (with HIGH/MEDIUM/LOW relevance)
-3. **Unmatched Technologies** — what needs Context7 on-demand docs
+3. **Best-Practice Sources** — the stack-matched sources resolved by Phase 0's detect (pinned in `.claude/project-context.json` → `bestPracticeSources[]`, per the mapping in `skills/skill-router/SKILL.md`), each marked installed/missing with its fallback
+4. **Unmatched Technologies** — what needs Context7 on-demand docs
 
 **Store the Recommended Skills list** — it will be used in Phase 4 (architecture) and Phase 7 (implementation).
 
@@ -121,6 +122,16 @@ Present the architecture design to the user, INCLUDING the "Third-Party Surfaces
 - Component design with file paths
 - Data flow
 - Trade-offs considered
+
+**Surface the pinned best-practice sources as part of this gate** (one block, from `bestPracticeSources[]`):
+
+```
+Stack detected: [signals] → these best-practice sources will be active in
+implement / review / validate / fix: [installed sources]. Missing (Context7
+fallback): [missing sources]. Confirm, or override (drop/add a source).
+```
+
+An override here is recorded back into the pin — the later phases read the pin, they never re-decide.
 
 **ASK USER** to approve the architecture before proceeding.
 
@@ -174,6 +185,7 @@ For each MIU in order:
 
 **Important during implementation:**
 - **Activate skills from Phase 2 Recommended Skills list.** For HIGH relevance skills, invoke via Skill tool before implementation. For unmatched technologies, use Context7 MCP (`resolve-library-id` + `query-docs`) for on-demand docs.
+- **Consult the pinned best-practice sources** (`bestPracticeSources[]` in `.claude/project-context.json`, confirmed at the Phase 4 gate): before writing code in an MIU, load each `installed` source whose signal matches the files the MIU touches (phase weights in `skills/skill-router/SKILL.md` → "Best-Practice Source Routing"). A `missing` source → annotate and use its recorded fallback; never block on it.
 - Installed skills (nestjs-best-practices, mastering-typescript, websocket-engineer, vercel-react-best-practices, vercel-composition-patterns, nodejs-architecture, nodejs-error-handling, nodejs-testing, nodejs-security, nodejs-database-orm, nodejs-docker-production, nodejs-caching-redis) will auto-activate when their descriptions match the task context
 - Follow established codebase patterns found in Phase 1
 - Honor any project-specific safety rules in `.claude/CLAUDE.md` and `AGENTS.md` (e.g. multi-tenancy, concurrency invariants, i18n) — those are app-specific and live in the project, not here

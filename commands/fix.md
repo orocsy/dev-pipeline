@@ -33,14 +33,17 @@ Why this gate exists (see Rules 18 & 19): if you "fix" a behavioural bug without
 
 ### Step 2: Fix Issues
 
+Before the first fix: read `.claude/project-context.json` → `bestPracticeSources[]` (the stack-matched pin — mapping in `skills/skill-router/SKILL.md` → "Best-Practice Source Routing"). For each issue whose files match an `installed` source's signal, load that skill BEFORE implementing the fix — the fix should follow the source's patterns, not re-derive them. `missing` sources → recorded fallback (usually Context7), never a blocker. No pin (direct `/dev-pipeline:fix` without detect) → skip with a one-line annotation.
+
 For each issue (in priority order — critical → high → medium → low):
 
 1. **Analyze** — understand what the reviewer is asking for
 2. **Think aloud** — "This issue is about [X]. The fix is [Y] because..."
-3. **Write/update tests** — if the fix changes behavior, update tests first
-4. **Implement the fix** — make the change
-5. **Launch validator agent** — verify lint + tsc + tests + build pass
-6. **If FAIL** — fix immediately, re-launch validator, loop until clean
+3. **Consult the matching pinned best-practice source** (per above) if the issue's files match one
+4. **Write/update tests** — if the fix changes behavior, update tests first
+5. **Implement the fix** — make the change
+6. **Launch validator agent** — verify lint + tsc + tests + build pass
+7. **If FAIL** — fix immediately, re-launch validator, loop until clean
 
 ### Step 3: Re-deliver
 

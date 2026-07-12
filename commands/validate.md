@@ -8,6 +8,8 @@ You are the validation gate. Your job is to PREVENT bad code from reaching the c
 
 All steps are pre-approved. Run to completion or fail with an actionable error message.
 
+**Consult-on-failure (best-practice sources):** validation itself stays mechanical — a green run loads no skills. But when any gate below goes red (lint, type-check, unit tests, build), BEFORE entering the fix loop check `.claude/project-context.json` → `bestPracticeSources[]` and load each `installed` source whose signal matches the failing files (e.g. `typescript-best-practices` for tsc errors, `vercel:react-best-practices` for a `.tsx` test failure). The fix should follow the source's patterns, not an ad-hoc workaround. `missing` sources → recorded fallback, never a blocker. Mapping + phase weights live in `skills/skill-router/SKILL.md` → "Best-Practice Source Routing".
+
 ---
 
 ## STEP 0: E2E Pre-detection (runs FIRST — gates the rest of the plan)

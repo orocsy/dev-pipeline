@@ -1,6 +1,6 @@
 ---
 name: skill-router
-description: Auto-select the correct skills and MCP tools for each pipeline phase based on detected tech stack and task type. Covers design-phase routing (Stitch MCP → Figma MCP → image → ui-ux-pro-max → design-checker → skip), tech-stack skill routing (next → vercel-react + vercel-composition, nestjs → nestjs-best-practices, rust → rust-idioms, go → go-idioms, etc.), and deploy-adapter selection (vercel.json → vercel-adapter, supabase/ → supabase-adapter, fly.toml → fly-adapter). Trigger at start of design phase, architecture phase, implementation phase, and before delivery. Never ask the user which skill to use — the router decides from `project-profile.json`.
+description: Auto-select the correct skills and MCP tools for each pipeline phase based on detected tech stack and task type. Covers design-phase routing (Stitch MCP → Figma MCP → image → ui-ux-pro-max → design-checker → skip), tech-stack skill routing (next → vercel-react + vercel-composition, nestjs → nestjs-best-practices, rust → rust-idioms, go → go-idioms, etc.), best-practice source routing (stack-matched, phase-weighted — typescript-best-practices, vercel:react-best-practices, Better-T-Stack components — consulted by implement/review/validate/fix, pinned in project-context.json), and deploy-adapter selection (vercel.json → vercel-adapter, supabase/ → supabase-adapter, fly.toml → fly-adapter). Trigger at start of design phase, architecture phase, implementation phase, and before delivery. Never ask the user which skill to use — the router decides from `project-profile.json`.
 ---
 
 # Skill Router
@@ -122,6 +122,46 @@ Read `project-profile.json`. Load the matching skill(s). Multiple may load per p
 | `testFrameworks: [jest]` | `jest-patterns` |
 | `testFrameworks: [playwright]` | `playwright-e2e` |
 
+Where a row above overlaps with a pinned best-practice source (next section) — e.g. the `typescript` and `react` rows — the pin's resolved name wins: the pin reflects what is actually installed on this machine, resolved via `deps.json` (which tracks renames through `supersedes[]`).
+
+## Best-Practice Source Routing (stack-matched, phase-weighted)
+
+The declarative mapping from detected stack signals to **best-practice skill sources** — opinionated per-technology skills that working phases consult, as distinct from the workflow harness itself. This table names WHICH skill to consult WHEN; the practice content lives in the source skills (same boundary as payment-engineering: domain depth in the skill, routing in the harness). If you find yourself writing a TypeScript/React/Drizzle rule in THIS file, it belongs in the source skill — not here.
+
+### The mapping (single home — detect, skill-scout, and all phases resolve from THIS table)
+
+| Detected signal | Best-practice source (invocation name) | Lives in | If absent |
+|---|---|---|---|
+| `language: typescript` (any TS/JS project) | `typescript-best-practices` | user-level `~/.claude/skills/` | `typescript-pro` (fullstack-dev-skills) if enabled, else Context7; scout flags |
+| `framework: react` / `next` / `remix` | `vercel:react-best-practices` | `vercel` plugin | Context7 `react`; scout flags |
+| `framework: next` (additionally) | `vercel:nextjs` | `vercel` plugin | Context7 `next.js` |
+| `orm: drizzle` | `developer-kit-typescript:drizzle-orm-patterns` | `developer-kit` marketplace | Context7 `drizzle-orm`; scout flags |
+| `auth: better-auth` | `developer-kit-typescript:better-auth` | `developer-kit` marketplace | Context7 `better-auth`; scout flags |
+| `validation: zod` | `developer-kit-typescript:zod-validation-utilities` | `developer-kit` marketplace | Context7 `zod` |
+| `monorepo: turborepo` | `developer-kit-typescript:turborepo-monorepo` | `developer-kit` marketplace | Context7 `turborepo` |
+| `framework: hono` | — none published yet (KNOWN GAP) | — | Context7 `hono`; scout suggests `/dev-pipeline:skill-doctor` search |
+| `rpc: trpc` / `orpc` | — none published yet (KNOWN GAP) | — | Context7 `trpc` / `orpc`; scout suggests skill-doctor search |
+| `framework: tanstack-start` / `tanstack-router` / `tanstack-query` | — none published yet (KNOWN GAP) | — | Context7 per package; scout suggests skill-doctor search |
+
+**Better-T-Stack projects** (scaffolded via `create-better-t-stack`: a menu of Hono/Elysia/Express, tRPC/oRPC, Drizzle/Prisma, better-auth, TanStack, Turborepo, Next/Nuxt/Svelte): there is **no meta-skill** — decompose into the component signals above and route per component. Detection: the `bts.jsonc` marker at repo root (if present) or the characteristic dependency combination (e.g. `hono` + `@trpc/server` + `drizzle-orm` across one workspace).
+
+### Phase weights (which phases consult pinned sources, and how)
+
+| Phase | Weight | How it consults |
+|---|---|---|
+| `/dev-pipeline:implement` (STEP 1, per-MIU) | MANDATORY for pinned `installed` sources whose signal matches files the MIU touches | Load via Skill tool BEFORE writing code. `missing` sources → annotate `[best-practice source missing: <name>]`, use the pin's fallback, continue |
+| `/dev-pipeline:review` (STEP 2) | Reviewer-prompt priming | The matching reviewer loads the pinned source first — typescript-reviewer ← `typescript-best-practices`; a diff touching Drizzle schema/queries primes db-reviewer with `drizzle-orm-patterns` |
+| `/dev-pipeline:validate` | Consult-on-FAILURE only | A red gate (lint / tsc / tests / build) in a mapped stack loads the pinned source before entering the fix loop. A green run loads nothing — validate stays mechanical |
+| `/dev-pipeline:fix` (Step 2) | Consult before writing the fix | When the bug's files match a pinned source's signal, load it before implementing |
+| Architecture gate (G3 — `pipeline`/`plan` Phase 4) | Surface + decide | The gate prints the resolved mapping: "Stack X detected → these best-practice sources will be active in implement/review/validate/fix — confirm/override." Overrides are recorded in the pin |
+
+### Resolution + pinning (unattended phases never re-derive)
+
+- `/dev-pipeline:detect` STEP 3 resolves this table against what is actually installed (user-level `~/.claude/skills/` + enabled plugin skills) and writes the result to `.claude/project-context.json` → `bestPracticeSources[]`, each entry `{ signal, skill, status: "installed"|"missing", fallback }`.
+- Phases read the PIN, not this table. The table is consulted only at detect time, in skill-scout audits, and when the user overrides at the gate.
+- A `missing` source NEVER hard-blocks any phase: proceed, annotate, and let skill-scout's gap report suggest the install (marketplace hints live in `deps.json`).
+- Record every consult/skip in the event log per the Output Contract below, like any other routing call.
+
 ## Deploy Adapter Routing (Delivery Phase)
 
 `/dev-pipeline:deliver` Step 3 (env validation) and Step 9 (merge) use deploy adapters. Pick based on `deployTargets` array:
@@ -160,9 +200,9 @@ After every commit, the post-commit hook triggers self-review. Which reviewers r
 |---|---|---|
 | Any non-doc-only file | `cross-file-reviewer` (always — runs alongside deep-reviewer) | `cross-file-reasoning` |
 | Any file | `deep-reviewer` (always) | (none; uses cross-file lens via prompt instructions) |
-| `.ts` / `.tsx` | `typescript-reviewer` | `typescript-strict` |
-| Auth / crypto / `process.env.*` / `.env*` | `security-reviewer` | (none; uses cross-file env-var trace via prompt) |
-| SQL / migrations / `schema.prisma` | `db-reviewer` | `postgres-best-practices` / `prisma-patterns` |
+| `.ts` / `.tsx` | `typescript-reviewer` | `typescript-best-practices` (pinned best-practice source; see Best-Practice Source Routing) |
+| Auth / crypto / `process.env.*` / `.env*` | `security-reviewer` | (none; uses cross-file env-var trace via prompt) — plus `better-auth` when that source is pinned |
+| SQL / migrations / `schema.prisma` / Drizzle schema | `db-reviewer` | `postgres-best-practices` / `prisma-patterns` / `drizzle-orm-patterns` (pinned) |
 | `*.test.*` / `*.spec.*` | `test-reviewer` | `vitest-patterns` / `jest-patterns` |
 | `Dockerfile` / `k8s/` / `helm/` | `infra-reviewer` | `docker-adapter` / `k8s-adapter` |
 

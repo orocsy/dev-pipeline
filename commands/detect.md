@@ -188,6 +188,25 @@ express / fastify    → MEDIUM: nodejs-architecture
 unknown library      → CONTEXT7: [library name]
 ```
 
+### STEP 3b: Resolve + pin best-practice sources
+
+Resolve the detected stack against the **Best-Practice Source Routing** table in
+`skills/skill-router/SKILL.md` (the single home for that mapping — do not restate it here).
+For each matching signal, probe whether the source is actually present:
+
+```bash
+# user-level skills
+ls ~/.claude/skills/typescript-best-practices/SKILL.md 2>/dev/null
+# plugin skills — enabled plugins only
+grep -o '"[a-z-]*@[a-z-]*": true' ~/.claude/settings.json 2>/dev/null
+```
+
+Write the result as `bestPracticeSources[]` in the OUTPUT below — one entry per matched
+signal, `status: "installed"` or `"missing"`, with the table's fallback recorded. This pin
+is what implement/review/validate/fix consult (phase weights in the router table); they
+never re-derive the mapping. A `missing` source is a scout-flagged gap + fallback, never
+a blocker.
+
 ---
 
 ## STEP 4: Design Asset Detection
@@ -274,6 +293,11 @@ Write `.claude/project-context.json` in the project root:
   "skillsHigh": ["vercel-react-best-practices", "nestjs-best-practices", "mastering-typescript"],
   "skillsMedium": ["nodejs-database-orm", "nodejs-docker-production"],
   "skillsContext7": [],
+  "bestPracticeSources": [
+    { "signal": "typescript", "skill": "typescript-best-practices", "status": "installed", "fallback": "context7:typescript" },
+    { "signal": "react", "skill": "vercel:react-best-practices", "status": "installed", "fallback": "context7:react" },
+    { "signal": "trpc", "skill": null, "status": "missing", "fallback": "context7:trpc" }
+  ],
   "designSource": "stitch_mcp",
   "stitchProjectId": "abc123",
   "gitHooksInstalled": true,

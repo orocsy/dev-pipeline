@@ -156,6 +156,8 @@ Announce before spawning each agent:
 
 Launch these reviewers in parallel. Each gets its own context window. Do NOT run them sequentially.
 
+**Best-practice source priming (from the pin, before spawning):** read `.claude/project-context.json` → `bestPracticeSources[]` (mapping owned by `skills/skill-router/SKILL.md` → "Best-Practice Source Routing"). For each `installed` source whose signal matches the diff's file types, add to the matching reviewer's prompt: "Load the `<skill>` skill first; review this diff against its rules and cite the specific rule in each finding." — typescript-reviewer ← `typescript-best-practices`, deep-reviewer ← `vercel:react-best-practices` for `.tsx`, db-reviewer ← `drizzle-orm-patterns` for Drizzle schema/queries, security-reviewer ← `better-auth` when pinned. `missing` sources add nothing (no blocking, no substitute prose — the gap is already flagged by skill-scout). If no pin exists, skip priming and annotate `[best-practice priming: no pin]`.
+
 **A0. Assumption checker** (always — runs first, cheapest gate)
 - Prompt: "Audit this diff for silent assumption drift — URL topology, env-var contracts, multi-tenancy invariants, data-model contracts. Cross-check against README, project CLAUDE.md, .claude/docs/ARCHITECTURE.md, .claude/docs/URL_TOPOLOGY.md (if present), docs/architecture-*.md, prisma/schema.prisma comments. ALSO run the cross-file backward traces (steps 8–14) per agents/assumption-checker.md → Method. Output: PASS / WARN / BLOCK with findings."
 - Input: `git diff $BASE..HEAD` + the doc files above

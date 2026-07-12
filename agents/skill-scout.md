@@ -49,12 +49,21 @@ For each `package.json`, extract `dependencies` and `devDependencies`. Match aga
 | **NestJS** | `@nestjs/*` in deps | nestjs-best-practices, nodejs-architecture |
 | **Express** | `express` in deps | nodejs-architecture |
 | **Fastify** | `fastify` in deps | nodejs-architecture |
-| **TypeScript** | `tsconfig.json` exists | mastering-typescript |
-| **Next.js** | `next` in deps | vercel-react-best-practices |
-| **React** | `react` in deps | vercel-react-best-practices, vercel-composition-patterns |
+| **TypeScript** | `tsconfig.json` exists | mastering-typescript, typescript-best-practices† |
+| **Next.js** | `next` in deps | vercel-react-best-practices†, vercel:nextjs† |
+| **React** | `react` in deps | vercel-react-best-practices†, vercel-composition-patterns |
 | **Prisma** | `@prisma/client` in deps | nodejs-database-orm |
 | **TypeORM** | `typeorm` in deps | nodejs-database-orm |
-| **Drizzle** | `drizzle-orm` in deps | nodejs-database-orm |
+| **Drizzle** | `drizzle-orm` in deps | nodejs-database-orm, drizzle-orm-patterns† |
+| **better-auth** | `better-auth` in deps | better-auth† (developer-kit-typescript) |
+| **Zod** | `zod` in deps | zod-validation-utilities† |
+| **Turborepo** | `turbo.json` exists | turborepo-monorepo† |
+| **Hono** | `hono` in deps | *no skill published — Context7 fallback*† |
+| **tRPC / oRPC** | `@trpc/server` or `@orpc/server` in deps | *no skill published — Context7 fallback*† |
+| **TanStack** | `@tanstack/*` in deps | *no skill published — Context7 fallback*† |
+| **Better-T-Stack** | `bts.jsonc` at root, or hono + `@trpc/server` + `drizzle-orm` combo | *no meta-skill — decompose into the component rows above*† |
+
+† = **best-practice source** — resolved against the "Best-Practice Source Routing" table in `skills/skill-router/SKILL.md` (the canonical mapping; do not restate its content) and pinned by `/dev-pipeline:detect` into `.claude/project-context.json` → `bestPracticeSources[]`. Installed → phases consult it per the router's phase weights. Missing → flag the gap, name the install source (marketplace hints in `deps.json`), record the Context7 fallback. NEVER treat a missing source as a blocker.
 | **Mongoose** | `mongoose` in deps | nodejs-database-orm |
 | **Redis** | `ioredis` or `redis` in deps | nodejs-caching-redis |
 | **Kafka** | `kafkajs` in deps | *Context7 fallback* |
@@ -131,6 +140,13 @@ For technologies detected in Step 0 that have NO matching installed skill:
 | nodejs-database-orm | HIGH | @prisma/client detected | Installed |
 | nodejs-testing | HIGH | jest detected | Installed |
 | mastering-typescript | MEDIUM | tsconfig.json detected | Installed |
+
+### Best-Practice Sources (per skill-router mapping — pinned by detect)
+| Signal | Source skill | Status | If missing |
+|--------|--------------|--------|------------|
+| typescript | typescript-best-practices | Installed | — |
+| react | vercel:react-best-practices | Installed | — |
+| trpc | *(none published)* | Missing | Context7 `trpc`; watch for upstream skill via `/dev-pipeline:skill-doctor` |
 
 ### Installed & Relevant to This Task
 | Skill/Plugin | Relevance | How It Helps |

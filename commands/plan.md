@@ -60,6 +60,7 @@ Launch the **skill-scout** agent to:
 - Auto-detect tech stack from package.json, configs, project structure
 - Build Tech Stack Profile
 - Map detected technologies to installed skills
+- Report the stack-matched **best-practice sources** (pinned in `.claude/project-context.json` → `bestPracticeSources[]` per `skills/skill-router/SKILL.md` → "Best-Practice Source Routing"), installed/missing each
 - Identify gaps and recommend Context7 fallback
 
 Present findings. **Save to `findings.md`.**
@@ -96,6 +97,8 @@ Present architecture design, INCLUDING the "Third-Party Surfaces Verified" table
 - Component design with file paths
 - Data flow
 - Trade-offs considered
+
+Surface the pinned best-practice sources at this gate: "Stack [signals] detected → these sources will be active in implement/review/validate/fix: […]. Confirm/override." Overrides are recorded back into the pin.
 
 **ASK USER** to approve architecture.
 

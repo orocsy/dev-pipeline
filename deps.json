@@ -131,12 +131,63 @@
       {
         "name": "react-best-practices",
         "required": false,
-        "trigger": "react/tsx files detected",
-        "usedBy": ["plan", "implement", "detect"],
+        "trigger": "react/tsx files detected (best-practice source)",
+        "usedBy": ["plan", "implement", "review", "validate", "fix", "detect"],
         "marketplaceHint": "claude-plugins-official",
         "container": "vercel",
         "supersedes": ["vercel-react-best-practices"],
-        "note": "Ships inside the vercel plugin at skills/react-best-practices/. Triggered automatically when editing TSX components."
+        "note": "Ships inside the vercel plugin at skills/react-best-practices/. Triggered automatically when editing TSX components. Pinned as the React/Next best-practice source by skill-router → Best-Practice Source Routing (invoke as vercel:react-best-practices)."
+      },
+      {
+        "name": "typescript-best-practices",
+        "required": false,
+        "trigger": "typescript detected (best-practice source — any TS/JS project)",
+        "usedBy": ["implement", "review", "validate", "fix", "detect"],
+        "note": "User-level standalone skill at ~/.claude/skills/typescript-best-practices/ (no marketplace container — installed directly). Pinned as the TS best-practice source by skill-router → Best-Practice Source Routing; fallback when absent: typescript-pro (fullstack-dev-skills), else Context7."
+      },
+      {
+        "name": "drizzle-orm-patterns",
+        "required": false,
+        "trigger": "drizzle-orm detected (best-practice source; Better-T-Stack component)",
+        "usedBy": ["implement", "review", "validate", "fix"],
+        "marketplaceHint": "developer-kit",
+        "container": "developer-kit-typescript",
+        "note": "Best-practice source for Drizzle schema/queries. Fallback: Context7 drizzle-orm."
+      },
+      {
+        "name": "better-auth",
+        "required": false,
+        "trigger": "better-auth detected (best-practice source; Better-T-Stack component)",
+        "usedBy": ["implement", "review", "fix"],
+        "marketplaceHint": "developer-kit",
+        "container": "developer-kit-typescript",
+        "note": "Best-practice source for better-auth flows; primes the security-reviewer when pinned. Fallback: Context7 better-auth."
+      },
+      {
+        "name": "zod-validation-utilities",
+        "required": false,
+        "trigger": "zod detected (best-practice source)",
+        "usedBy": ["implement", "fix"],
+        "marketplaceHint": "developer-kit",
+        "container": "developer-kit-typescript",
+        "note": "Best-practice source for Zod validation. Fallback: Context7 zod."
+      },
+      {
+        "name": "turborepo-monorepo",
+        "required": false,
+        "trigger": "turbo.json detected (best-practice source)",
+        "usedBy": ["implement", "fix"],
+        "marketplaceHint": "developer-kit",
+        "container": "developer-kit-typescript",
+        "note": "Best-practice source for Turborepo monorepos. Fallback: Context7 turborepo."
+      },
+      {
+        "name": "better-t-stack",
+        "required": false,
+        "trigger": "bts.jsonc marker at repo root, or hono + @trpc/server + drizzle-orm dependency combo",
+        "usedBy": ["detect", "implement", "review", "validate", "fix"],
+        "status": "search-required",
+        "note": "No meta-skill exists in any configured marketplace (checked 2026-07). Route per component instead (skill-router → Best-Practice Source Routing): drizzle-orm-patterns + better-auth covered by developer-kit-typescript; hono / trpc / orpc / tanstack-* have NO published skill yet → Context7 fallback. If an upstream better-t-stack skill appears, /dev-pipeline:skill-doctor search mode should surface it — wire it into the router table then."
       },
       {
         "name": "shadcn",
@@ -262,7 +313,7 @@
   "hybridSkills": [
     {
       "owned": "skill-router",
-      "composesWith": ["frontend-design", "react-best-practices", "shadcn"],
+      "composesWith": ["frontend-design", "react-best-practices", "shadcn", "typescript-best-practices", "drizzle-orm-patterns", "better-auth", "zod-validation-utilities", "turborepo-monorepo"],
       "compatNote": "skill-router routes TO these public skills by name. After every public-skill update, re-check the routing table for renames/removals."
     },
     {

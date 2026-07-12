@@ -12,6 +12,36 @@ Conventions:
 
 ---
 
+## 2026-07-12 — Stack-matched best-practice sources (phase-weighted routing)
+
+No new gates, no phase renumbering. The router stays a harness: mappings say WHICH skill
+to consult WHEN — the practice content lives in the source skills.
+
+- **Best-Practice Source Routing** (`skills/skill-router/SKILL.md`, new section — the
+  single home): declarative table mapping detected stack signals to best-practice skill
+  sources — `typescript-best-practices` (user-level), `vercel:react-best-practices` /
+  `vercel:nextjs` (vercel plugin), `drizzle-orm-patterns` / `better-auth` /
+  `zod-validation-utilities` / `turborepo-monorepo` (developer-kit-typescript) — plus
+  KNOWN GAPS with Context7 fallbacks (hono, trpc/orpc, tanstack-*). Better-T-Stack
+  scaffolds have no meta-skill: they decompose into component signals and route per
+  component.
+- **Resolution + pinning** (`commands/detect.md` STEP 3b): detect resolves the table
+  against what is actually installed and pins `bestPracticeSources[]` (each
+  installed/missing + fallback) into `.claude/project-context.json`; phases read the
+  pin, never re-derive. A missing source is a flagged gap + fallback, never a blocker.
+- **Phase weights** — how each phase consults the pin: implement loads matching
+  installed sources per-MIU BEFORE code (`commands/implement.md` STEP 0/1); review
+  primes the matching reviewer prompts (`commands/review.md` STEP 2); validate is
+  consult-on-failure only — a green run loads nothing (`commands/validate.md`); fix
+  consults before writing each fix (`commands/fix.md` Step 2).
+- **Gate surface** (`commands/dev-pipeline.md` / `commands/plan.md` Phase 4): the
+  architecture-approval gate prints "stack X detected → these sources will be active in
+  implement/review/validate/fix — confirm/override"; overrides are recorded back into
+  the pin. skill-scout (`agents/skill-scout.md`) reports the sources with
+  installed/missing status and install hints; new sources registered in `deps.json`
+  (including a `better-t-stack` search-required entry so skill-doctor watches for an
+  upstream meta-skill).
+
 ## 2026-07-06 — Blindspot pass, architecture-first ordering, explicit Deviations log
 
 Field-guide review items #15–#17 (see `evals/BACKLOG.md`), landed pending ratchet. No new

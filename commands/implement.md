@@ -34,7 +34,7 @@ If the pointer is stale/missing, do NOT guess from it — read the tracked execu
 
 (`miu-progress.json` is DEPRECATED — the verbose per-MIU dump duplicated the tracked execution doc and froze. If present, ignore it; the execution doc is authoritative.)
 
-Read `.claude/docs/ARCHITECTURE.md` / `RECENT_CHANGES.md` if present. Load the stack skill from `skills/skill-router/SKILL.md` to confirm which patterns to use.
+Read `.claude/docs/ARCHITECTURE.md` / `RECENT_CHANGES.md` if present. Load the stack skill from `skills/skill-router/SKILL.md` to confirm which patterns to use. Read the pinned best-practice sources from `.claude/project-context.json` → `bestPracticeSources[]` (resolved by detect, confirmed at the architecture gate) — these are consulted per-MIU in STEP 1; if the pin is absent (flow entered without detect), resolve once now from the router's "Best-Practice Source Routing" table and note it.
 
 **Mechanical MIU-format gate (runs here, before ANY MIU is implemented):** validate the breakdown with the plugin's validator — the tech-lead checklist made executable. A malformed breakdown (missing fields, >3 files, forward deps, consumer-before-contract) is fixed in the BREAKDOWN, not worked around during implementation.
 
@@ -74,6 +74,7 @@ Follow the 8-field MIU spec exactly (acceptance criteria, files affected, depend
 
 Rules during implementation:
 - One file open at a time — read fully before editing.
+- **Consult pinned best-practice sources BEFORE writing code**: for each `installed` source in `bestPracticeSources[]` whose signal matches the files this MIU touches (e.g. `typescript-best-practices` for any `.ts`, `vercel:react-best-practices` for `.tsx`, `drizzle-orm-patterns` for Drizzle schema/queries), load it via the Skill tool now — not after the diff exists. A `missing` source → annotate `[best-practice source missing: <name>]`, use its recorded fallback (usually Context7), continue. Never block on a missing source.
 - Type everything. No `any` without a comment explaining why.
 - Write the test alongside the implementation, not after.
 - If you discover the spec is wrong or incomplete, STOP — surface the gap to the user, do not improvise.
