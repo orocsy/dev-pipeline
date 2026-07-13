@@ -95,7 +95,34 @@ MIU [N]: [Technical name — component/hook/service/util, NOT product language]
        main-only CI — not just `turbo build`.]
 ```
 
-### Required fields checklist (enforced by tech-lead)
+### The checklist binds the AUTHOR — not only tech-lead (orchestrator self-gate)
+
+The 8-field format is enforced at AUTHORSHIP time by whoever writes the
+breakdown — the tech-lead agent, a subagent, or the pipeline orchestrator
+itself. The known failure mode: under context pressure the orchestrator
+writes `docs/<feature>/miu-breakdown.md` directly, skips launching
+tech-lead, and ships a Level-1 product-language list ("Storefront card
+gating — tests — done when"). That breakdown is USELESS as a handoff: an
+executor model cannot in-fill the coordinator's design intent (exact
+files, contract sources, build contexts, assertion-level tests), so the
+low-level design silently gets delegated to the wrong layer.
+
+Rules:
+- The rejection rule applies to the orchestrator's OWN output: any MIU
+  missing a required field is INVALID — rewrite before Phase 5.
+- A breakdown whose entries each fit in a few prose lines is Level 1 by
+  definition and MUST NOT be committed as `miu-breakdown.md`.
+- If context budget tempts compression: split the authoring across turns
+  or delegate breakdown-drafting to tech-lead — never thin the format.
+- Real incident (2026-07-13, optional-payment-onboarding): coordinator
+  committed a 5-entry product-level breakdown; the user caught it before
+  any executor consumed it. The rewrite produced 10 technical MIUs and
+  exposed a contract-placement decision (error-code constant must live in
+  the COMPILED shared package because the API needs the runtime value)
+  that the product-level version had silently skipped — exactly the class
+  of decision this format exists to force.
+
+### Required fields checklist (enforced by tech-lead — and by the author per the self-gate above)
 
 Before approving an MIU for Phase 5 (test-writing), tech-lead checks:
 
