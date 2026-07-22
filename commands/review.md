@@ -79,12 +79,26 @@ git diff "$BASE"..HEAD | grep -E "RESEND_API_KEY|TWILIO|STRIPE_SECRET|isConfigur
 
 # Grep-for-siblings triggers (security literal removal)
 git diff "$BASE"..HEAD | grep -E "^-.*(dev-secret|change-in-production|local-|TODO-set)" | head -5
+
+# Frontend design-system-drift triggers — Tailwind emits ZERO CSS for unknown
+# classes; a token typo ships invisibly green (silent-css-class-vacuum)
+git diff "$BASE"..HEAD | grep -E '^\+.*className=' | grep -oE '(text|bg|border|ring|shadow|rounded|font)-[a-z]+-[0-9]{2,3}' | sort -u | head -8
+git diff "$BASE"..HEAD --name-only | grep -E 'theme\.css|tailwind|design-tokens|\.css$' | head -5
+
+# Frontend async-state triggers — orphan promises, stale closures, latched
+# init effects, error state made live without a lifecycle audit
+git diff "$BASE"..HEAD | grep -E '^\+.*(useEffect|useState|\.then\(|\.catch\(|void [A-Za-z_]+\()' | head -5
+
+# Accessibility state-sync triggers
+git diff "$BASE"..HEAD | grep -E '^\+.*(role=|aria-[a-z]+=)' | head -5
 ```
 
 For each category that fires:
 
 1. Load the matching `~/.claude/skills/engineering-craft/categories/<class>/README.md` into context.
 2. Use that category's rule list and templates as the FRAME for the reviewer prompts in STEP 2 (specifically — the reviewer's `Look for:` clause must include this category's anti-patterns).
+
+> Frontend-shaped diffs route to `frontend-design-system-drift`, `frontend-async-state`, and `accessibility-state-sync` — a pure-frontend diff firing zero triggers should be treated as a signal the trigger list is stale, not that no priors apply.
 
 Always run the `~/.claude/skills/engineering-craft/checklists/pre-merge-self-review.md` checklist mentally, ticking each box that applies to the diff. Any unticked box on a triggered category → block with severity P1 even if no other reviewer flags it.
 

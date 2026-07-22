@@ -301,6 +301,19 @@ Modes: new features run the **full** elicitor (writes `docs/<slug>/SPEC.md`); en
 
 Canonical test + the two modes live in `skills/spec-elicitor/SKILL.md`. **Readiness test (per Rule 14):** if a behavioural bug or fuzzy enhancement can reach code without anyone deciding what the behaviour *should* be, the gate didn't fire — find the missing trigger.
 
+### Rule 24: Orchestrator-Advisor execution schema
+
+For substantive multi-step work, the coordinator session does **not** implement directly. It:
+
+1. **Drafts each task as a DETAILED spec** — context, exact files, exact edits or acceptance criteria, and the verification commands the executor must run.
+2. **Dispatches each spec to a high-capability executor agent** (Opus-class, maximum effort) as ONE small milestone — meaningful on its own, verifiable from its report (diff summary + command output), never "the rest of the feature".
+3. **Reviews each milestone report as ADVISOR** — evaluate against the spec, then continue / redirect / redesign, and draft the next milestone.
+4. **Milestone sizing is the coordinator's judgment** — err small; a milestone whose success cannot be judged from its report alone is too big.
+
+Executors report facts (diffs, command outputs, deviations), never marketing summaries. A deviation from spec is reported, not silently improvised around.
+
+*Origin: user-mandated working agreement, 2026-07-22.*
+
 ---
 
 ## MANDATORY WORKFLOW ROUTING

@@ -88,20 +88,52 @@ If gaps found, **ASK USER** if they want to install recommended skills before co
 
 ---
 
-## PHASE 3: Design Check
+## PHASE 3: UI Design (EXECUTED — never "go run it yourself")
 
-**Role: Design Gatekeeper**
+**Role: Design Lead**
 
-Launch the **design-checker** agent to evaluate whether UI/UX design is required.
+This phase RUNS the design work in-pipeline. The old behavior — pausing and
+telling the user to run `/ui-ux-pro-max` + `/web-design-guidelines` manually —
+is retired: those may not even be installed, and a paused pipeline is a
+dropped pipeline.
 
-- If **YES** and no designs exist:
-  Tell the user: "This feature requires UI design. Please run:
-  1. `/ui-ux-pro-max` to generate mockups
-  2. `/web-design-guidelines` to audit the design
-  Then tell me to continue."
-  **PAUSE** — wait for user to resume.
+**3.1 Gate.** Launch the **design-checker** agent to evaluate whether UI/UX
+design is required. Backend-only, config, tooling, pure-logic, and
+bug-fix-restoring-intended-behavior work returns **NO** → skip 3.2–3.5
+ENTIRELY and proceed to Phase 4 at zero design cost — the executed design
+work below is for UI-touching features only, never a mandatory toll on
+every pipeline run. If designs for this
+feature already exist (`docs/<slug>/ui-design.md` or `design/`) → confirm
+they still match the SPEC, then proceed to Phase 4.
 
-- If **NO** or designs already exist: proceed to Phase 4.
+**3.2 Design foundation (DESIGN.md).** If the repo has NO root `DESIGN.md`
+(or equivalent pinned design-system doc): create one BEFORE any feature
+design — tokens (color/type/spacing/radii/shadows), primitives inventory,
+composition rules, per-surface mix rules — derived from the existing UI if
+one exists, or from the design skill's output for greenfield. Every later
+design artifact must cite tokens from this file, and new tokens/patterns land
+as a DESIGN.md edit in the same PR (the CoachFlow convention).
+
+**3.3 Feature design spec.** Produce `docs/<slug>/ui-design.md` by invoking,
+in priority order, the first available (skill-router → "Design-phase
+routing" decides; never ask the user which):
+1. A provided design asset (Stitch/Figma MCP, image) — translate it.
+2. `ui-ux-pro-max` (if installed) — generate the design system/spec for the
+   surfaces this feature touches.
+3. `frontend-design` (claude-plugins-official — installed default) —
+   generate the per-surface spec: layout, states (loading/error/empty/
+   success), responsive behavior, DESIGN.md token references.
+
+**3.4 Design audit.** Audit the spec (and any existing UI code it touches)
+before implementation: run `web-design-guidelines` if installed; otherwise
+apply its checklist areas inline — accessibility (WCAG AA: contrast, focus,
+labels, touch targets ≥40px), states completeness, responsive breakpoints,
+copy tone. Record findings + resolutions in the spec's "Audit" section.
+
+**3.5 Design gate (G2.5).** Present the spec summary (surfaces, states,
+tokens used, audit outcome). **ASK USER** to approve before Phase 4 —
+architecture consumes the approved spec, and Phase 8.2 (verify-visual)
+compares the shipped pixels against it.
 
 ---
 

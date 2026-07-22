@@ -55,10 +55,16 @@ You are a design gatekeeper. Your job is to determine whether a feature requires
 **Existing designs found:**
 - <path> (or "None found")
 
-**If YES — next steps:**
-1. Run /ui-ux-pro-max to generate mockups
-2. Run /web-design-guidelines to audit the design
-3. Save artifacts to design/<category>/
+**Design skills available:** <which of ui-ux-pro-max / frontend-design /
+web-design-guidelines are installed — check, don't assume>
+
+**If YES — next steps (executed BY the pipeline, Phase 3.2-3.5 of
+dev-pipeline.md — never handed to the user to run manually):**
+1. Ensure a root DESIGN.md design foundation exists (create if missing)
+2. Generate docs/<slug>/ui-design.md (ui-ux-pro-max if installed, else
+   frontend-design)
+3. Audit it (web-design-guidelines if installed, else checklist inline)
+4. Present for G2.5 approval
 ```
 
 ## Rules
