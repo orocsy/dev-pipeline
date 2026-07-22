@@ -98,7 +98,7 @@
         "usedBy": ["plan", "dev-pipeline"],
         "install": "npx skills add nextlevelbuilder/ui-ux-pro-max-skill",
         "fallback": "frontend-design generates the spec instead",
-        "note": "Design-intelligence database (styles/palettes/font pairings/UX rules; BM25 search, needs python3). Source: https://github.com/nextlevelbuilder/ui-ux-pro-max-skill (verified 2026-07: active, v2.11)."
+        "note": "Design-intelligence database (styles/palettes/font pairings/UX rules; BM25 search, needs python3). Source: https://github.com/nextlevelbuilder/ui-ux-pro-max-skill (verified 2026-07: active, v2.11). No marketplace — install via the `install` command; skill-doctor emits it as the manual-install fallback."
       },
       {
         "name": "web-design-guidelines",
@@ -107,7 +107,7 @@
         "usedBy": ["plan", "dev-pipeline", "verify-visual"],
         "install": "npx skills add vercel-labs/agent-skills --skill web-design-guidelines",
         "fallback": "Phase 3.4 applies its checklist areas inline (WCAG AA, states, responsive)",
-        "note": "Vercel Web Interface Guidelines audit (100+ file:line rules, fetches latest rules). Source: https://github.com/vercel-labs/agent-skills."
+        "note": "Vercel Web Interface Guidelines audit (100+ file:line rules, fetches latest rules). Source: https://github.com/vercel-labs/agent-skills. No marketplace — install via the `install` command; skill-doctor emits it as the manual-install fallback."
       },
       {
         "name": "playwright-expert",

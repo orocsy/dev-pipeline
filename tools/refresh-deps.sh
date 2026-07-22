@@ -181,10 +181,18 @@ while IFS=$'\t' read -r name required usedBy status; do
   elif [[ "$status" == "search-required" ]]; then
     EXT_SEARCH_REQUIRED+=("skill:$name (used by: $usedBy)")
   else
+    # Surface the entry's `.install` command (if any) on the missing line so the
+    # human report + status JSON carry the remedy. Looked up per-entry (not added
+    # to the tab row above) so `status` stays the LAST field — an empty middle
+    # field collapses under whitespace-IFS. skill-doctor keys its name-extraction
+    # off " (used by:", so this trailing suffix is safely ignored there.
+    install="$(jq -r --arg n "$name" '.external.skills[]? | select(.name == $n) | .install // ""' "$DEPS_JSON")"
+    install_suffix=""
+    [[ -n "$install" ]] && install_suffix=" [install: $install]"
     if [[ "$required" == "true" ]]; then
-      EXT_MISSING_REQUIRED+=("skill:$name (used by: $usedBy)")
+      EXT_MISSING_REQUIRED+=("skill:$name (used by: $usedBy)$install_suffix")
     else
-      EXT_MISSING_OPTIONAL+=("skill:$name (used by: $usedBy)")
+      EXT_MISSING_OPTIONAL+=("skill:$name (used by: $usedBy)$install_suffix")
     fi
   fi
 done < <(jq -r '.external.skills[]? | "\(.name)\t\(.required)\t\(.usedBy | join(","))\t\(.status // "")"' "$DEPS_JSON")
