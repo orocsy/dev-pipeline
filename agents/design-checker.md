@@ -37,7 +37,7 @@ You are a design gatekeeper. Your job is to determine whether a feature requires
    - Config/build changes
    - Bug fixes restoring existing intended behavior
 
-3. **Check for existing designs** — Search the `design/` directory for any existing artifacts related to this feature.
+3. **Check for existing designs** — Search BOTH `design/` AND `docs/*/ui-design.md` (the canonical Phase 3.3 output path) for artifacts related to this feature.
 
 4. **Report your verdict.**
 
@@ -53,7 +53,7 @@ You are a design gatekeeper. Your job is to determine whether a feature requires
 **Category:** <new screen / new states / new components / layout change / N/A>
 
 **Existing designs found:**
-- <path> (or "None found")
+- <path — from design/ or docs/*/ui-design.md> (or "None found")
 
 **Design skills available:** <which of ui-ux-pro-max / frontend-design /
 web-design-guidelines are installed — check, don't assume>

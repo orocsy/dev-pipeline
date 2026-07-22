@@ -75,7 +75,8 @@ If gaps found, **ASK USER** if they want to install recommended skills.
 
 Launch the **design-checker** agent.
 
-- If **NO** or current designs exist: proceed.
+- If **NO**: proceed.
+- If current designs exist: skip generation, still audit (if unaudited) + G2.5 confirm (see dev-pipeline.md PHASE 3.1).
 - If **YES**: run the design work in-pipeline (never pause to tell the user
   to run skills manually) — the full procedure lives in
   `commands/dev-pipeline.md` PHASE 3:

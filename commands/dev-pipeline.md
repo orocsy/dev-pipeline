@@ -102,15 +102,22 @@ design is required. Backend-only, config, tooling, pure-logic, and
 bug-fix-restoring-intended-behavior work returns **NO** → skip 3.2–3.5
 ENTIRELY and proceed to Phase 4 at zero design cost — the executed design
 work below is for UI-touching features only, never a mandatory toll on
-every pipeline run. If designs for this
-feature already exist (`docs/<slug>/ui-design.md` or `design/`) → confirm
-they still match the SPEC, then proceed to Phase 4.
+every pipeline run. If designs for this feature already exist
+(`docs/<slug>/ui-design.md` or `design/`) → they skip GENERATION only
+(3.2–3.3): confirm they still match the SPEC, run the 3.4 audit on them if
+the spec carries no Audit section yet, and take them through the 3.5 gate as
+a one-line confirmation. Existing designs never skip the audit or the
+approval.
 
 **3.2 Design foundation (DESIGN.md).** If the repo has NO root `DESIGN.md`
 (or equivalent pinned design-system doc): create one BEFORE any feature
 design — tokens (color/type/spacing/radii/shadows), primitives inventory,
-composition rules, per-surface mix rules — derived from the existing UI if
-one exists, or from the design skill's output for greenfield. Every later
+composition rules, per-surface mix rules — derived from the existing UI when
+one exists. For greenfield (no UI yet), 3.2+3.3 collapse into ONE
+design-skill invocation that emits the foundation FIRST (tokens, primitives,
+composition rules → DESIGN.md) and then the feature spec against it —
+DESIGN.md must exist before the feature spec is APPROVED at 3.5, not before
+the skill runs. Every later
 design artifact must cite tokens from this file, and new tokens/patterns land
 as a DESIGN.md edit in the same PR (the CoachFlow convention).
 
