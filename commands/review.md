@@ -83,11 +83,18 @@ git diff "$BASE"..HEAD | grep -E "^-.*(dev-secret|change-in-production|local-|TO
 # Frontend design-system-drift triggers — Tailwind emits ZERO CSS for unknown
 # classes; a token typo ships invisibly green (silent-css-class-vacuum)
 git diff "$BASE"..HEAD | grep -E '^\+.*className=' | grep -oE '(text|bg|border|ring|shadow|rounded|font)-[a-z]+-[0-9]{2,3}' | sort -u | head -8
+# Both non-empty → load frontend-design-system-drift.
+# Semantic tokens carry no numeric shade (bg-primary, rounded-card, shadow-raised)
+# — in a repo with a pinned design system, ANY added className is in scope
+{ [ -f DESIGN.md ] && echo DESIGN.md; } || ls packages/*/src/theme.css tailwind.config.* 2>/dev/null | head -1
+git diff "$BASE"..HEAD | grep -cE '^\+.*className='
 git diff "$BASE"..HEAD --name-only | grep -E 'theme\.css|tailwind|design-tokens|\.css$' | head -5
 
 # Frontend async-state triggers — orphan promises, stale closures, latched
 # init effects, error state made live without a lifecycle audit
 git diff "$BASE"..HEAD | grep -E '^\+.*(useEffect|useState|\.then\(|\.catch\(|void [A-Za-z_]+\()' | head -5
+# Dependency-array-only edits carry none of the tokens above — match the array line itself
+git diff "$BASE"..HEAD | grep -E '^\+.*\}, \[[^]]*\]\);?' | head -3
 
 # Accessibility state-sync triggers
 git diff "$BASE"..HEAD | grep -E '^\+.*(role=|aria-[a-z]+=)' | head -5
