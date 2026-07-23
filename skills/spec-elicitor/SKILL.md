@@ -54,6 +54,8 @@ Before any code is written, decide whether THIS request needs me at all. One tes
 
 The trap: a request can *look* technical ("the total is wrong") but be business ("…because we never decided how tax rounds on multi-currency orders"). When the report names a wrong number/behaviour but not the *rule* that should produce the right one, that's a business bug — run me.
 
+The uniqueness test: "technical" requires a **UNIQUE** correct outcome. If two or more defensible resolutions exist — even when every option looks purely technical (a reviewer's "do X *or* Y", a gate-semantics change, an either-way API shape) — the finding is a decision, not a mechanism. Run me before picking; each option looks defensible in isolation, which is exactly how a decision gets misfiled as technical.
+
 This is the canonical definition of the test. `CLAUDE.md` Rule 23 and the command flows (`fix`, `update`, `plan`, `dev-pipeline`) all point here.
 
 ---
