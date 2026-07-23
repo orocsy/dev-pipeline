@@ -12,6 +12,17 @@ Conventions:
 
 ---
 
+## 2026-07-23 — Uniqueness rule for the business-vs-technical gate
+
+- **The uniqueness rule** (`commands/fix.md` Step 1.5, `skills/spec-elicitor/SKILL.md` →
+  "When to run me"): a finding only counts as "technical" if there is a UNIQUE correct
+  outcome. When two or more defensible resolutions exist — even ones that all look purely
+  technical (a reviewer's "do X or Y", a gate-semantics change, an either-way API shape) —
+  it is a DECISION, so run a micro-Scope-Lock (one question, the options, your
+  recommendation first) instead of silently picking. Closes the gate's known failure mode:
+  each resolution looks defensible in isolation, so decision-carrying findings get misfiled
+  as technical and made by default. The classifier must test uniqueness, not appearance.
+
 ## 2026-07-12 — Stack-matched best-practice sources (phase-weighted routing)
 
 No new gates, no phase renumbering. The router stays a harness: mappings say WHICH skill
