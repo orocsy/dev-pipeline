@@ -64,7 +64,7 @@ dev-pipeline.md — never handed to the user to run manually):**
 2. Generate docs/<slug>/ui-design.md (ui-ux-pro-max if installed, else
    frontend-design)
 3. Audit it (web-design-guidelines if installed, else checklist inline)
-4. Present for G2.5 approval
+4. Present for G2 approval
 ```
 
 ## Rules

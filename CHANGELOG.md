@@ -34,7 +34,7 @@ feature. Phase 3 now runs the design work itself.
   foundation (create if missing) → generate `docs/<slug>/ui-design.md` via the first
   available of provided-asset → `ui-ux-pro-max` → `frontend-design` (installed
   default) → audit (`web-design-guidelines` if installed, else its checklist areas
-  inline) → **G2.5** user approval gate. Phase 8.2 (verify-visual) compares shipped
+  inline) → **G2** user approval gate. Phase 8.2 (verify-visual) compares shipped
   pixels against the approved spec.
 - **deps.json**: `ui-ux-pro-max` and `web-design-guidelines` registered as optional
   externals with install commands + fallbacks (research-verified sources); the

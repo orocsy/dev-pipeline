@@ -76,7 +76,7 @@ If gaps found, **ASK USER** if they want to install recommended skills.
 Launch the **design-checker** agent.
 
 - If **NO**: proceed.
-- If current designs exist: skip generation, still audit (if unaudited) + G2.5 confirm (see dev-pipeline.md PHASE 3.1).
+- If current designs exist: skip generation, still audit (if unaudited) + G2 confirm (see dev-pipeline.md PHASE 3.1).
 - If **YES**: run the design work in-pipeline (never pause to tell the user
   to run skills manually) — the full procedure lives in
   `commands/dev-pipeline.md` PHASE 3:
@@ -86,7 +86,7 @@ Launch the **design-checker** agent.
      `frontend-design` (installed default).
   3. Audit it (`web-design-guidelines` if installed, else its checklist
      inline) and record findings.
-  4. **G2.5:** present the spec summary; ASK USER to approve before Phase 4.
+  4. **G2:** present the spec summary; ASK USER to approve before Phase 4.
 
 ---
 

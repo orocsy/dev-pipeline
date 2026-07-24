@@ -121,6 +121,25 @@ the skill runs. Every later
 design artifact must cite tokens from this file, and new tokens/patterns land
 as a DESIGN.md edit in the same PR (the CoachFlow convention).
 
+**Pin the foundation doc.** Whichever file plays this role — root `DESIGN.md`
+or an equivalent pinned design-system doc — record its path into
+`.claude/project-context.json` as `designSystemDoc` so 3.3 and Phase 8.2 read
+ONE pin instead of re-guessing "is it `DESIGN.md`?". This is the ONLY place the
+"equivalent doc" path is resolved; downstream steps default to `DESIGN.md`
+when the pin is unset.
+
+```bash
+# DESIGN_DOC = the path you just ensured, e.g. "DESIGN.md" or "docs/design-system.md"
+python3 - "$DESIGN_DOC" <<'PY'
+import json, os, sys
+p = ".claude/project-context.json"
+ctx = json.load(open(p)) if os.path.exists(p) else {}
+ctx["designSystemDoc"] = sys.argv[1]
+os.makedirs(".claude", exist_ok=True)
+json.dump(ctx, open(p, "w"), indent=2)
+PY
+```
+
 **3.3 Feature design spec.** Produce `docs/<slug>/ui-design.md` by invoking,
 in priority order, the first available (skill-router → "Design-phase
 routing" decides; never ask the user which):
@@ -129,7 +148,9 @@ routing" decides; never ask the user which):
    surfaces this feature touches.
 3. `frontend-design` (claude-plugins-official — installed default) —
    generate the per-surface spec: layout, states (loading/error/empty/
-   success), responsive behavior, DESIGN.md token references.
+   success), responsive behavior, and token references to the pinned
+   design-system doc (`.claude/project-context.json` → `designSystemDoc`,
+   default `DESIGN.md`).
 
 **3.4 Design audit.** Audit the spec (and any existing UI code it touches)
 before implementation: run `web-design-guidelines` if installed; otherwise
@@ -137,7 +158,7 @@ apply its checklist areas inline — accessibility (WCAG AA: contrast, focus,
 labels, touch targets ≥40px), states completeness, responsive breakpoints,
 copy tone. Record findings + resolutions in the spec's "Audit" section.
 
-**3.5 Design gate (G2.5).** Present the spec summary (surfaces, states,
+**3.5 Design gate (G2).** Present the spec summary (surfaces, states,
 tokens used, audit outcome). **ASK USER** to approve before Phase 4 —
 architecture consumes the approved spec, and Phase 8.2 (verify-visual)
 compares the shipped pixels against it.

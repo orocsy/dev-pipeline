@@ -96,8 +96,9 @@ git diff "$BASE"..HEAD | grep -E '^\+.*(useEffect|useState|\.then\(|\.catch\(|vo
 # Dependency-array-only edits carry none of the tokens above — match the array line itself
 git diff "$BASE"..HEAD | grep -E '^\+.*\}, \[[^]]*\]\);?' | head -3
 
-# Accessibility state-sync triggers
-git diff "$BASE"..HEAD | grep -E '^\+.*(role=|aria-[a-z]+=)' | head -5
+# Accessibility state-sync triggers — match added AND removed lines
+# (^[+-]): a deleted role=/aria- attribute is a regression, so removed a11y attributes are findings too
+git diff "$BASE"..HEAD | grep -E '^[+-].*(role=|aria-[a-z]+=)' | head -5
 ```
 
 For each category that fires:
