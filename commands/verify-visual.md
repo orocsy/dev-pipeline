@@ -221,9 +221,12 @@ When a spec was loaded in STEP 3.5, annotate each diff line with that surface's 
 
 ---
 
-## STEP 5: Surface Screenshots for Review (HARD STOP without baseline)
+## STEP 5: Surface Screenshots for Review (spec conformance gate always runs; no-spec is a HARD STOP without baseline)
 
-If no baseline exists OR pixel-diff isn't available, this phase REQUIRES human inspection. **The presentation depends on whether STEP 3.5 loaded a spec** (`.claude/.visual-spec.txt` exists).
+**Which review runs depends on whether STEP 3.5 loaded a spec** (`.claude/.visual-spec.txt` exists) — and for the spec-backed case it runs *regardless* of whether a baseline exists or pixel-diff was available:
+
+- **Case A — spec loaded:** the per-surface conformance table (below) and its state-coverage gate ALWAYS run, every time this phase executes. An existing baseline or a completed STEP 4 pixel-diff does NOT skip them — the state-coverage gate is exactly what catches an approved loading/error/empty state that was added to the spec but never screenshotted, so it must never be gated on baseline availability. A `diff_score` from STEP 4 is an *additional input into* the table when available (raising a divergence signal on a surface), never a precondition for whether the table runs.
+- **Case B — no spec found (pre-Phase-3 feature):** if no baseline exists OR pixel-diff isn't available, this phase REQUIRES human inspection via the generic checklist below.
 
 **A — Spec found: present the per-surface conformance table** built from the expectations extracted in STEP 3.5, so the human reviews *shipped against approved* rather than against taste. One row per UI surface the diff touched:
 
