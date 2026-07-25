@@ -109,6 +109,20 @@ inventory_skills() {
       printf '%s\t%s\t%s\n' "$plugin_name" "$plugin_name" "$plugin_root"
     fi
   done < <(inventory_plugins)
+
+  # Standalone skills (deps.json .install entries like `npx skills add`)
+  # install OUTSIDE any marketplace — user-level `~/.claude/skills/<name>/`
+  # and project-level `.claude/skills/<name>/`, neither reachable from
+  # inventory_plugins above. Without this, refresh-deps reports the skill
+  # missing forever even after a successful manual install, and skill-doctor
+  # repeats the same install command on every run.
+  local standalone_dir standalone_name
+  for standalone_dir in "$HOME/.claude/skills"/*/ "$PWD/.claude/skills"/*/; do
+    [[ -d "$standalone_dir" ]] || continue
+    [[ -f "$standalone_dir/SKILL.md" ]] || continue
+    standalone_name="$(basename "$standalone_dir")"
+    printf '%s\t%s\t%s\n' "$standalone_name" "(standalone)" "$standalone_dir"
+  done
 }
 
 INSTALLED_PLUGINS="$(inventory_plugins)"

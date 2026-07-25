@@ -150,6 +150,19 @@ SPEC_FILE=""
 
 if [[ -n "${SLUG:-}" && -f "docs/${SLUG}/ui-design.md" ]]; then
   SPEC_FILE="docs/${SLUG}/ui-design.md"            # task-context slug wins, unconditionally
+elif [[ -n "${SLUG:-}" ]]; then
+  # A KNOWN slug with no matching spec is a mismatch, never a cue to fall
+  # through to the mtime heuristic — picking an unrelated candidate here
+  # would silently verify against the wrong feature (the exact failure this
+  # gate exists to prevent, just triggered by a missing file instead of an
+  # unknown slug).
+  echo "🛑 PHASE 8.2 BLOCKED — SLUG='$SLUG' but docs/${SLUG}/ui-design.md does not exist."
+  if [[ "$N" -gt 0 ]]; then
+    echo "   Other specs exist (newest first) but none match this slug:"
+    printf '%s\n' "$CANDIDATES" | sed 's/^/     /'
+  fi
+  echo "   → Confirm the slug, or run Phase 3 for this feature before verifying."
+  exit 1
 elif [[ "$N" -eq 1 ]]; then
   SPEC_FILE="$CANDIDATES"                            # exactly one candidate — mtime is unambiguous
 elif [[ "$N" -gt 1 ]]; then

@@ -151,6 +151,14 @@ routing" decides; never ask the user which):
    success), responsive behavior, and token references to the pinned
    design-system doc (`.claude/project-context.json` → `designSystemDoc`,
    default `DESIGN.md`).
+4. NEITHER installed (both are optional in `deps.json` — a missing skill is
+   never a blocker per this repo's own convention): generate the spec
+   YOURSELF, inline, no skill invocation. Same required content as step 3
+   (layout, states, responsive behavior, token references) — apply ordinary
+   design judgment against the pinned design-system doc. This is the
+   guaranteed-executable branch; Phase 3 must never stall for want of an
+   optional skill — that was the exact failure this phase replaced (see the
+   PHASE 3 intro above).
 
 **3.4 Design audit.** Audit the spec (and any existing UI code it touches)
 before implementation: run `web-design-guidelines` if installed; otherwise
