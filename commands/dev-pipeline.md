@@ -102,12 +102,25 @@ design is required. Backend-only, config, tooling, pure-logic, and
 bug-fix-restoring-intended-behavior work returns **NO** → skip 3.2–3.5
 ENTIRELY and proceed to Phase 4 at zero design cost — the executed design
 work below is for UI-touching features only, never a mandatory toll on
-every pipeline run. If designs for this feature already exist
-(`docs/<slug>/ui-design.md` or `design/`) → they skip GENERATION only
-(3.2–3.3): confirm they still match the SPEC, run the 3.4 audit on them if
-the spec carries no Audit section yet, and take them through the 3.5 gate as
-a one-line confirmation. Existing designs never skip the audit or the
-approval.
+every pipeline run. If designs for this feature already exist they skip
+GENERATION only (3.2–3.3), but *which* work is skipped depends on WHERE the
+approved artifact lives:
+- **Canonical `docs/<slug>/ui-design.md` already on disk** → skip 3.2–3.3:
+  confirm it still matches the SPEC, run the 3.4 audit on it if the spec
+  carries no Audit section yet, and take it through the 3.5 gate as a one-line
+  confirmation.
+- **Approved artifact found ONLY under `design/`** (legacy location, no
+  canonical file yet) → do NOT skip 3.2/3.3 outright: still ensure the
+  DESIGN.md foundation exists (3.2, unchanged), then in place of full 3.3
+  generation TRANSLATE the legacy `design/` artifact into
+  `docs/<slug>/ui-design.md` (same required content — layout/states/responsive
+  behavior/token references). This is a lighter lift than fresh generation
+  (the design decisions are already made; this is reformatting/relocating them
+  to the canonical path), but a `docs/<slug>/ui-design.md` MUST exist on disk
+  before 3.4 runs.
+
+Either entry path, take the result through the 3.4 audit + 3.5 gate. Existing
+designs never skip the audit or the approval.
 
 **3.2 Design foundation (DESIGN.md).** If the repo has NO root `DESIGN.md`
 (or equivalent pinned design-system doc): create one BEFORE any feature

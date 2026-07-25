@@ -76,7 +76,11 @@ If gaps found, **ASK USER** if they want to install recommended skills.
 Launch the **design-checker** agent.
 
 - If **NO**: proceed.
-- If current designs exist: skip generation, still audit (if unaudited) + G2 confirm (see dev-pipeline.md PHASE 3.1).
+- If current designs exist: only TRULY skip generation when the canonical
+  `docs/<slug>/ui-design.md` is already on disk (then still audit if unaudited
+  + G2 confirm). A `design/`-only (legacy) hit does NOT skip outright — ensure
+  DESIGN.md exists, then canonicalize the legacy artifact into
+  `docs/<slug>/ui-design.md` before audit + G2 (see dev-pipeline.md PHASE 3.1).
 - If **YES**: run the design work in-pipeline (never pause to tell the user
   to run skills manually) — the full procedure lives in
   `commands/dev-pipeline.md` PHASE 3:
