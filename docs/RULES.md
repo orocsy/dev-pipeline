@@ -303,7 +303,7 @@ Canonical test + the two modes live in `skills/spec-elicitor/SKILL.md`. **Readin
 
 ### Rule 24: Orchestrator-Advisor execution schema
 
-INVOKED, not default: activates on explicit user request (`/orchestrate` or "orchestrator mode"); uninvoked sessions execute directly. Domain-agnostic — any task, not only pipeline work. When active, the coordinator session does **not** implement directly. It:
+INVOKED, not default: activates on explicit user request (`/dev-pipeline:orchestrate` — this plugin ships that command via `commands/orchestrate.md` — or the equivalent bare `/orchestrate` where a personal command is installed, or "orchestrator mode"); uninvoked sessions execute directly. Domain-agnostic — any task, not only pipeline work. When active, the coordinator session does **not** implement directly. It:
 
 1. **Drafts each task as a DETAILED spec** — context, exact files, exact edits or acceptance criteria, and the verification commands the executor must run.
 2. **Dispatches each spec to a high-capability executor agent** (Opus-class, maximum effort) as ONE MICRO-milestone (MIU-grade) — the smallest independently verifiable increment: one file-cluster edit, one function + its test, one config change with its check. Never "implement the whole thing, then review" — that collapses into after-the-fact code review, which already exists as a separate gate and is not what this schema buys.
