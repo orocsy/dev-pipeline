@@ -23,6 +23,37 @@ Conventions:
   each resolution looks defensible in isolation, so decision-carrying findings get misfiled
   as technical and made by default. The classifier must test uniqueness, not appearance.
 
+## 2026-07-22 — Phase 3 becomes an EXECUTED UI-design phase (no more pause-and-ask)
+
+The old Phase 3 told the user "run /ui-ux-pro-max + /web-design-guidelines, then come
+back" — skills that weren't installed, guaranteeing a stalled pipeline on every UI
+feature. Phase 3 now runs the design work itself.
+
+- **Executed design flow** (`commands/dev-pipeline.md` PHASE 3, mirrored in
+  `commands/plan.md`): design-checker gate → ensure a root `DESIGN.md` design
+  foundation (create if missing) → generate `docs/<slug>/ui-design.md` via the first
+  available of provided-asset → `ui-ux-pro-max` → `frontend-design` (installed
+  default) → audit (`web-design-guidelines` if installed, else its checklist areas
+  inline) → **G2** user approval gate. Phase 8.2 (verify-visual) compares shipped
+  pixels against the approved spec.
+- **deps.json**: `ui-ux-pro-max` and `web-design-guidelines` registered as optional
+  externals with install commands + fallbacks (research-verified sources); the
+  previous "frontend-design supersedes both" note corrected — they compose (spec
+  database / audit rules / aesthetic direction are different layers).
+- **agents/design-checker.md**: verdict output now reports which design skills are
+  installed and hands next steps to the PIPELINE, never to the user.
+- **Gating clarified** (`commands/dev-pipeline.md` PHASE 3.1): non-UI work
+  (backend/config/tooling/pure-logic) skips 3.2–3.5 entirely — the executed design
+  flow is UI-features-only, never a toll on every run.
+- **Frontend review triggers** (`commands/review.md` STEP 1.5): trigger greps now
+  cover `frontend-design-system-drift` (Tailwind token/className diffs),
+  `frontend-async-state` (useEffect/promise diffs), and `accessibility-state-sync`
+  (role/aria diffs) — previously all triggers were backend-shaped, so pure-frontend
+  diffs loaded zero engineering-craft priors.
+- **Orchestrator-Advisor schema** (`docs/RULES.md` new rule): coordinator drafts
+  detailed specs → Opus-class executors run small verifiable milestones → coordinator
+  reviews as advisor between milestones.
+
 ## 2026-07-12 — Stack-matched best-practice sources (phase-weighted routing)
 
 No new gates, no phase renumbering. The router stays a harness: mappings say WHICH skill

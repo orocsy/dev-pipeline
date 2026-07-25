@@ -79,12 +79,36 @@ git diff "$BASE"..HEAD | grep -E "RESEND_API_KEY|TWILIO|STRIPE_SECRET|isConfigur
 
 # Grep-for-siblings triggers (security literal removal)
 git diff "$BASE"..HEAD | grep -E "^-.*(dev-secret|change-in-production|local-|TODO-set)" | head -5
+
+# Frontend design-system-drift triggers — Tailwind emits ZERO CSS for unknown
+# classes; a token typo ships invisibly green (silent-css-class-vacuum)
+# Match added AND removed lines (^[+-]): a deleted className/token can shift
+# layout or tokens exactly like an added typo, so removed classes/tokens are drift too
+git diff "$BASE"..HEAD | grep -E '^[+-].*className=' | grep -oE '(text|bg|border|ring|shadow|rounded|font)-[a-z]+-[0-9]{2,3}' | sort -u | head -8
+# Both non-empty → load frontend-design-system-drift.
+# Semantic tokens carry no numeric shade (bg-primary, rounded-card, shadow-raised)
+# — in a repo with a pinned design system, ANY added className is in scope
+{ [ -f DESIGN.md ] && echo DESIGN.md; } || ls packages/*/src/theme.css tailwind.config.* 2>/dev/null | head -1
+git diff "$BASE"..HEAD | grep -cE '^[+-].*className='
+git diff "$BASE"..HEAD --name-only | grep -E 'theme\.css|tailwind|design-tokens|\.css$' | head -5
+
+# Frontend async-state triggers — orphan promises, stale closures, latched
+# init effects, error state made live without a lifecycle audit
+git diff "$BASE"..HEAD | grep -E '^\+.*(useEffect|useState|\.then\(|\.catch\(|void [A-Za-z_]+\()' | head -5
+# Dependency-array-only edits carry none of the tokens above — match the array line itself
+git diff "$BASE"..HEAD | grep -E '^\+.*\}, \[[^]]*\]\);?' | head -3
+
+# Accessibility state-sync triggers — match added AND removed lines
+# (^[+-]): a deleted role=/aria- attribute is a regression, so removed a11y attributes are findings too
+git diff "$BASE"..HEAD | grep -E '^[+-].*(role=|aria-[a-z]+=)' | head -5
 ```
 
 For each category that fires:
 
 1. Load the matching `~/.claude/skills/engineering-craft/categories/<class>/README.md` into context.
 2. Use that category's rule list and templates as the FRAME for the reviewer prompts in STEP 2 (specifically — the reviewer's `Look for:` clause must include this category's anti-patterns).
+
+> Frontend-shaped diffs route to `frontend-design-system-drift`, `frontend-async-state`, and `accessibility-state-sync` — a pure-frontend diff firing zero triggers should be treated as a signal the trigger list is stale, not that no priors apply.
 
 Always run the `~/.claude/skills/engineering-craft/checklists/pre-merge-self-review.md` checklist mentally, ticking each box that applies to the diff. Any unticked box on a triggered category → block with severity P1 even if no other reviewer flags it.
 

@@ -86,11 +86,28 @@
       {
         "name": "frontend-design",
         "required": false,
-        "trigger": "UI/design phase",
-        "usedBy": ["plan"],
+        "trigger": "UI/design phase (Phase 3) — installed default spec generator",
+        "usedBy": ["plan", "dev-pipeline"],
         "marketplaceHint": "claude-plugins-official",
-        "supersedes": ["ui-ux-pro-max", "web-design-guidelines"],
-        "note": "Replaces ui-ux-pro-max + web-design-guidelines."
+        "note": "Default executed design-spec generator when ui-ux-pro-max is absent (Phase 3.3). Aesthetic-direction layer; composes with (not replaced by) the two below."
+      },
+      {
+        "name": "ui-ux-pro-max",
+        "required": false,
+        "trigger": "UI/design phase (Phase 3.3) — preferred spec generator when installed",
+        "usedBy": ["plan", "dev-pipeline"],
+        "install": "npx skills add nextlevelbuilder/ui-ux-pro-max-skill",
+        "fallback": "frontend-design generates the spec instead",
+        "note": "Design-intelligence database (styles/palettes/font pairings/UX rules; BM25 search, needs python3). Source: https://github.com/nextlevelbuilder/ui-ux-pro-max-skill (verified 2026-07: active, v2.11). No marketplace — install via the `install` command; skill-doctor emits it as the manual-install fallback."
+      },
+      {
+        "name": "web-design-guidelines",
+        "required": false,
+        "trigger": "UI/design phase (Phase 3.4) + verify-visual — design/a11y audit",
+        "usedBy": ["plan", "dev-pipeline", "verify-visual"],
+        "install": "npx skills add vercel-labs/agent-skills --skill web-design-guidelines",
+        "fallback": "Phase 3.4 applies its checklist areas inline (WCAG AA, states, responsive)",
+        "note": "Vercel Web Interface Guidelines audit (100+ file:line rules, fetches latest rules). Source: https://github.com/vercel-labs/agent-skills. No marketplace — install via the `install` command; skill-doctor emits it as the manual-install fallback."
       },
       {
         "name": "playwright-expert",

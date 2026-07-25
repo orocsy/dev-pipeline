@@ -69,14 +69,28 @@ If gaps found, **ASK USER** if they want to install recommended skills.
 
 ---
 
-## PHASE 3: Design Check
+## PHASE 3: UI Design (EXECUTED)
 
-**Role: Design Gatekeeper**
+**Role: Design Lead**
 
 Launch the **design-checker** agent.
 
-- If **YES** and no designs exist: Tell the user to run `/ui-ux-pro-max` + `/web-design-guidelines`. **PAUSE.**
-- If **NO** or designs exist: proceed.
+- If **NO**: proceed.
+- If current designs exist: only TRULY skip generation when the canonical
+  `docs/<slug>/ui-design.md` is already on disk (then still audit if unaudited
+  + G2 confirm). A `design/`-only (legacy) hit does NOT skip outright — ensure
+  DESIGN.md exists, then canonicalize the legacy artifact into
+  `docs/<slug>/ui-design.md` before audit + G2 (see dev-pipeline.md PHASE 3.1).
+- If **YES**: run the design work in-pipeline (never pause to tell the user
+  to run skills manually) — the full procedure lives in
+  `commands/dev-pipeline.md` PHASE 3:
+  1. Ensure a root `DESIGN.md` design foundation exists (create it if not).
+  2. Produce `docs/<slug>/ui-design.md` via the first available of:
+     provided design asset → `ui-ux-pro-max` (if installed) →
+     `frontend-design` (installed default).
+  3. Audit it (`web-design-guidelines` if installed, else its checklist
+     inline) and record findings.
+  4. **G2:** present the spec summary; ASK USER to approve before Phase 4.
 
 ---
 

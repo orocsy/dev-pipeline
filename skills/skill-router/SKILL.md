@@ -1,6 +1,6 @@
 ---
 name: skill-router
-description: Auto-select the correct skills and MCP tools for each pipeline phase based on detected tech stack and task type. Covers design-phase routing (Stitch MCP → Figma MCP → image → ui-ux-pro-max → design-checker → skip), tech-stack skill routing (next → vercel-react + vercel-composition, nestjs → nestjs-best-practices, rust → rust-idioms, go → go-idioms, etc.), best-practice source routing (stack-matched, phase-weighted — typescript-best-practices, vercel:react-best-practices, Better-T-Stack components — consulted by implement/review/validate/fix, pinned in project-context.json), and deploy-adapter selection (vercel.json → vercel-adapter, supabase/ → supabase-adapter, fly.toml → fly-adapter). Trigger at start of design phase, architecture phase, implementation phase, and before delivery. Never ask the user which skill to use — the router decides from `project-profile.json`.
+description: Auto-select the correct skills and MCP tools for each pipeline phase based on detected tech stack and task type. Covers design-phase routing (Stitch MCP → Figma MCP → image → ui-ux-pro-max/frontend-design → inline self-generation when neither skill is installed or the stack is outside React/Next/Remix → design-checker → skip), tech-stack skill routing (next → vercel-react + vercel-composition, nestjs → nestjs-best-practices, rust → rust-idioms, go → go-idioms, etc.), best-practice source routing (stack-matched, phase-weighted — typescript-best-practices, vercel:react-best-practices, Better-T-Stack components — consulted by implement/review/validate/fix, pinned in project-context.json), and deploy-adapter selection (vercel.json → vercel-adapter, supabase/ → supabase-adapter, fly.toml → fly-adapter). Trigger at start of design phase, architecture phase, implementation phase, and before delivery. Never ask the user which skill to use — the router decides from `project-profile.json`.
 ---
 
 # Skill Router
@@ -66,10 +66,12 @@ If excalidraw MCP is connected, also render + screenshot each diagram for visual
 | Stitch MCP is connected AND task mentions UI/UX | `stitch-mcp` (generate + iterate on component mockups) |
 | Figma MCP is connected AND user provided a Figma URL or file key | `figma-mcp` (pull frames, export assets) |
 | User attached an image (PNG/JPG) of a design | `image-to-component` (visual-diff driven implementation) |
-| Stack is React/Next/Remix AND no design asset provided | `ui-ux-pro-max` (generate Tailwind/shadcn-compatible design spec) |
-| Stack is React/Next/Remix AND design spec already exists | `design-checker` (verify implementation matches spec) |
 | Task is backend-only (no UI surface) | **skip Step 3** — Steps 1 + 2 still run |
 | Task is a pure infra / config change | **skip Step 3** — Steps 1 + 2 still run |
+| Stack is React/Next/Remix AND design spec already exists | `design-checker` (verify implementation matches spec) |
+| Stack is React/Next/Remix AND no design asset AND `ui-ux-pro-max` installed | `ui-ux-pro-max` — generate the design system/spec for the surfaces this feature touches (Phase 3.3 step 2) |
+| Stack is React/Next/Remix AND no design asset AND `ui-ux-pro-max` absent AND `frontend-design` installed | `frontend-design` (claude-plugins-official — installed default) — generate the per-surface spec (Phase 3.3 step 3) |
+| NEITHER `ui-ux-pro-max` nor `frontend-design` installed (any stack), OR stack is outside React/Next/Remix with no matching design generator | **inline self-generation** — produce the spec yourself, no skill invocation (the Phase 3.3 guaranteed-executable branch) |
 
 If multiple MCPs are connected (Stitch + Figma), prefer the one referenced by the user in Phase 1. If neither is referenced, ask ONE question: "Stitch or Figma?" Do not ask a generic "what design tool?"
 

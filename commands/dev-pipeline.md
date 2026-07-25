@@ -88,20 +88,101 @@ If gaps found, **ASK USER** if they want to install recommended skills before co
 
 ---
 
-## PHASE 3: Design Check
+## PHASE 3: UI Design (EXECUTED — never "go run it yourself")
 
-**Role: Design Gatekeeper**
+**Role: Design Lead**
 
-Launch the **design-checker** agent to evaluate whether UI/UX design is required.
+This phase RUNS the design work in-pipeline. The old behavior — pausing and
+telling the user to run `/ui-ux-pro-max` + `/web-design-guidelines` manually —
+is retired: those may not even be installed, and a paused pipeline is a
+dropped pipeline.
 
-- If **YES** and no designs exist:
-  Tell the user: "This feature requires UI design. Please run:
-  1. `/ui-ux-pro-max` to generate mockups
-  2. `/web-design-guidelines` to audit the design
-  Then tell me to continue."
-  **PAUSE** — wait for user to resume.
+**3.1 Gate.** Launch the **design-checker** agent to evaluate whether UI/UX
+design is required. Backend-only, config, tooling, pure-logic, and
+bug-fix-restoring-intended-behavior work returns **NO** → skip 3.2–3.5
+ENTIRELY and proceed to Phase 4 at zero design cost — the executed design
+work below is for UI-touching features only, never a mandatory toll on
+every pipeline run. If designs for this feature already exist they skip
+GENERATION only (3.2–3.3), but *which* work is skipped depends on WHERE the
+approved artifact lives:
+- **Canonical `docs/<slug>/ui-design.md` already on disk** → skip 3.2–3.3:
+  confirm it still matches the SPEC, run the 3.4 audit on it if the spec
+  carries no Audit section yet, and take it through the 3.5 gate as a one-line
+  confirmation.
+- **Approved artifact found ONLY under `design/`** (legacy location, no
+  canonical file yet) → do NOT skip 3.2/3.3 outright: still ensure the
+  DESIGN.md foundation exists (3.2, unchanged), then in place of full 3.3
+  generation TRANSLATE the legacy `design/` artifact into
+  `docs/<slug>/ui-design.md` (same required content — layout/states/responsive
+  behavior/token references). This is a lighter lift than fresh generation
+  (the design decisions are already made; this is reformatting/relocating them
+  to the canonical path), but a `docs/<slug>/ui-design.md` MUST exist on disk
+  before 3.4 runs.
 
-- If **NO** or designs already exist: proceed to Phase 4.
+Either entry path, take the result through the 3.4 audit + 3.5 gate. Existing
+designs never skip the audit or the approval.
+
+**3.2 Design foundation (DESIGN.md).** If the repo has NO root `DESIGN.md`
+(or equivalent pinned design-system doc): create one BEFORE any feature
+design — tokens (color/type/spacing/radii/shadows), primitives inventory,
+composition rules, per-surface mix rules — derived from the existing UI when
+one exists. For greenfield (no UI yet), 3.2+3.3 collapse into ONE
+design-skill invocation that emits the foundation FIRST (tokens, primitives,
+composition rules → DESIGN.md) and then the feature spec against it —
+DESIGN.md must exist before the feature spec is APPROVED at 3.5, not before
+the skill runs. Every later
+design artifact must cite tokens from this file, and new tokens/patterns land
+as a DESIGN.md edit in the same PR (the CoachFlow convention).
+
+**Pin the foundation doc.** Whichever file plays this role — root `DESIGN.md`
+or an equivalent pinned design-system doc — record its path into
+`.claude/project-context.json` as `designSystemDoc` so 3.3 and Phase 8.2 read
+ONE pin instead of re-guessing "is it `DESIGN.md`?". This is the ONLY place the
+"equivalent doc" path is resolved; downstream steps default to `DESIGN.md`
+when the pin is unset.
+
+```bash
+# DESIGN_DOC = the path you just ensured, e.g. "DESIGN.md" or "docs/design-system.md"
+python3 - "$DESIGN_DOC" <<'PY'
+import json, os, sys
+p = ".claude/project-context.json"
+ctx = json.load(open(p)) if os.path.exists(p) else {}
+ctx["designSystemDoc"] = sys.argv[1]
+os.makedirs(".claude", exist_ok=True)
+json.dump(ctx, open(p, "w"), indent=2)
+PY
+```
+
+**3.3 Feature design spec.** Produce `docs/<slug>/ui-design.md` by invoking,
+in priority order, the first available (skill-router → "Design-phase
+routing" decides; never ask the user which):
+1. A provided design asset (Stitch/Figma MCP, image) — translate it.
+2. `ui-ux-pro-max` (if installed) — generate the design system/spec for the
+   surfaces this feature touches.
+3. `frontend-design` (claude-plugins-official — installed default) —
+   generate the per-surface spec: layout, states (loading/error/empty/
+   success), responsive behavior, and token references to the pinned
+   design-system doc (`.claude/project-context.json` → `designSystemDoc`,
+   default `DESIGN.md`).
+4. NEITHER installed (both are optional in `deps.json` — a missing skill is
+   never a blocker per this repo's own convention): generate the spec
+   YOURSELF, inline, no skill invocation. Same required content as step 3
+   (layout, states, responsive behavior, token references) — apply ordinary
+   design judgment against the pinned design-system doc. This is the
+   guaranteed-executable branch; Phase 3 must never stall for want of an
+   optional skill — that was the exact failure this phase replaced (see the
+   PHASE 3 intro above).
+
+**3.4 Design audit.** Audit the spec (and any existing UI code it touches)
+before implementation: run `web-design-guidelines` if installed; otherwise
+apply its checklist areas inline — accessibility (WCAG AA: contrast, focus,
+labels, touch targets ≥40px), states completeness, responsive breakpoints,
+copy tone. Record findings + resolutions in the spec's "Audit" section.
+
+**3.5 Design gate (G2).** Present the spec summary (surfaces, states,
+tokens used, audit outcome). **ASK USER** to approve before Phase 4 —
+architecture consumes the approved spec, and Phase 8.2 (verify-visual)
+compares the shipped pixels against it.
 
 ---
 

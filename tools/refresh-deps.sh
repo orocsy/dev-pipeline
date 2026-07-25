@@ -109,6 +109,20 @@ inventory_skills() {
       printf '%s\t%s\t%s\n' "$plugin_name" "$plugin_name" "$plugin_root"
     fi
   done < <(inventory_plugins)
+
+  # Standalone skills (deps.json .install entries like `npx skills add`)
+  # install OUTSIDE any marketplace — user-level `~/.claude/skills/<name>/`
+  # and project-level `.claude/skills/<name>/`, neither reachable from
+  # inventory_plugins above. Without this, refresh-deps reports the skill
+  # missing forever even after a successful manual install, and skill-doctor
+  # repeats the same install command on every run.
+  local standalone_dir standalone_name
+  for standalone_dir in "$HOME/.claude/skills"/*/ "$PWD/.claude/skills"/*/; do
+    [[ -d "$standalone_dir" ]] || continue
+    [[ -f "$standalone_dir/SKILL.md" ]] || continue
+    standalone_name="$(basename "$standalone_dir")"
+    printf '%s\t%s\t%s\n' "$standalone_name" "(standalone)" "$standalone_dir"
+  done
 }
 
 INSTALLED_PLUGINS="$(inventory_plugins)"
@@ -181,10 +195,18 @@ while IFS=$'\t' read -r name required usedBy status; do
   elif [[ "$status" == "search-required" ]]; then
     EXT_SEARCH_REQUIRED+=("skill:$name (used by: $usedBy)")
   else
+    # Surface the entry's `.install` command (if any) on the missing line so the
+    # human report + status JSON carry the remedy. Looked up per-entry (not added
+    # to the tab row above) so `status` stays the LAST field — an empty middle
+    # field collapses under whitespace-IFS. skill-doctor keys its name-extraction
+    # off " (used by:", so this trailing suffix is safely ignored there.
+    install="$(jq -r --arg n "$name" '.external.skills[]? | select(.name == $n) | .install // ""' "$DEPS_JSON")"
+    install_suffix=""
+    [[ -n "$install" ]] && install_suffix=" [install: $install]"
     if [[ "$required" == "true" ]]; then
-      EXT_MISSING_REQUIRED+=("skill:$name (used by: $usedBy)")
+      EXT_MISSING_REQUIRED+=("skill:$name (used by: $usedBy)$install_suffix")
     else
-      EXT_MISSING_OPTIONAL+=("skill:$name (used by: $usedBy)")
+      EXT_MISSING_OPTIONAL+=("skill:$name (used by: $usedBy)$install_suffix")
     fi
   fi
 done < <(jq -r '.external.skills[]? | "\(.name)\t\(.required)\t\(.usedBy | join(","))\t\(.status // "")"' "$DEPS_JSON")

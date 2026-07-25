@@ -67,6 +67,7 @@ After G4: Phases 7–12 run without further approval.
 21. **Co-Review is opt-in** — never auto-invoke `/dev-pipeline:co-review`; cursor-gate detection; convergence safeguard mandatory in `--watch`.
 22. **Third-party reality-check** — never design against, call, or type-stub a third-party surface unverified against the INSTALLED package + docs; record the probe artifact (`SDK-PROBE.md`).
 23. **Clarify business intent before building or fixing** — self-evident technical fault → skip; behaviour-in-question → `spec-elicitor` (Mode A full SPEC / Mode B Scope-Lock). Exempt: hotfix.
+24. **Orchestrator-Advisor schema** — coordinator drafts specs → Opus-class executors run micro-milestones → advisor review between them; activates on `/orchestrate` or explicit request, otherwise direct execution. Full body: `docs/RULES.md` Rule 24.
 
 ---
 

@@ -6,8 +6,11 @@
 # resolves each missing name via:
 #   1. Exact-name match in installed marketplaces.
 #   2. Plugin-as-skill match (top-level SKILL.md).
-#   3. Description fuzzy match (token overlap with usedBy context).
-#   4. Marketplace catalog match (incl. URL-only entries not yet downloaded).
+#   3. Marketplace catalog match (incl. URL-only entries not yet downloaded).
+#   3b. Manual-install fallback — if the deps.json entry has no marketplace but
+#       carries a non-empty `.install` command, surface it as the remedy. An
+#       explicit human-authored install command wins over a fuzzy guess.
+#   4. Description fuzzy match (token overlap with usedBy context).
 #   5. Falls through to "search-required" — emit web-search prompts.
 #
 # Modes:
@@ -175,6 +178,7 @@ unset _DEDUPED
 # ── Classify each name ───────────────────────────────────────────────────────
 declare -a AUTO_RESOLVABLE=()    # already-renamed (supersedes), or exact-match-but-not-in-deps
 declare -a MARKETPLACE_RESOLVE=() # in a marketplace catalog (downloaded or URL-only)
+declare -a MANUAL_INSTALL=()     # no marketplace, but deps.json carries an explicit `install` command
 declare -a SEARCH_REQUIRED=()    # no local trace
 
 for name in "${MISSING_NAMES[@]}"; do
@@ -208,6 +212,16 @@ for name in "${MISSING_NAMES[@]}"; do
   if [[ -n "$hit" ]]; then
     IFS=$'\t' read -r pl mp source desc <<< "$hit"
     MARKETPLACE_RESOLVE+=("$name|CATALOG|$mp|/plugin install $mp/$pl|$source")
+    continue
+  fi
+
+  # 3b. No marketplace, but deps.json gives an explicit install command?
+  #     A human-authored `.install` is a definitive remedy, so surface it here
+  #     rather than fuzzy-guessing a rename (step 4) or falling through to
+  #     search-required (step 5) — both of which would bury the real answer.
+  install_cmd="$(jq -r --arg n "$name" '.external.skills[]? | select(.name == $n) | .install // ""' "$DEPS_JSON")"
+  if [[ -n "$install_cmd" ]]; then
+    MANUAL_INSTALL+=("$name|$install_cmd")
     continue
   fi
 
@@ -265,6 +279,18 @@ TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
       echo "- **\`$name\`** → present in marketplace \`$mp\`"
       echo "  - install: \`$install\`"
       echo "  - source:  $source"
+    done
+  fi
+  echo ""
+  echo "## Manual-install (no marketplace — run the entry's install command)"
+  echo ""
+  if [[ "${#MANUAL_INSTALL[@]}" -eq 0 ]]; then
+    echo "_None._"
+  else
+    for entry in "${MANUAL_INSTALL[@]}"; do
+      IFS='|' read -r name install <<< "$entry"
+      echo "- **\`$name\`** → not in any marketplace; deps.json ships an install command"
+      echo "  - manual install: \`$install\`"
     done
   fi
   echo ""
@@ -328,6 +354,7 @@ echo "── dev-pipeline skill-doctor ──"
 echo "  Mode:                  $MODE"
 echo "  Auto-resolvable:       ${#AUTO_RESOLVABLE[@]}"
 echo "  Marketplace-resolvable:${#MARKETPLACE_RESOLVE[@]}"
+echo "  Manual-install:        ${#MANUAL_INSTALL[@]}"
 echo "  Search-required:       ${#SEARCH_REQUIRED[@]}"
 echo "  Plan written:          $PLAN_OUT"
 

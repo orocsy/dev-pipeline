@@ -301,6 +301,19 @@ Modes: new features run the **full** elicitor (writes `docs/<slug>/SPEC.md`); en
 
 Canonical test + the two modes live in `skills/spec-elicitor/SKILL.md`. **Readiness test (per Rule 14):** if a behavioural bug or fuzzy enhancement can reach code without anyone deciding what the behaviour *should* be, the gate didn't fire — find the missing trigger.
 
+### Rule 24: Orchestrator-Advisor execution schema
+
+INVOKED, not default: activates on explicit user request (`/dev-pipeline:orchestrate` — this plugin ships that command via `commands/orchestrate.md` — or the equivalent bare `/orchestrate` where a personal command is installed, or "orchestrator mode"); uninvoked sessions execute directly. Domain-agnostic — any task, not only pipeline work. When active, the coordinator session does **not** implement directly. It:
+
+1. **Drafts each task as a DETAILED spec** — context, exact files, exact edits or acceptance criteria, and the verification commands the executor must run.
+2. **Dispatches each spec to a high-capability executor agent** (Opus-class, maximum effort) as ONE MICRO-milestone (MIU-grade) — the smallest independently verifiable increment: one file-cluster edit, one function + its test, one config change with its check. Never "implement the whole thing, then review" — that collapses into after-the-fact code review, which already exists as a separate gate and is not what this schema buys.
+3. **Reviews each micro-milestone report as ADVISOR** — evaluate against the spec, then continue / redirect / redesign, and draft the next micro-milestone.
+4. **Sizing is the coordinator's judgment** — err MICRO; if judging a report would itself require a code review, the milestone was too big — split it. Trivial one-step work is exempt even when the mode is active.
+
+Executors report facts (diffs, command outputs, deviations), never marketing summaries. A deviation from spec is reported, not silently improvised around.
+
+*Origin: user-mandated working agreement, 2026-07-22.*
+
 ---
 
 ## MANDATORY WORKFLOW ROUTING
