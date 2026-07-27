@@ -75,6 +75,11 @@ case "$STATE" in
       exit 1
     fi
 
+    # Restore the pre-rebase snapshot — the stash above included UNTRACKED
+    # files (e.g. local opt-in markers like .claude/codex-review-loop); without
+    # this pop they silently vanish after every conflict rebase.
+    git stash pop --quiet 2>/dev/null || true
+
     # Re-run validation on rebased branch (the linter/type-checker may surface
     # bugs the conflict resolution introduced even if file-level resolution
     # looked clean).
@@ -105,6 +110,61 @@ esac
 **Why this is automatic, not opt-in:** waiting on a CONFLICTING PR for an hour before noticing review never ran is a real-world failure mode. The pipeline owns the PR lifecycle end to end; "raised PR" is not the same as "shippable PR" — the conflict gate enforces the difference.
 
 **Override:** there is no override for this gate. A conflicting PR cannot proceed to review or CI by definition, so skipping the check doesn't unblock anything — it just delays discovery.
+
+---
+
+## PHASE 9.6: Codex review loop (opt-in via `.claude/codex-review-loop`)
+
+The STANDARD external-review loop for a PR: trigger the review bot, wait, fix
+what it finds, push, re-trigger — until it converges. This is deliberately NOT
+`/dev-pipeline:co-review` (that command is the OPTIONAL multi-source relay —
+doc ping-pong, turn-taking, adapters — and stays opt-in per Rule 21; do not
+route through it here). This phase is a plain inline loop.
+
+```bash
+[ -f "$(git rev-parse --show-toplevel)/.claude/codex-review-loop" ] || SKIP_96=1
+```
+
+**The marker file is the consent boundary (do not ask again when present):**
+posting `@codex review` is a public write, so it must be opted into — but
+per-session asking is exactly the inconsistency this phase eliminates. The
+marker IS the standing, machine-readable authorization: present → run the loop
+without asking; absent → skip silently (never nag to enable it). Deleting the
+file revokes consent. Enable with `touch .claude/codex-review-loop` — and
+prefer COMMITTING it (`git add -f` if needed): a committed marker is durable
+across machines/rebases and visible to the team, whereas an untracked one can
+be swept into Phase 9.5's stash or lost with a checkout.
+
+When enabled, loop (bounded, max 5 rounds):
+
+1. **Trigger:** `gh pr comment $PR_NUM --body "@codex review"`. First round
+   exception: if the bot has ALREADY reviewed the current head (many repos
+   auto-review on PR-open), do NOT post a redundant trigger — and do NOT
+   enter the watch either: that existing review IS round 1, so go straight
+   to step 3 and triage it (a watch baselined after it would idle to the cap
+   waiting for a count that never rises). Otherwise the trigger must be
+   POSTED before any watch runs — a watch that starts before the first
+   trigger can "converge on zero findings" that were simply never requested.
+2. **Wait:** background-poll the PR for new bot items (reviews + inline +
+   issue comments count above a baseline captured BEFORE the trigger;
+   per-call timeout; ~30 min cap). For reviews/inline comments, record which
+   COMMIT they targeted — a review of a stale head is a race, not a round
+   (note it, re-trigger, keep waiting). Issue comments carry NO commit
+   anchor — treat one (e.g. the "no major issues" clean marker) as applying
+   to the head that was current when the trigger was posted.
+3. **Triage each finding** (Rule 23 business-vs-technical + the uniqueness
+   rule): technical + unique resolution → fix; ≥2 defensible resolutions →
+   micro-Scope-Lock with the user; already-fixed re-flags → ledger in the
+   round notes, never re-churn.
+4. **Fix → validate → review (bless) → push** via `/dev-pipeline:fix`,
+   `/dev-pipeline:validate`, `/dev-pipeline:review` — then post a disposition
+   comment (what was fixed where, what was ledgered and why).
+5. **Converge / stop:** clean marker ("no major issues" / approval) →
+   converged, continue to PHASE 10. Findings trending UP two consecutive
+   rounds, a ledgered finding re-flagged twice, or round cap hit → STOP and
+   surface to the user with the per-round trail (never loop unbounded).
+
+If the loop converges (or the marker is absent), continue to PHASE 10.
 
 ---
 

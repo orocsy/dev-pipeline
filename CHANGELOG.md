@@ -12,6 +12,30 @@ Conventions:
 
 ---
 
+## 2026-07-24 — Worktree reclaim on session start
+
+- **`hooks/worktree-reclaim.sh`** (SessionStart). Agent worktrees under
+  `.claude/worktrees/` silently accumulate gigabytes (node_modules and all) when
+  sessions crash or end without cleanup — invisible to Finder, missed by
+  post-merge-only hooks. Each session start now sweeps them: a worktree is
+  auto-deleted ONLY when its PR is merged AND the tree is pristine AND the local
+  tip equals the merged PR's headRefOid (squash-proof) AND the path physically
+  resolves inside `.claude/worktrees/`. Anything else — dirty trees, post-merge
+  commits, external checkouts, gh unavailable — is reported, never deleted. The
+  `rm` runs behind a guard that refuses symlinks, out-of-prefix paths, `/`,
+  `$HOME`, repo roots, and any still-registered worktree; data removal is
+  backgrounded to respect the 15s hook budget. Matrix:
+  `tools/test-worktree-reclaim.sh` (8 cells, incl. guard unit tests on the
+  verbatim-extracted function).
+- **Deliver Phase 9.6 — Codex review loop** (`commands/deliver.md`). After the
+  conflict gate, a project that opted in (`touch .claude/codex-review-loop`) runs the
+  STANDARD bot-review loop inline: trigger → wait → triage (re-flag ledger) → fix →
+  validate → bless → push → re-trigger, with convergence guards (round cap,
+  trending-up stall). The marker is the standing consent for posting `@codex review`:
+  present → loop runs without asking, absent → silently skipped. Ends the per-session
+  ask-again inconsistency. Deliberately NOT routed through `/dev-pipeline:co-review` —
+  that stays the OPTIONAL multi-source relay protected by Rule 21.
+
 ## 2026-07-23 — Uniqueness rule for the business-vs-technical gate
 
 - **The uniqueness rule** (`commands/fix.md` Step 1.5, `skills/spec-elicitor/SKILL.md` →
