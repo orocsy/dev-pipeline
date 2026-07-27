@@ -103,6 +103,50 @@ OUT=$( ( cd "$REPO" && WTR_SYNC_RM=1 PATH="/usr/bin:/bin" bash "$HOOK" ) )
 check "dir kept"             '[ -d "$REPO/.claude/worktrees/h-nogh" ]'
 check "gh-unavailable report" 'echo "$OUT" | grep -q "gh unavailable"'
 
+echo "== I: untracked file hidden by status.showUntrackedFiles=no -> still kept =="
+make_wt i-hidden wt/i
+echo secret > "$REPO/.claude/worktrees/i-hidden/user-file.txt"
+git -C "$REPO/.claude/worktrees/i-hidden" config status.showUntrackedFiles no
+TIP=$(git -C "$REPO" rev-parse wt/i)
+OUT=$(GH_STUB_HEAD="$TIP" run_hook)
+check "dir kept despite config"  '[ -d "$REPO/.claude/worktrees/i-hidden" ]'
+check "user file survives"       '[ -f "$REPO/.claude/worktrees/i-hidden/user-file.txt" ]'
+check "reported as uncommitted"  'echo "$OUT" | grep -q "uncommitted"'
+git -C "$REPO/.claude/worktrees/i-hidden" config --unset status.showUntrackedFiles
+rm -f "$REPO/.claude/worktrees/i-hidden/user-file.txt"
+
+echo "== J: gh FAILS (rc!=0) -> lookup-failure report, kept (not silent no-PR) =="
+cat > "$SBX/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+chmod +x "$SBX/bin/gh"
+OUT=$(run_hook)
+check "dir kept"                 '[ -d "$REPO/.claude/worktrees/i-hidden" ]'
+check "lookup-failure report"    'echo "$OUT" | grep -q "PR lookup failed"'
+cat > "$SBX/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s' "${GH_STUB_HEAD:-}"
+EOF
+chmod +x "$SBX/bin/gh"
+
+echo "== K: capped sweep rotates its start across runs (no starvation) =="
+rm -f "$REPO/.claude/.worktree-reclaim-offset"
+( cd "$REPO" && WTR_SYNC_RM=1 WTR_MAX_CHECKS=1 GH_STUB_HEAD="" bash "$HOOK" >/dev/null )
+OFF1=$(cat "$REPO/.claude/.worktree-reclaim-offset" 2>/dev/null)
+( cd "$REPO" && WTR_SYNC_RM=1 WTR_MAX_CHECKS=1 GH_STUB_HEAD="" bash "$HOOK" >/dev/null )
+OFF2=$(cat "$REPO/.claude/.worktree-reclaim-offset" 2>/dev/null)
+check "offset persisted"         '[ -n "$OFF1" ]'
+check "offset advances"          '[ "$OFF2" != "$OFF1" ]'
+
+echo "== L: rm-guard refuses when the worktree listing itself FAILS =="
+PLAIN="$REPO/.claude/worktrees/plain-dir"; mkdir -p "$PLAIN"; touch "$PLAIN/data"
+# harness git shim mangles args -> listing fails -> guard must fail closed
+( cd "$REPO"; bash -c "source '$GUARD' '$REPO' '$REPO/.claude/worktrees'; safe_rm_leftover '$PLAIN'" ) && G_RC=0 || G_RC=$?
+check "refused on listing failure" '[ "$G_RC" != 0 ]'
+check "dir survives"               '[ -f "$PLAIN/data" ]'
+rm -rf "$PLAIN"
+
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ]

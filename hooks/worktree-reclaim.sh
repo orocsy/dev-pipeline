@@ -95,8 +95,14 @@ safe_rm_leftover() {
     */.claude/worktrees/*) : ;;       # exactly one component — expected shape
     *) return 1 ;;
   esac
-  # must be deregistered from git by now — a live worktree is never rm'd
-  if git -C "$MAIN_ROOT" worktree list --porcelain 2>/dev/null | grep -Fxq "worktree $phys"; then
+  # must be deregistered from git by now — a live worktree is never rm'd.
+  # Capture the listing first, THEN match: piping into `grep -q` lets an early
+  # match SIGPIPE git (rc 141), and under pipefail that inverts this guard —
+  # the still-registered branch would fall through to rm. A failed listing is
+  # equally a refusal (fail-closed): unknown registration state = do not delete.
+  local listing
+  listing=$(git -C "$MAIN_ROOT" worktree list --porcelain 2>/dev/null) || return 1
+  if grep -Fxq "worktree $phys" <<<"$listing"; then
     return 1
   fi
   if [ "${WTR_SYNC_RM:-0}" = "1" ]; then
@@ -109,7 +115,17 @@ safe_rm_leftover() {
 checked=0 reclaimed=0
 reports=()
 
-for i in "${!paths[@]}"; do
+# Rotate the scan start across sessions: with more candidates than the per-run
+# gh budget, a stable retained prefix (unmerged/dirty) would otherwise consume
+# the cap on EVERY session start and later worktrees would never be checked.
+OFFSET_FILE="$MAIN_ROOT/.claude/.worktree-reclaim-offset"
+total=${#paths[@]}
+start=$(cat "$OFFSET_FILE" 2>/dev/null) || start=0
+case "$start" in ''|*[!0-9]*) start=0 ;; esac
+[ "$total" -gt 0 ] && start=$(( start % total )) || start=0
+
+for k in $(seq 0 $(( total - 1 ))); do
+  i=$(( (start + k) % total ))
   wt="${paths[$i]}"; br="${branches[$i]}"
 
   # skip the main worktree and wherever this session lives
@@ -127,11 +143,18 @@ for i in "${!paths[@]}"; do
   fi
   checked=$((checked + 1))
 
-  # G1+G3 in one call: merged PR whose headRefOid matches the local tip
+  # G1+G3 in one call: merged PR whose headRefOid matches the local tip.
+  # A FAILED lookup (auth/network/timeout) is not the same as "no merged PR" —
+  # report it, so an operator can tell a genuinely-active branch from a sweep
+  # that never completed. Only a SUCCESSFUL empty result stays silent.
   command -v gh >/dev/null 2>&1 || { reports+=("worktree-reclaim: gh unavailable — $wt_phys left as-is"); continue; }
   pr_head=$(run_bounded gh pr list --head "$br" --state merged \
-              --json headRefOid --jq '.[0].headRefOid // empty' 2>/dev/null) || pr_head=""
-  [ -n "$pr_head" ] || continue      # no merged PR — active work; stay silent
+              --json headRefOid --jq '.[0].headRefOid // empty' 2>/dev/null); gh_rc=$?
+  if [ "$gh_rc" != "0" ]; then
+    reports+=("worktree-reclaim: PR lookup failed for $br (rc=$gh_rc, timeout=124) — $wt_phys left as-is")
+    continue
+  fi
+  [ -n "$pr_head" ] || continue      # confirmed: no merged PR — active work; stay silent
 
   local_tip=$(git -C "$MAIN_ROOT" rev-parse "refs/heads/$br" 2>/dev/null) || continue
   if [ "$local_tip" != "$pr_head" ]; then
@@ -139,8 +162,17 @@ for i in "${!paths[@]}"; do
     continue
   fi
 
-  # G2: pristine tree
-  if [ -n "$(git -C "$wt_phys" status --porcelain 2>/dev/null)" ]; then
+  # G2: pristine tree. The check must itself SUCCEED (a failed `git status`
+  # yields empty output, which must never read as "clean"), and untracked
+  # files are requested explicitly — a worktree-local
+  # `status.showUntrackedFiles=no` would otherwise hide a user's file from
+  # the pristine check and the sweep would delete it.
+  wt_status=$(git -C "$wt_phys" status --porcelain --untracked-files=all 2>/dev/null); st_rc=$?
+  if [ "$st_rc" != "0" ]; then
+    reports+=("worktree-reclaim: status check failed for $wt_phys (rc=$st_rc) — kept")
+    continue
+  fi
+  if [ -n "$wt_status" ]; then
     reports+=("worktree-reclaim: $br PR merged but worktree has uncommitted changes — kept ($wt_phys)")
     continue
   fi
@@ -157,6 +189,13 @@ for i in "${!paths[@]}"; do
 done
 
 git -C "$MAIN_ROOT" worktree prune >/dev/null 2>&1
+
+# Advance the rotation so next session's sweep starts where this one's gh
+# budget ran out (harmless when everything fit under the cap).
+if [ "$total" -gt 0 ]; then
+  mkdir -p "$MAIN_ROOT/.claude" 2>/dev/null
+  echo $(( (start + (checked > 0 ? checked : 1)) % total )) > "$OFFSET_FILE" 2>/dev/null || true
+fi
 
 [ "$reclaimed" -gt 0 ] && echo "worktree-reclaim: reclaimed $reclaimed merged worktree(s) under .claude/worktrees (data removal continues in background)"
 for r in "${reports[@]+"${reports[@]}"}"; do echo "$r"; done
