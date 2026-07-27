@@ -108,6 +108,37 @@ esac
 
 ---
 
+## PHASE 9.6: External-review handoff (opt-in via `.claude/co-review/enabled`)
+
+Immediately after the conflict gate, check whether this project has opted into
+the external-review relay:
+
+```bash
+if [ -f "$(git rev-parse --show-toplevel)/.claude/co-review/enabled" ]; then
+  CHANNEL="pr${PR_NUM}"
+fi
+```
+
+If the flag is present:
+1. Scaffold/refresh the channel config `.claude/co-review/${CHANNEL}.json` with
+   this PR's number (gh-pr-bot source; `retrigger` from the config default —
+   e.g. `@codex review`).
+2. Invoke `/dev-pipeline:co-review ${CHANNEL} --watch --respond --retrigger`.
+   The relay owns the trigger → wait → integrate → fix → re-trigger loop from
+   here, with its convergence safeguards (round-cap, stall, trend-up,
+   false-positive ledger).
+
+**Why the flag is the consent boundary (do not ask again when it is present):**
+posting a review trigger is a public write, so it must be opted into — but
+per-session asking is exactly the inconsistency this phase eliminates. The
+committed/local `enabled` flag IS the standing, machine-readable authorization:
+flag present → run the relay without asking; flag absent → skip silently (never
+nag to enable it). Removing the file revokes the standing consent.
+
+If co-review converges (or the flag is absent), continue to PHASE 10.
+
+---
+
 ## PHASE 10: Code Review
 
 Delegate to `/code-review` to review the PR.
