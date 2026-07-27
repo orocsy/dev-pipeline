@@ -12,6 +12,22 @@ Conventions:
 
 ---
 
+## 2026-07-24 — Worktree reclaim on session start
+
+- **`hooks/worktree-reclaim.sh`** (SessionStart). Agent worktrees under
+  `.claude/worktrees/` silently accumulate gigabytes (node_modules and all) when
+  sessions crash or end without cleanup — invisible to Finder, missed by
+  post-merge-only hooks. Each session start now sweeps them: a worktree is
+  auto-deleted ONLY when its PR is merged AND the tree is pristine AND the local
+  tip equals the merged PR's headRefOid (squash-proof) AND the path physically
+  resolves inside `.claude/worktrees/`. Anything else — dirty trees, post-merge
+  commits, external checkouts, gh unavailable — is reported, never deleted. The
+  `rm` runs behind a guard that refuses symlinks, out-of-prefix paths, `/`,
+  `$HOME`, repo roots, and any still-registered worktree; data removal is
+  backgrounded to respect the 15s hook budget. Matrix:
+  `tools/test-worktree-reclaim.sh` (8 cells, incl. guard unit tests on the
+  verbatim-extracted function).
+
 ## 2026-07-23 — Uniqueness rule for the business-vs-technical gate
 
 - **The uniqueness rule** (`commands/fix.md` Step 1.5, `skills/spec-elicitor/SKILL.md` →
