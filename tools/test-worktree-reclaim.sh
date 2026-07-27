@@ -188,6 +188,13 @@ check "prunable reported"        'echo "$OUT" | grep -q "stale registration"'
 check "registration NOT pruned"  'git -C "$REPO" worktree list --porcelain | grep -q r-stale'
 git -C "$REPO" worktree prune 2>/dev/null   # tidy for later cells
 
+echo "== S: ORPHAN dir (no registration) under owned prefix -> reported, kept =="
+mkdir -p "$REPO/.claude/worktrees/s-orphan/leftover"
+OUT=$(GH_STUB_HEAD="" run_hook)
+check "orphan reported"          'echo "$OUT" | grep -q "ORPHAN dir"'
+check "orphan kept (report-only)" '[ -d "$REPO/.claude/worktrees/s-orphan" ]'
+rm -rf "$REPO/.claude/worktrees/s-orphan"
+
 echo "== L: rm-guard refuses when the worktree listing itself FAILS =="
 PLAIN="$REPO/.claude/worktrees/plain-dir"; mkdir -p "$PLAIN"; touch "$PLAIN/data"
 # harness git shim mangles args -> listing fails -> guard must fail closed

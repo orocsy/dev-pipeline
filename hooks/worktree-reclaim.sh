@@ -140,6 +140,7 @@ safe_rm_leftover() {
 }
 
 checked=0 reclaimed=0
+just_reclaimed=()
 reports=("${reports_pre[@]+"${reports_pre[@]}"}")
 
 # Rotate the scan start across sessions: with more candidates than the per-run
@@ -253,12 +254,38 @@ for (( k = 0; k < total; k++ )); do
     reports+=("worktree-reclaim: $wt_phys refused non-force removal (dirty/locked since check, or state unknown) — kept")
     continue
   fi
-  safe_rm_leftover "$wt_phys" && reclaimed=$((reclaimed + 1)) \
-    || reports+=("worktree-reclaim: $wt_phys deregistered but leftover data NOT removed (guard refused)")
+  # Spawning the background rm is NOT proof of deletion — a failed rm would
+  # leave a deregistered orphan that worktree-list-driven sweeps can't see.
+  # The orphan scan below catches exactly that case on the next session.
+  if safe_rm_leftover "$wt_phys"; then
+    reclaimed=$((reclaimed + 1)); just_reclaimed+=("$wt_phys")
+  else
+    reports+=("worktree-reclaim: $wt_phys deregistered but leftover data NOT removed (guard refused)")
+  fi
 done
 
 # NO global `git worktree prune` here — it has no path selector and would also
 # expire out-of-scope registrations (see the prunable REPORT in the parser).
+
+# ── orphan scan: dirs under the owned prefix with NO registration ──────────
+# Two ways these appear: a background rm from a prior session failed after
+# deregistration, or something unpacked a directory there by hand. They are
+# invisible to the worktree-list-driven sweep above, so surface them here.
+# Report-only: an unregistered dir has no branch/PR to verify against.
+final_listing=$(git -C "$MAIN_ROOT" worktree list --porcelain 2>/dev/null) || final_listing=""
+if [ -d "$OWNED_PREFIX" ] && [ -n "$final_listing" ]; then
+  for d in "$OWNED_PREFIX"/*/; do
+    [ -d "$d" ] || continue
+    d_phys=$(cd "$d" 2>/dev/null && pwd -P) || continue
+    grep -Fxq "worktree $d_phys" <<<"$final_listing" && continue
+    skip=0
+    for jr in "${just_reclaimed[@]+"${just_reclaimed[@]}"}"; do
+      [ "$jr" = "$d_phys" ] && { skip=1; break; }   # its background rm is in flight
+    done
+    [ "$skip" = "1" ] && continue
+    reports+=("worktree-reclaim: ORPHAN dir (no worktree registration): $d_phys — inspect/remove manually")
+  done
+fi
 
 # Advance the rotation so next session's sweep starts where this one's gh
 # budget ran out. Written ONLY when there was something beyond the main
