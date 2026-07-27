@@ -131,13 +131,26 @@ EOF
 chmod +x "$SBX/bin/gh"
 
 echo "== K: capped sweep rotates its start across runs (no starvation) =="
-rm -f "$REPO/.claude/.worktree-reclaim-offset"
+rm -f "$REPO/.git/worktree-reclaim-offset"
 ( cd "$REPO" && WTR_SYNC_RM=1 WTR_MAX_CHECKS=1 GH_STUB_HEAD="" bash "$HOOK" >/dev/null )
-OFF1=$(cat "$REPO/.claude/.worktree-reclaim-offset" 2>/dev/null)
+OFF1=$(cat "$REPO/.git/worktree-reclaim-offset" 2>/dev/null)
 ( cd "$REPO" && WTR_SYNC_RM=1 WTR_MAX_CHECKS=1 GH_STUB_HEAD="" bash "$HOOK" >/dev/null )
-OFF2=$(cat "$REPO/.claude/.worktree-reclaim-offset" 2>/dev/null)
-check "offset persisted"         '[ -n "$OFF1" ]'
+OFF2=$(cat "$REPO/.git/worktree-reclaim-offset" 2>/dev/null)
+check "offset persisted (in .git, not the checkout)" '[ -n "$OFF1" ]'
 check "offset advances"          '[ "$OFF2" != "$OFF1" ]'
+check "no reclaim artifact in checkout" '! git -C "$REPO" status --porcelain 2>/dev/null | grep -q "worktree-reclaim"'
+
+echo "== M: DETACHED owned worktree -> reported, never gate-checked or deleted =="
+git -C "$REPO" worktree add -q --detach "$REPO/.claude/worktrees/m-detached" >/dev/null 2>&1
+OUT=$(GH_STUB_HEAD="" run_hook)
+check "detached dir kept"        '[ -d "$REPO/.claude/worktrees/m-detached" ]'
+check "detached reported"        'echo "$OUT" | grep -q "DETACHED"'
+git -C "$REPO" worktree remove --force "$REPO/.claude/worktrees/m-detached" >/dev/null 2>&1 || true
+
+echo "== O: global deadline stops gh checks, reports the remainder =="
+OUT=$( ( cd "$REPO" && WTR_SYNC_RM=1 WTR_DEADLINE=0 GH_STUB_HEAD="" bash "$HOOK" ) )
+check "deadline report emitted"  'echo "$OUT" | grep -q "deadline"'
+check "nothing deleted"          '[ -d "$REPO/.claude/worktrees/i-hidden" ]'
 
 echo "== L: rm-guard refuses when the worktree listing itself FAILS =="
 PLAIN="$REPO/.claude/worktrees/plain-dir"; mkdir -p "$PLAIN"; touch "$PLAIN/data"

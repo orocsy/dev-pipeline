@@ -68,7 +68,12 @@ while IFS= read -r line; do
       b="${line#branch refs/heads/}"
       if [ -n "$cur_path" ]; then paths+=("$cur_path"); branches+=("$b"); fi
       cur_path="" ;;
-    "detached")    cur_path="" ;;  # detached worktrees are never auto-touched
+    "detached")
+      # Detached worktrees are never auto-touched, but they must not vanish
+      # from the sweep either — an owned detached worktree eating disk would
+      # otherwise stay invisible forever. Record with a sentinel branch.
+      if [ -n "$cur_path" ]; then paths+=("$cur_path"); branches+=("(detached)"); fi
+      cur_path="" ;;
   esac
 done < <(git -C "$MAIN_ROOT" worktree list --porcelain 2>/dev/null)
 
@@ -118,13 +123,23 @@ reports=()
 # Rotate the scan start across sessions: with more candidates than the per-run
 # gh budget, a stable retained prefix (unmerged/dirty) would otherwise consume
 # the cap on EVERY session start and later worktrees would never be checked.
-OFFSET_FILE="$MAIN_ROOT/.claude/.worktree-reclaim-offset"
+# The offset lives under the GIT COMMON DIR, never in the checkout — a state
+# file inside the working tree would dirty every target repo's `git status`
+# on every session start.
+OFFSET_FILE="$common_dir/worktree-reclaim-offset"
 total=${#paths[@]}
 start=$(cat "$OFFSET_FILE" 2>/dev/null) || start=0
 case "$start" in ''|*[!0-9]*) start=0 ;; esac
 [ "$total" -gt 0 ] && start=$(( start % total )) || start=0
 
-for k in $(seq 0 $(( total - 1 ))); do
+# Global deadline (seconds of script runtime): the hook runner enforces its own
+# hard timeout; stopping the gh portion early keeps the sweep's tail (reports,
+# prune, offset) inside the budget instead of being killed mid-flight silently.
+DEADLINE="${WTR_DEADLINE:-12}"
+
+# Arithmetic for-loop, not `seq`: builtin, so it cannot vanish on a lean PATH,
+# and an empty substitution can't silently turn the sweep into a no-op.
+for (( k = 0; k < total; k++ )); do
   i=$(( (start + k) % total ))
   wt="${paths[$i]}"; br="${branches[$i]}"
 
@@ -136,9 +151,16 @@ for k in $(seq 0 $(( total - 1 ))); do
   owned=0
   case "$wt_phys" in "$OWNED_PREFIX"/?*) owned=1 ;; esac
 
-  # budget: only the first N candidates get a gh round-trip
-  if [ "$checked" -ge "$MAX_CHECKS" ]; then
-    reports+=("worktree-reclaim: $wt_phys not checked this session (per-run cap $MAX_CHECKS)")
+  # Detached worktrees: never gate-checked, never deleted — but owned ones are
+  # surfaced so they can't silently eat disk forever.
+  if [ "$br" = "(detached)" ]; then
+    [ "$owned" = "1" ] && reports+=("worktree-reclaim: $wt_phys is DETACHED — never auto-touched; inspect/remove manually")
+    continue
+  fi
+
+  # budget: per-run gh cap AND a global deadline (leave tail-work headroom)
+  if [ "$checked" -ge "$MAX_CHECKS" ] || [ "${SECONDS:-0}" -ge "$DEADLINE" ]; then
+    reports+=("worktree-reclaim: $wt_phys not checked this session (cap $MAX_CHECKS / deadline ${DEADLINE}s)")
     continue
   fi
   checked=$((checked + 1))
@@ -191,9 +213,10 @@ done
 git -C "$MAIN_ROOT" worktree prune >/dev/null 2>&1
 
 # Advance the rotation so next session's sweep starts where this one's gh
-# budget ran out (harmless when everything fit under the cap).
-if [ "$total" -gt 0 ]; then
-  mkdir -p "$MAIN_ROOT/.claude" 2>/dev/null
+# budget ran out. Written ONLY when there was something beyond the main
+# worktree to rotate over — a bare repo must not grow state files from merely
+# opening a session. Lives in the git common dir, so it never dirties status.
+if [ "$total" -gt 1 ]; then
   echo $(( (start + (checked > 0 ? checked : 1)) % total )) > "$OFFSET_FILE" 2>/dev/null || true
 fi
 
