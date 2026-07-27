@@ -27,12 +27,14 @@ Conventions:
   backgrounded to respect the 15s hook budget. Matrix:
   `tools/test-worktree-reclaim.sh` (8 cells, incl. guard unit tests on the
   verbatim-extracted function).
-- **Deliver Phase 9.6 — external-review handoff** (`commands/deliver.md`). After the
-  conflict gate, a project that opted in (`touch .claude/co-review/enabled`) hands the
-  fresh PR to `/dev-pipeline:co-review --watch --respond --retrigger` automatically.
-  The flag is the standing consent for posting review triggers: present → relay runs
-  without asking, absent → silently skipped. Ends the per-session ask-again
-  inconsistency for the Claude↔Codex loop.
+- **Deliver Phase 9.6 — Codex review loop** (`commands/deliver.md`). After the
+  conflict gate, a project that opted in (`touch .claude/codex-review-loop`) runs the
+  STANDARD bot-review loop inline: trigger → wait → triage (re-flag ledger) → fix →
+  validate → bless → push → re-trigger, with convergence guards (round cap,
+  trending-up stall). The marker is the standing consent for posting `@codex review`:
+  present → loop runs without asking, absent → silently skipped. Ends the per-session
+  ask-again inconsistency. Deliberately NOT routed through `/dev-pipeline:co-review` —
+  that stays the OPTIONAL multi-source relay protected by Rule 21.
 
 ## 2026-07-23 — Uniqueness rule for the business-vs-technical gate
 

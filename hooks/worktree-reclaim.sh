@@ -42,6 +42,11 @@ GH_TIMEOUT="${WTR_GH_TIMEOUT:-5}"
 run_bounded() {
   if command -v timeout >/dev/null 2>&1; then timeout "$GH_TIMEOUT" "$@"
   elif command -v gtimeout >/dev/null 2>&1; then gtimeout "$GH_TIMEOUT" "$@"
+  elif command -v perl >/dev/null 2>&1; then
+    # perl ships on every macOS; alarm+exec is the classic portable watchdog,
+    # so a machine with neither coreutils timeout nor gtimeout still gets a
+    # bounded call instead of an unbounded gh hanging every session start.
+    perl -e 'alarm shift; exec @ARGV' "$GH_TIMEOUT" "$@"
   else "$@"
   fi
 }
@@ -59,23 +64,40 @@ PWD_PHYS=$(pwd -P)
 
 # ── parse worktrees (porcelain: stable machine format) ──────────────────
 # Arrays kept index-aligned.
+reports_pre=()
 paths=(); branches=()
-cur_path=""
+cur_path=""; cur_branch=""; cur_locked=0
+flush_entry() {
+  [ -n "$cur_path" ] || return 0
+  if [ "$cur_locked" = "1" ]; then
+    # A LOCKED worktree is another session's explicit "hands off" (git
+    # worktree lock) — record with a sentinel so it is reported, never gated.
+    paths+=("$cur_path"); branches+=("(locked)")
+  elif [ -n "$cur_branch" ]; then
+    paths+=("$cur_path"); branches+=("$cur_branch")
+  fi
+  cur_path=""; cur_branch=""; cur_locked=0
+}
 while IFS= read -r line; do
   case "$line" in
-    "worktree "*)  cur_path="${line#worktree }" ;;
-    "branch refs/heads/"*)
-      b="${line#branch refs/heads/}"
-      if [ -n "$cur_path" ]; then paths+=("$cur_path"); branches+=("$b"); fi
-      cur_path="" ;;
+    "worktree "*)  flush_entry; cur_path="${line#worktree }" ;;
+    "branch refs/heads/"*) cur_branch="${line#branch refs/heads/}" ;;
     "detached")
       # Detached worktrees are never auto-touched, but they must not vanish
       # from the sweep either — an owned detached worktree eating disk would
       # otherwise stay invisible forever. Record with a sentinel branch.
-      if [ -n "$cur_path" ]; then paths+=("$cur_path"); branches+=("(detached)"); fi
-      cur_path="" ;;
+      cur_branch="(detached)" ;;
+    "locked"|"locked "*) cur_locked=1 ;;
+    "prunable"|"prunable "*)
+      # Stale registration (dir gone / unreachable mount). REPORT it; never
+      # auto-prune — `git worktree prune` is repo-wide and would also expire
+      # out-of-scope registrations (e.g. a temporarily unmounted volume).
+      [ -n "$cur_path" ] && reports_pre+=("worktree-reclaim: stale registration $cur_path (prunable: ${line#prunable}) — run 'git worktree prune' manually if intended")
+      cur_path=""; cur_branch=""; cur_locked=0 ;;
+    "") flush_entry ;;
   esac
 done < <(git -C "$MAIN_ROOT" worktree list --porcelain 2>/dev/null)
+flush_entry
 
 [ "${#paths[@]}" -gt 0 ] || exit 0
 
@@ -118,7 +140,7 @@ safe_rm_leftover() {
 }
 
 checked=0 reclaimed=0
-reports=()
+reports=("${reports_pre[@]+"${reports_pre[@]}"}")
 
 # Rotate the scan start across sessions: with more candidates than the per-run
 # gh budget, a stable retained prefix (unmerged/dirty) would otherwise consume
@@ -151,12 +173,14 @@ for (( k = 0; k < total; k++ )); do
   owned=0
   case "$wt_phys" in "$OWNED_PREFIX"/?*) owned=1 ;; esac
 
-  # Detached worktrees: never gate-checked, never deleted — but owned ones are
-  # surfaced so they can't silently eat disk forever.
-  if [ "$br" = "(detached)" ]; then
-    [ "$owned" = "1" ] && reports+=("worktree-reclaim: $wt_phys is DETACHED — never auto-touched; inspect/remove manually")
-    continue
-  fi
+  # Detached/locked worktrees: never gate-checked, never deleted — but owned
+  # ones are surfaced so they can't silently eat disk forever. LOCKED is
+  # another session's explicit hands-off (git worktree lock).
+  case "$br" in
+    "(detached)"|"(locked)")
+      [ "$owned" = "1" ] && reports+=("worktree-reclaim: $wt_phys is ${br} — never auto-touched; inspect/remove manually")
+      continue ;;
+  esac
 
   # budget: per-run gh cap AND a global deadline (leave tail-work headroom)
   if [ "$checked" -ge "$MAX_CHECKS" ] || [ "${SECONDS:-0}" -ge "$DEADLINE" ]; then
@@ -184,6 +208,19 @@ for (( k = 0; k < total; k++ )); do
     continue
   fi
 
+  # A merged PR does not prove the branch is FINISHED: the same head can also
+  # carry an OPEN PR to a different base. Fail-closed on lookup failure.
+  open_count=$(run_bounded gh pr list --head "$br" --state open \
+                 --json number --jq 'length' 2>/dev/null); op_rc=$?
+  if [ "$op_rc" != "0" ]; then
+    reports+=("worktree-reclaim: open-PR lookup failed for $br (rc=$op_rc) — $wt_phys left as-is")
+    continue
+  fi
+  if [ "${open_count:-0}" -gt 0 ]; then
+    reports+=("worktree-reclaim: $br also has an OPEN PR — kept ($wt_phys)")
+    continue
+  fi
+
   # G2: pristine tree. The check must itself SUCCEED (a failed `git status`
   # yields empty output, which must never read as "clean"), and untracked
   # files are requested explicitly — a worktree-local
@@ -204,13 +241,24 @@ for (( k = 0; k < total; k++ )); do
     continue
   fi
 
-  # all gates green — deregister, then guarded delete of leftovers
-  git -C "$MAIN_ROOT" worktree remove --force "$wt_phys" >/dev/null 2>&1
+  # all gates green — attempt NON-FORCE removal: git re-verifies cleanliness
+  # and lock state AT THE MOMENT OF REMOVAL, closing the race where another
+  # live session wrote files after our status check. Refusal (still
+  # registered afterwards) = keep, fail-closed. Note: git may deregister yet
+  # fail to delete deep trees like node_modules ("Directory not empty") —
+  # that is what the guarded leftover delete below is for.
+  git -C "$MAIN_ROOT" worktree remove "$wt_phys" >/dev/null 2>&1
+  post_listing=$(git -C "$MAIN_ROOT" worktree list --porcelain 2>/dev/null) || post_listing=""
+  if [ -z "$post_listing" ] || grep -Fxq "worktree $wt_phys" <<<"$post_listing"; then
+    reports+=("worktree-reclaim: $wt_phys refused non-force removal (dirty/locked since check, or state unknown) — kept")
+    continue
+  fi
   safe_rm_leftover "$wt_phys" && reclaimed=$((reclaimed + 1)) \
     || reports+=("worktree-reclaim: $wt_phys deregistered but leftover data NOT removed (guard refused)")
 done
 
-git -C "$MAIN_ROOT" worktree prune >/dev/null 2>&1
+# NO global `git worktree prune` here — it has no path selector and would also
+# expire out-of-scope registrations (see the prunable REPORT in the parser).
 
 # Advance the rotation so next session's sweep starts where this one's gh
 # budget ran out. Written ONLY when there was something beyond the main

@@ -1,5 +1,5 @@
 ---
-description: Fetch, integrate, and respond to external reviews from multiple sources (PR bots, design docs) and manage Claude↔Codex turn-taking. Optional/opt-in — NOT part of the default pipeline; auto-invoked ONLY via deliver Phase 9.6 when the project's `.claude/co-review/enabled` flag grants standing consent.
+description: Fetch, integrate, and respond to external reviews from multiple sources (PR bots, design docs) and manage Claude↔Codex turn-taking. Optional/opt-in — NOT part of the default pipeline and never auto-invoked.
 argument-hint: "[channel] [--source=gh-pr-bot|doc] [--watch] [--once] [--respond] [--retrigger]"
 ---
 
@@ -7,7 +7,7 @@ argument-hint: "[channel] [--source=gh-pr-bot|doc] [--watch] [--once] [--respond
 
 You are relaying code/design review between Claude and another agent (typically Codex) across one or more **sources** of different formats. You fetch only what is NEW since a cursor, verify + integrate it, respond back, and hand the turn off — without deadlocking, both-editing-at-once, or looping forever.
 
-This command is **opt-in**. It is never triggered by Rule 1 / Rule 5. There are exactly THREE sanctioned entry paths: (1) the user runs it; (2) the session-start nudge suggests it (see "Opt-in auto-trigger" near the end of this file); (3) **deliver PHASE 9.6 invokes it automatically** when `.claude/co-review/enabled` exists — that flag is the project's standing consent, so the handoff is NOT a contract violation and must not be skipped as "prohibited". All steps below are pre-approved — run to completion, do not ask for permission.
+This command is **opt-in**. It is never triggered by Rule 1 / Rule 5. Run it, or enable the session-start nudge (see "Opt-in auto-trigger" near the end of this file). All steps below are pre-approved — run to completion, do not ask for permission.
 
 Reuses (do NOT reinvent): `agents/co-review-adapter.md` (detect/parse), `agents/review-analyzer.md` (live-code verification + re-flag trap), `/dev-pipeline:fix` (Path A fixes), `/dev-pipeline:review` (Path A re-bless), `.claude/review-findings-<sha>.md` table, `hooks/pre-push` (blessing gate).
 
@@ -258,7 +258,7 @@ State:     [waiting | converged | stalled | integrated]
 
 Enable per-project with `touch .claude/co-review/enabled`. When present, the plugin SessionStart hook (`hooks/session-start.sh`, registered via `hooks/hooks.json`) runs a lightweight cursor-compare per channel (one `gh api` or one `git log` call) and, on new input, prints a **CO-REVIEW PENDING** directive (mirroring the AUTO-REVIEW DIRECTIVE pattern). It only *surfaces a suggestion* — you still run this command. It is NOT wired into Rule 1/Rule 5 auto-invoke.
 
-**Why this command carries no `disable-model-invocation`, unlike other side-effect commands (`deploy`, `setup-machine`)**: `--watch=cron` (below) self-schedules a re-invocation of this very command via `mcp__scheduled-tasks__create_scheduled_task`. Claude Code's scheduled-task execution treats a scheduled prompt's slash-command text as subject to the SAME model-invocation gating as an in-session call — so `disable-model-invocation: true` would silently turn the cron job's prompt into inert plain text, breaking the feature outright (this was tried and reverted — see CHANGELOG). Rule 21's "never auto-invoke" is already satisfied structurally without the flag: this command is absent from Rule 1's routing table and Rule 5's auto-resume, so nothing routes here without the user explicitly running it, explicitly opting into `--watch=cron`, or having granted the standing `.claude/co-review/enabled` consent that deliver Phase 9.6 honors. The flag would add no real safety here, only break a legitimate opt-in automation.
+**Why this command carries no `disable-model-invocation`, unlike other side-effect commands (`deploy`, `setup-machine`)**: `--watch=cron` (below) self-schedules a re-invocation of this very command via `mcp__scheduled-tasks__create_scheduled_task`. Claude Code's scheduled-task execution treats a scheduled prompt's slash-command text as subject to the SAME model-invocation gating as an in-session call — so `disable-model-invocation: true` would silently turn the cron job's prompt into inert plain text, breaking the feature outright (this was tried and reverted — see CHANGELOG). Rule 21's "never auto-invoke" is already satisfied structurally without the flag: this command is absent from Rule 1's routing table and Rule 5's auto-resume, so nothing routes here without the user explicitly running it or explicitly opting into `--watch=cron`. The flag would add no real safety here, only break a legitimate opt-in automation.
 
 ## State & config files (per project, git-tracked)
 - `.claude/co-review/PROTOCOL.md` — the cross-agent convention (scaffolded above; read by both agents).

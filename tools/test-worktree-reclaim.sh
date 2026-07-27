@@ -16,19 +16,25 @@ ok()   { PASS=$((PASS+1)); echo "  ok  - $1"; }
 bad()  { FAIL=$((FAIL+1)); echo "  FAIL - $1"; }
 check(){ if eval "$2"; then ok "$1"; else bad "$1"; fi; }
 
-# ── stub gh: returns $GH_STUB_HEAD as the merged PR's headRefOid ──────────
+# ── stub gh: merged query -> $GH_STUB_HEAD; open query -> $GH_STUB_OPEN ──
 mkdir -p "$SBX/bin"
 cat > "$SBX/bin/gh" <<'EOF'
 #!/usr/bin/env bash
-printf '%s' "${GH_STUB_HEAD:-}"
+case "$*" in
+  *"--state open"*)   printf '%s' "${GH_STUB_OPEN:-0}" ;;
+  *"--state merged"*) printf '%s' "${GH_STUB_HEAD:-}" ;;
+  *) printf '' ;;
+esac
 EOF
 chmod +x "$SBX/bin/gh"
 export PATH="$SBX/bin:$PATH"
 
-# ── sandbox repo with one commit ─────────────────────────────────────────
+# ── sandbox repo: one commit + gitignored node_modules (like real repos) ──
 REPO="$SBX/repo"
 git init -q "$REPO"
-git -C "$REPO" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+echo "node_modules/" > "$REPO/.gitignore"
+git -C "$REPO" add .gitignore
+git -C "$REPO" -c user.email=t@t -c user.name=t commit -q -m init
 
 make_wt() { # name branch
   git -C "$REPO" worktree add -q "$REPO/.claude/worktrees/$1" -b "$2" >/dev/null 2>&1
@@ -126,7 +132,11 @@ check "dir kept"                 '[ -d "$REPO/.claude/worktrees/i-hidden" ]'
 check "lookup-failure report"    'echo "$OUT" | grep -q "PR lookup failed"'
 cat > "$SBX/bin/gh" <<'EOF'
 #!/usr/bin/env bash
-printf '%s' "${GH_STUB_HEAD:-}"
+case "$*" in
+  *"--state open"*)   printf '%s' "${GH_STUB_OPEN:-0}" ;;
+  *"--state merged"*) printf '%s' "${GH_STUB_HEAD:-}" ;;
+  *) printf '' ;;
+esac
 EOF
 chmod +x "$SBX/bin/gh"
 
@@ -144,13 +154,39 @@ echo "== M: DETACHED owned worktree -> reported, never gate-checked or deleted =
 git -C "$REPO" worktree add -q --detach "$REPO/.claude/worktrees/m-detached" >/dev/null 2>&1
 OUT=$(GH_STUB_HEAD="" run_hook)
 check "detached dir kept"        '[ -d "$REPO/.claude/worktrees/m-detached" ]'
-check "detached reported"        'echo "$OUT" | grep -q "DETACHED"'
+check "detached reported"        'echo "$OUT" | grep -q "(detached)"'
 git -C "$REPO" worktree remove --force "$REPO/.claude/worktrees/m-detached" >/dev/null 2>&1 || true
 
 echo "== O: global deadline stops gh checks, reports the remainder =="
 OUT=$( ( cd "$REPO" && WTR_SYNC_RM=1 WTR_DEADLINE=0 GH_STUB_HEAD="" bash "$HOOK" ) )
 check "deadline report emitted"  'echo "$OUT" | grep -q "deadline"'
 check "nothing deleted"          '[ -d "$REPO/.claude/worktrees/i-hidden" ]'
+
+echo "== P: merged PR but branch ALSO has an OPEN PR -> kept =="
+make_wt p-openpr wt/p
+TIP=$(git -C "$REPO" rev-parse wt/p)
+OUT=$(GH_STUB_HEAD="$TIP" GH_STUB_OPEN=1 run_hook)
+check "dir kept"                 '[ -d "$REPO/.claude/worktrees/p-openpr" ]'
+check "open-PR report"           'echo "$OUT" | grep -q "OPEN PR"'
+git -C "$REPO" worktree remove --force "$REPO/.claude/worktrees/p-openpr" >/dev/null 2>&1 || true
+
+echo "== Q: LOCKED worktree -> reported, never touched =="
+make_wt q-locked wt/q
+git -C "$REPO" worktree lock "$REPO/.claude/worktrees/q-locked" >/dev/null 2>&1
+TIP=$(git -C "$REPO" rev-parse wt/q)
+OUT=$(GH_STUB_HEAD="$TIP" run_hook)
+check "locked dir kept"          '[ -d "$REPO/.claude/worktrees/q-locked" ]'
+check "locked reported"          'echo "$OUT" | grep -q "(locked)"'
+git -C "$REPO" worktree unlock "$REPO/.claude/worktrees/q-locked" >/dev/null 2>&1
+git -C "$REPO" worktree remove --force "$REPO/.claude/worktrees/q-locked" >/dev/null 2>&1 || true
+
+echo "== R: prunable (stale) registration -> REPORTED, not auto-pruned =="
+make_wt r-stale wt/r
+rm -rf "$REPO/.claude/worktrees/r-stale"          # dir gone, registration remains
+OUT=$(GH_STUB_HEAD="" run_hook)
+check "prunable reported"        'echo "$OUT" | grep -q "stale registration"'
+check "registration NOT pruned"  'git -C "$REPO" worktree list --porcelain | grep -q r-stale'
+git -C "$REPO" worktree prune 2>/dev/null   # tidy for later cells
 
 echo "== L: rm-guard refuses when the worktree listing itself FAILS =="
 PLAIN="$REPO/.claude/worktrees/plain-dir"; mkdir -p "$PLAIN"; touch "$PLAIN/data"

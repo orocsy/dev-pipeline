@@ -108,34 +108,51 @@ esac
 
 ---
 
-## PHASE 9.6: External-review handoff (opt-in via `.claude/co-review/enabled`)
+## PHASE 9.6: Codex review loop (opt-in via `.claude/codex-review-loop`)
 
-Immediately after the conflict gate, check whether this project has opted into
-the external-review relay:
+The STANDARD external-review loop for a PR: trigger the review bot, wait, fix
+what it finds, push, re-trigger — until it converges. This is deliberately NOT
+`/dev-pipeline:co-review` (that command is the OPTIONAL multi-source relay —
+doc ping-pong, turn-taking, adapters — and stays opt-in per Rule 21; do not
+route through it here). This phase is a plain inline loop.
 
 ```bash
-if [ -f "$(git rev-parse --show-toplevel)/.claude/co-review/enabled" ]; then
-  CHANNEL="pr${PR_NUM}"
-fi
+[ -f "$(git rev-parse --show-toplevel)/.claude/codex-review-loop" ] || SKIP_96=1
 ```
 
-If the flag is present:
-1. Scaffold/refresh the channel config `.claude/co-review/${CHANNEL}.json` with
-   this PR's number (gh-pr-bot source; `retrigger` from the config default —
-   e.g. `@codex review`).
-2. Invoke `/dev-pipeline:co-review ${CHANNEL} --watch --respond --retrigger`.
-   The relay owns the trigger → wait → integrate → fix → re-trigger loop from
-   here, with its convergence safeguards (round-cap, stall, trend-up,
-   false-positive ledger).
-
-**Why the flag is the consent boundary (do not ask again when it is present):**
-posting a review trigger is a public write, so it must be opted into — but
+**The marker file is the consent boundary (do not ask again when present):**
+posting `@codex review` is a public write, so it must be opted into — but
 per-session asking is exactly the inconsistency this phase eliminates. The
-committed/local `enabled` flag IS the standing, machine-readable authorization:
-flag present → run the relay without asking; flag absent → skip silently (never
-nag to enable it). Removing the file revokes the standing consent.
+marker IS the standing, machine-readable authorization: present → run the loop
+without asking; absent → skip silently (never nag to enable it). Deleting the
+file revokes consent. Enable with `touch .claude/codex-review-loop`.
 
-If co-review converges (or the flag is absent), continue to PHASE 10.
+When enabled, loop (bounded, max 5 rounds):
+
+1. **Trigger:** `gh pr comment $PR_NUM --body "@codex review"`. (First round:
+   skip the trigger if the bot has ALREADY reviewed the current head — many
+   repos auto-review on PR-open; check before posting a redundant trigger.)
+   The trigger must be POSTED before any watch loop runs — a watch that starts
+   before the first trigger can "converge on zero findings" that were simply
+   never requested.
+2. **Wait:** background-poll the PR for new bot items (reviews + inline +
+   issue comments count above a baseline captured BEFORE the trigger;
+   per-call timeout; ~30 min cap). Record which COMMIT the arriving review
+   targeted — a review of a stale head is a race, not a round (note it,
+   re-trigger, keep waiting).
+3. **Triage each finding** (Rule 23 business-vs-technical + the uniqueness
+   rule): technical + unique resolution → fix; ≥2 defensible resolutions →
+   micro-Scope-Lock with the user; already-fixed re-flags → ledger in the
+   round notes, never re-churn.
+4. **Fix → validate → review (bless) → push** via `/dev-pipeline:fix`,
+   `/dev-pipeline:validate`, `/dev-pipeline:review` — then post a disposition
+   comment (what was fixed where, what was ledgered and why).
+5. **Converge / stop:** clean marker ("no major issues" / approval) →
+   converged, continue to PHASE 10. Findings trending UP two consecutive
+   rounds, a ledgered finding re-flagged twice, or round cap hit → STOP and
+   surface to the user with the per-round trail (never loop unbounded).
+
+If the loop converges (or the marker is absent), continue to PHASE 10.
 
 ---
 
