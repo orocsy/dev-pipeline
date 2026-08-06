@@ -250,9 +250,24 @@ enumerating the whole surface cannot be "not consulted".
 # checks, baseline persistence and result aggregation all live in the script — a
 # fenced block here would be READ, not RUN, which is exactly how the first cut of
 # this step shipped referencing $SRC_DIRS and $TEST_DIR that nothing ever set.
-git diff --name-only "$BASE"..HEAD > /tmp/changed-files.txt
-tools/run-craft-gates.sh --changed-files /tmp/changed-files.txt
-GATE_RC=$?
+# Resolve the runner from the PLUGIN, not the cwd. These commands run inside CONSUMER
+# repos, where `tools/run-craft-gates.sh` does not exist — the relative path made the
+# whole gate step a silent no-op everywhere it actually mattered.
+GATE_RUNNER=""
+for cand in \
+  "${CLAUDE_PLUGIN_ROOT:-}/tools/run-craft-gates.sh" \
+  "$HOME/.claude/plugins/marketplaces/local/plugins/dev-pipeline/tools/run-craft-gates.sh" \
+  "./tools/run-craft-gates.sh"; do
+  [ -n "$cand" ] && [ -f "$cand" ] && { GATE_RUNNER="$cand"; break; }
+done
+if [ -z "$GATE_RUNNER" ]; then
+  echo "GATE ERROR — run-craft-gates.sh not found (looked in \$CLAUDE_PLUGIN_ROOT, the marketplace path, and ./tools)."
+  echo "  The gates did NOT run. This is a P1, not a pass."
+else
+  git diff --name-only "$BASE"..HEAD > /tmp/changed-files.txt
+  "$GATE_RUNNER" --changed-files /tmp/changed-files.txt
+  GATE_RC=$?
+fi
 ```
 
 `GATE_RC` has three distinct meanings — do not collapse them:

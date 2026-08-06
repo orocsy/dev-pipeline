@@ -76,7 +76,9 @@ declaring the fix complete:
 
 ```bash
 git diff --name-only HEAD > /tmp/changed-files.txt
-tools/run-craft-gates.sh --changed-files /tmp/changed-files.txt
+GATE_RUNNER="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/marketplaces/local/plugins/dev-pipeline}/tools/run-craft-gates.sh"
+[ -f "$GATE_RUNNER" ] || { echo "GATE ERROR — runner not found; gates did NOT run (P1, not a pass)"; }
+"$GATE_RUNNER" --changed-files /tmp/changed-files.txt
 # 0 clean/NA · 1 findings · 2 gate execution error (gates did NOT run — not a pass)
 ```
 

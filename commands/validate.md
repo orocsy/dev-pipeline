@@ -106,8 +106,26 @@ failure the gates themselves exist to catch. (Found by dogfooding: the review th
 introduced STEP 1.7 enumerated its own sibling commands and found `validate.md` uncovered.)
 
 ```bash
-tools/run-craft-gates.sh
-GATE_RC=$?   # 0 clean/NA · 1 findings · 2 gate execution error (P1 — gates did NOT run)
+# Resolve the runner from the PLUGIN, not the cwd. These commands run inside CONSUMER
+# repos, where `tools/run-craft-gates.sh` does not exist — the relative path made the
+# whole gate step a silent no-op everywhere it actually mattered.
+GATE_RUNNER=""
+for cand in \
+  "${CLAUDE_PLUGIN_ROOT:-}/tools/run-craft-gates.sh" \
+  "$HOME/.claude/plugins/marketplaces/local/plugins/dev-pipeline/tools/run-craft-gates.sh" \
+  "./tools/run-craft-gates.sh"; do
+  [ -n "$cand" ] && [ -f "$cand" ] && { GATE_RUNNER="$cand"; break; }
+done
+if [ -z "$GATE_RUNNER" ]; then
+  echo "GATE ERROR — run-craft-gates.sh not found (looked in \$CLAUDE_PLUGIN_ROOT, the marketplace path, and ./tools)."
+  echo "  The gates did NOT run. This is a P1, not a pass."
+else
+  # Phase 8 runs pre-commit, so the changed set includes the working tree.
+  BASE="$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD main 2>/dev/null || echo HEAD~1)"
+  git diff --name-only "$BASE" > /tmp/changed-files.txt
+  "$GATE_RUNNER" --changed-files /tmp/changed-files.txt
+  GATE_RC=$?   # 0 clean/NA · 1 findings · 2 gate execution error (P1 — gates did NOT run)
+fi
 ```
 
 Aggregate `GATE_RC` into the Phase 8 summary alongside lint/typecheck/tests/build.

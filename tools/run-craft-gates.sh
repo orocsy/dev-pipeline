@@ -52,7 +52,14 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --baseline-write) MODE_BASELINE_WRITE=1; shift ;;
     --json)           MODE_JSON=1; shift ;;
-    --changed-files)  CHANGED_FILES_LIST="${2:-}"; shift 2 ;;
+    --changed-files)
+      CHANGED_FILES_LIST="${2:-}"
+      if [[ -z "$CHANGED_FILES_LIST" || ! -f "$CHANGED_FILES_LIST" ]]; then
+        echo "GATE ERROR — --changed-files needs a readable file (got: '${CHANGED_FILES_LIST:-<none>}')." >&2
+        echo "  Without it, findings in files this diff touched would not block." >&2
+        exit 2
+      fi
+      shift 2 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -69,6 +76,19 @@ if [[ ! -d "$GATES_DIR" ]]; then
 fi
 
 jqr() { command -v jq >/dev/null 2>&1 && jq -r "$@" 2>/dev/null; }
+
+# A config that exists but cannot be parsed is a SETUP error, not "use defaults".
+# Silently falling back discards the repo's deliberate settings and reports success.
+if [[ -f "$CONFIG_FILE" ]]; then
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "GATE ERROR — $CONFIG_FILE exists but jq is not installed; its settings would be silently ignored." >&2
+    exit 2
+  fi
+  if ! jq -e . "$CONFIG_FILE" >/dev/null 2>&1; then
+    echo "GATE ERROR — $CONFIG_FILE is not valid JSON; refusing to fall back to defaults." >&2
+    exit 2
+  fi
+fi
 
 # ── Repo shape detection ────────────────────────────────────────────────────
 # Derived, never assumed. The previous inline version referenced $SRC_DIRS with
@@ -96,7 +116,13 @@ detect_test_dir() {
   cfg=$([[ -f "$CONFIG_FILE" ]] && jqr '.testDir // empty' <"$CONFIG_FILE")
   if [[ -n "${cfg:-}" ]]; then echo "$cfg"; return; fi
   for d in tests test e2e __tests__ spec; do [[ -d "$d" ]] && { echo "$d"; return; }; done
-  echo ""   # empty → the skip-policy gate reports NOT APPLICABLE and exits 0
+  # No dedicated test dir — but colocated specs are the common layout, and returning
+  # "" made skip-policy report NOT APPLICABLE on every such repo. Point it at the
+  # source roots instead; it filters to spec files itself.
+  if git ls-files | grep -qE '\.(test|spec)\.[jt]sx?$'; then
+    detect_src_dirs; return
+  fi
+  echo ""
 }
 
 # The pipeline-causality gate's built-in default is the bare command `test`, which its
@@ -104,15 +130,20 @@ detect_test_dir() {
 # the default it reported two false positives on a correctly-chained pipeline — a gate
 # that cries wolf gets switched off. Derive the real proof command from the repo's own
 # package manager and synthesise the config when the repo has not pinned one.
-detect_proof_steps() {
-  local cfg
-  cfg=$([[ -f "$CONFIG_FILE" ]] && jqr '.proofSteps // [] | join(" ")' <"$CONFIG_FILE")
-  if [[ -n "${cfg:-}" ]]; then printf '%s' "$cfg"; return; fi
+# Emits a JSON ARRAY, not a joined string. Joining with " " turned
+# ["pnpm test","pnpm lint"] into the single command "pnpm test pnpm lint", which the
+# gate's anchored matcher can never find — silently disabling a repo's own config.
+detect_proof_steps_json() {
+  if [[ -f "$CONFIG_FILE" ]]; then
+    local arr
+    arr=$(jqr -c '.proofSteps // empty' <"$CONFIG_FILE")
+    if [[ -n "${arr:-}" && "$arr" != "null" && "$arr" != "[]" ]]; then printf '%s' "$arr"; return; fi
+  fi
   local pm="npm"
   [[ -f pnpm-lock.yaml ]] && pm="pnpm"
   [[ -f yarn.lock ]] && pm="yarn"
   [[ -f bun.lockb ]] && pm="bun"
-  printf '%s test' "$pm"
+  printf '["%s test"]' "$pm"
 }
 
 SRC_DIRS="$(detect_src_dirs)"
@@ -123,7 +154,7 @@ TEST_DIR="$(detect_test_dir)"
 PIPELINE_CFG="$GATE_STATE_DIR/pipeline.json"
 if [[ ! -f "$PIPELINE_CFG" ]]; then
   PIPELINE_CFG="$(mktemp)"
-  printf '{"proofSteps":["%s"]}\n' "$(detect_proof_steps)" > "$PIPELINE_CFG"
+  printf '{"proofSteps":%s}\n' "$(detect_proof_steps_json)" > "$PIPELINE_CFG"
   trap 'rm -f "$PIPELINE_CFG"' EXIT
 fi
 DISABLED=$([[ -f "$CONFIG_FILE" ]] && jqr '.disabled // [] | join(" ")' <"$CONFIG_FILE")
@@ -135,7 +166,7 @@ gate_args() {
     pipeline-causality)        echo "--config $PIPELINE_CFG" ;;
     form-degradation)          echo "--dir $SRC_DIRS" ;;
     trust-boundary-decoding)   echo "--dir $SRC_DIRS" ;;
-    async-child-busy-contract) echo "--dir ${SRC_DIRS%%,*}" ;;
+    async-child-busy-contract) echo "--dir $SRC_DIRS" ;;
     skip-policy)               [[ -n "$TEST_DIR" ]] && echo "--dir $TEST_DIR --config $GATE_STATE_DIR/skip.json" || echo "--dir __none__" ;;
     probe-sensitivity)         echo "--config $GATE_STATE_DIR/probe-sensitivity.json" ;;
     family-registry)           echo "--config $GATE_STATE_DIR/claim-registry.json" ;;
@@ -205,18 +236,34 @@ done
 # ── Baseline ────────────────────────────────────────────────────────────────
 # Findings are keyed by "gate<TAB>file:line" so a whole-surface gate can adopt
 # pre-existing debt without blocking the author who did not create it.
-finding_keys() { cut -f1,2 -d$'\t' "$1" | sed 's/[[:space:]]*$//' | sort -u; }
+# Key = gate + the file:line token only. Including the human-readable message meant
+# a reworded finding no longer matched its own baseline entry and re-blocked.
+finding_keys() {
+  awk -F'\t' '{ split($2, a, " "); print $1 "\t" a[1] }' "$1" | sed 's/[[:space:]]*$//' | sort -u
+}
 
 if [[ "$MODE_BASELINE_WRITE" -eq 1 ]]; then
-  {
-    echo "{"
-    echo "  \"recordedAt\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\","
-    echo "  \"sha\": \"$(git rev-parse HEAD 2>/dev/null || echo unknown)\","
-    echo "  \"accepted\": ["
-    finding_keys "$CURRENT_FINDINGS_FILE" | sed 's/"/\\"/g' | awk '{printf "%s    \"%s\"", (NR>1?",\n":""), $0} END{if(NR)print ""}'
-    echo "  ]"
-    echo "}"
-  } > "$BASELINE_FILE"
+  # Refuse a partial baseline. If a gate errored, its findings are absent from this
+  # run, so recording now would permanently accept debt that was never measured.
+  if [[ "$EXEC_ERRORS" -gt 0 ]]; then
+    echo "Refusing to write a baseline: $EXEC_ERRORS gate(s) failed to execute, so this run did not measure the full surface." >&2
+    rm -f "$CURRENT_FINDINGS_FILE"
+    exit 2
+  fi
+  # Serialised by jq, not string-concatenation: keys contain tabs, quotes and
+  # backslashes, and hand-built JSON produced a file the next run could not parse —
+  # which read as "no baseline", making every finding look new forever.
+  if command -v jq >/dev/null 2>&1; then
+    finding_keys "$CURRENT_FINDINGS_FILE" \
+      | jq -R -s --arg sha "$(git rev-parse HEAD 2>/dev/null || echo unknown)" \
+             --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          '{recordedAt:$ts, sha:$sha, accepted: (split("\n") | map(select(length>0)))}' \
+      > "$BASELINE_FILE"
+  else
+    echo "GATE ERROR — jq is required to write a baseline safely." >&2
+    rm -f "$CURRENT_FINDINGS_FILE"
+    exit 2
+  fi
   echo "Baseline written: $BASELINE_FILE ($(finding_keys "$CURRENT_FINDINGS_FILE" | wc -l | tr -d ' ') accepted finding(s))"
   rm -f "$CURRENT_FINDINGS_FILE"
   exit 0
@@ -253,6 +300,20 @@ if [[ -s "$CURRENT_FINDINGS_FILE" ]]; then
 fi
 
 # ── Report ──────────────────────────────────────────────────────────────────
+if [[ "$MODE_JSON" -eq 1 ]]; then
+  if command -v jq >/dev/null 2>&1; then
+    printf '%s\n' "${SUMMARY[@]}" \
+      | jq -R -s --argjson t "$TOTAL_FINDINGS" --argjson n "$NEW_FINDINGS" --argjson e "$EXEC_ERRORS" \
+          '{totalFindings:$t, newSinceBaseline:$n, execErrors:$e,
+            gates: (split("\n") | map(select(length>0) | ltrimstr("  ")))}'
+  else
+    echo "GATE ERROR — --json requires jq." >&2; exit 2
+  fi
+  [[ "$EXEC_ERRORS" -gt 0 ]] && exit 2
+  [[ "$NEW_FINDINGS" -gt 0 ]] && exit 1
+  exit 0
+fi
+
 echo "── craft gates ──────────────────────────────────────────"
 printf '%s\n' "${SUMMARY[@]}"
 echo "─────────────────────────────────────────────────────────"

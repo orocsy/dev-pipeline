@@ -31,9 +31,23 @@ MARKER="$HOME/.claude/.engineering-craft-last-sync"
 NOW=$(date +%s)
 LAST=0
 [[ -f "$MARKER" ]] && LAST=$(cat "$MARKER" 2>/dev/null || echo 0)
-if (( NOW - LAST > 86400 )); then
+# Rate-limit a REFRESH, never a REPAIR. A missing/empty skill left un-cloned for up to
+# 24h because a marker was written earlier means a whole day of sessions with no craft
+# priors and no gates — the limit exists to avoid needless fetches on a healthy
+# checkout, not to defer first setup.
+EC_HEALTHY=0
+[[ -d "$EC_SKILL/categories" ]] && EC_HEALTHY=1
+if (( NOW - LAST > 86400 )) || (( EC_HEALTHY == 0 )); then
   if [[ -d "$EC_SKILL/.git" ]]; then
-    ( git -C "$EC_SKILL" pull --ff-only -q >/dev/null 2>&1 && echo "$NOW" > "$MARKER" ) &
+    # Record the outcome so a persistently failing pull (diverged local commits,
+    # offline, auth) becomes visible instead of silently re-attempting forever. The
+    # `&& echo marker` form swallowed every failure: the marker simply never advanced,
+    # which is indistinguishable from "not due yet".
+    ( if git -C "$EC_SKILL" pull --ff-only -q >/dev/null 2>&1; then
+        echo "$NOW" > "$MARKER"; rm -f "$MARKER.fail"
+      else
+        echo "$NOW" > "$MARKER.fail"
+      fi ) &
   else
     # Covers BOTH "absent" and "present but not a git checkout".
     #
@@ -87,6 +101,9 @@ fi
 if [[ ! -d "$EC_SKILL/categories" ]]; then
   echo "[dev-pipeline] engineering-craft skill is MISSING or empty at $EC_SKILL — the craft priors and gates are unavailable this session. A refresh was queued; if it keeps failing: git clone --depth 1 https://github.com/orocsy/engineering-craft.git $EC_SKILL"
 else
+  if [[ -f "$MARKER.fail" ]] && [[ -n "$(find "$MARKER.fail" -maxdepth 0 -mmin +1440 2>/dev/null)" ]]; then
+    echo "[dev-pipeline] engineering-craft refresh has been FAILING for >24h (see: git -C $EC_SKILL pull --ff-only). The loaded catalog may be behind."
+  fi
   EC_RULES=$(ls "$EC_SKILL"/categories/*/rules/*.md 2>/dev/null | wc -l | tr -d ' ')
   if [[ "${EC_RULES:-0}" -lt 60 ]]; then
     echo "[dev-pipeline] engineering-craft skill looks stale (${EC_RULES} rules; expected 70+). A refresh was queued — re-check next session, or: rm -rf $EC_SKILL && git clone --depth 1 https://github.com/orocsy/engineering-craft.git $EC_SKILL"
