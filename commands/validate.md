@@ -97,6 +97,31 @@ fi
 
 ---
 
+## STEP 2.7: Executable craft gates (MANDATORY, unconditional)
+
+Same gate set as `/dev-pipeline:review` STEP 1.7, run here too because **this command does
+not invoke review** — it is a peer gate chain, not a caller. A gate wired only into the
+review path never fires for anyone who validates and commits, which is the family-addition
+failure the gates themselves exist to catch. (Found by dogfooding: the review that
+introduced STEP 1.7 enumerated its own sibling commands and found `validate.md` uncovered.)
+
+```bash
+GATES="$HOME/.claude/skills/engineering-craft/templates"
+[ -d "$GATES" ] || echo "⚠ craft gates unavailable — engineering-craft skill not bootstrapped; recording as a gap, not skipping silently"
+
+# Every gate exits 0 when its target is absent, printing "NOT APPLICABLE — …".
+# Exit 1 always means findings, never "this repo has no workflows/TS/config".
+for g in pipeline-causality form-degradation skip-policy trust-boundary-decoding \
+         async-child-busy-contract probe-sensitivity family-registry; do
+  [ -f "$GATES/$g.template.mjs" ] && node "$GATES/$g.template.mjs" ${GATE_ARGS[$g]:-}
+done
+```
+
+Severity mapping and the baseline rule are identical to review STEP 1.7 — see that step;
+do not restate them here, so the two cannot drift apart.
+
+---
+
 ## STEP 3: Unit Tests
 
 ```bash

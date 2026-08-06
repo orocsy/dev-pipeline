@@ -34,8 +34,33 @@ LAST=0
 if (( NOW - LAST > 86400 )); then
   if [[ -d "$EC_SKILL/.git" ]]; then
     ( git -C "$EC_SKILL" pull --ff-only -q >/dev/null 2>&1 && echo "$NOW" > "$MARKER" ) &
-  elif [[ ! -d "$EC_SKILL" ]]; then
-    ( git clone -q --depth 1 https://github.com/orocsy/engineering-craft.git "$EC_SKILL" >/dev/null 2>&1 && echo "$NOW" > "$MARKER" ) &
+  else
+    # Covers BOTH "absent" and "present but not a git checkout".
+    #
+    # The previous `elif [[ ! -d "$EC_SKILL" ]]` left the third state — the
+    # directory exists and is NOT a repo — with no branch, so the refresh was a
+    # silent no-op. It stayed that way for a month: the loaded skill sat 25 rules
+    # and three whole categories behind the published catalog while every session
+    # believed it was current. A refresh that cannot report its own failure is
+    # indistinguishable from one that is working.
+    ( TMP="$(mktemp -d)" \
+      && git clone -q --depth 1 https://github.com/orocsy/engineering-craft.git "$TMP/ec" >/dev/null 2>&1 \
+      && rm -rf "$EC_SKILL.old" \
+      && { [[ -e "$EC_SKILL" ]] && mv "$EC_SKILL" "$EC_SKILL.old" || true; } \
+      && mv "$TMP/ec" "$EC_SKILL" \
+      && { [[ -f "$EC_SKILL.old/.public-mirror-config" ]] && cp "$EC_SKILL.old/.public-mirror-config" "$EC_SKILL/" || true; } \
+      && rm -rf "$EC_SKILL.old" "$TMP" \
+      && echo "$NOW" > "$MARKER" ) &
+  fi
+fi
+
+# Staleness is reported, not just repaired: the repair is async and rate-limited,
+# so a session that starts against a stale copy must be told rather than left to
+# assume the catalog it can see is the catalog that exists.
+if [[ -d "$EC_SKILL/categories" ]]; then
+  EC_RULES=$(ls "$EC_SKILL"/categories/*/rules/*.md 2>/dev/null | wc -l | tr -d ' ')
+  if [[ "${EC_RULES:-0}" -lt 60 ]]; then
+    echo "[dev-pipeline] engineering-craft skill looks stale (${EC_RULES} rules; expected 70+). A refresh was queued — re-check next session, or: rm -rf ~/.claude/skills/engineering-craft && git clone --depth 1 https://github.com/orocsy/engineering-craft.git ~/.claude/skills/engineering-craft"
   fi
 fi
 

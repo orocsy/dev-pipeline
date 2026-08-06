@@ -57,7 +57,7 @@ After G4: Phases 7–12 run without further approval.
 11. **Fix the class, not the instance** — before "fixed": what other inputs share this root cause?
 12. **No file is out of scope** — config/build/infra files are fixable; prefer the simpler fix one layer up.
 13. **Self-correct mid-process** — when an assumption is corrected, stop, list dependent work, redo it in the same turn.
-14. **Cross-checks are constraints, not manual gates** — every gate must fire automatically; if a ship can complete without a gate firing, wire the missing trigger.
+14. **Cross-checks are constraints, not manual gates** — every gate must fire automatically; if a ship can complete without a gate firing, wire the missing trigger. **Scope is the FAMILY the change joins, not the diff**, and triggers match SHAPE over vocabulary: a rule keyed to `consumedAt` cannot fire on `status: pending → active`. When a rule existed and still did not fire, fix the TRIGGER, not the prose — move it from words a human must match to a surface a machine enumerates (`/dev-pipeline:review` STEP 1.7).
 15. **Raised PR ≠ shippable PR** — check mergeable state immediately after `gh pr create`; a CONFLICTING PR gets no review automation.
 16. **Frontend changes get E2E against the deploy preview** before merge — unit tests can't see SSR/hydration/basePath reality.
 17. **Production smoke after every deploy** — preview green ≠ production green; run the narrow smoke suite against prod URLs.

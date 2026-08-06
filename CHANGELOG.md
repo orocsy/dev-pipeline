@@ -12,6 +12,49 @@ Conventions:
 
 ---
 
+## 2026-08-06 — Review runs the craft GATES, not just the priors; skill refresh unbroken
+
+Mined 1,011 external-reviewer (Codex) findings across 152 PRs in four repos into 18
+recurring classes. The finding that drove these changes: **for most classes the craft
+catalog already held the right rule and it did not fire** — several rules record the very
+incident they later failed to prevent. Every firing mechanism was diff-scoped and keyed to
+vocabulary, so a synonym or an untouched sibling escaped all of them.
+
+- **`hooks/session-start.sh` — engineering-craft refresh was a silent no-op.** The branch
+  chain was `if [[ -d $EC/.git ]] … elif [[ ! -d $EC ]]`, leaving the third state — the
+  directory exists and is NOT a git checkout — with no branch at all. That is exactly the
+  `reachable-state-with-no-exit` class, in the hook meant to keep the class catalog
+  current. It had been silent for a month: the loaded skill sat 25 rules and 3 whole
+  categories behind the published catalog while every session believed it was current.
+  Now re-clones over a non-repo directory (atomically, preserving `.public-mirror-config`)
+  and **reports staleness** when the loaded copy has implausibly few rules — a refresh that
+  cannot report its own failure is indistinguishable from one that works.
+- **`commands/review.md` STEP 1.7 — run the executable gates, unconditionally.** STEP 1.5
+  loads *priors* (prose a reviewer must remember); STEP 1.7 runs *gates* (code that
+  decides): `probe-sensitivity`, `family-registry`, `pipeline-causality`,
+  `form-degradation`, `trust-boundary-decoding`, `skip-policy`,
+  `async-child-busy-contract`. Unconditional by design — their value is re-checking
+  surfaces the diff did NOT touch, so a gate enumerating the whole surface cannot be "not
+  consulted". Baseline-gated so first adoption reports debt without blocking, because a
+  gate that cannot be run on day one gets switched off.
+- **`commands/review.md` STEP 1.5 — new triggers, and scope widened past the diff.** Added
+  verification-integrity, family-addition (fires on ADDITION, which every existing sibling
+  grep misses), shape-keyed one-shot transitions, progressive-degradation, pipeline
+  causality, and collected-constraint triggers. Every grep now runs a second time over the
+  files the diff DEPENDS ON.
+- **`commands/review.md` reviewer D.5 — external-review-class reviewer.** Carries the eight
+  highest-recurrence classes as an explicit lens, with family-addition, one-shot
+  transitions and check-integrity escalating to P1.
+- **Rule 14 sharpened** (`CLAUDE.md`): scope is the family the change joins; triggers match
+  shape over vocabulary; when a rule existed and did not fire, fix the TRIGGER, not the prose.
+- **`skills/cross-file-reasoning/FAILURE_MODES.md`** — the Index listed 10 of 13 modes;
+  #11–13 were appended without index rows and were unreachable. Index completeness is
+  load-bearing and is now stated as such.
+
+Catalog side (engineering-craft `ec46f2c`): new categories `verification-integrity` and
+`progressive-degradation`, 8 new rules, 8 gate templates, `checklists/impl-time-gates.md`,
+and the full report + taxonomy + adversarial verdicts under `reports/`.
+
 ## 2026-07-24 — Worktree reclaim on session start
 
 - **`hooks/worktree-reclaim.sh`** (SessionStart). Agent worktrees under

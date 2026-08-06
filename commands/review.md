@@ -101,7 +101,57 @@ git diff "$BASE"..HEAD | grep -E '^\+.*\}, \[[^]]*\]\);?' | head -3
 # Accessibility state-sync triggers — match added AND removed lines
 # (^[+-]): a deleted role=/aria- attribute is a regression, so removed a11y attributes are findings too
 git diff "$BASE"..HEAD | grep -E '^[+-].*(role=|aria-[a-z]+=)' | head -5
+
+# ── Verification-integrity triggers (a green signal that is not checking) ────
+# A probe/assertion added or edited in this diff is itself unreviewed until you
+# have seen it fail. Whole-file substring checks are the specific shape that
+# false-PASSes: the needle is satisfied by a call site the claim says nothing about.
+git diff "$BASE"..HEAD | grep -E '^\+.*(containsAll|\.includes\(|readFileSync\([^)]*\).*(match|test)\(|grep -)' | head -5
+git diff "$BASE"..HEAD --name-only | grep -E 'scripts/(verify|smoke|check)-' | head -5
+# Skips: a hard skip is permanently-green zero coverage; a conditional skip is
+# MOST likely to fire exactly when the environment is broken.
+git diff "$BASE"..HEAD | grep -E '^\+.*(test|it|describe|suite)\s*\.\s*(skip|fixme|todo)\s*\(|^\+.*\bxit\(' | head -5
+# Trust boundaries: `as T` is erased at build time and validates nothing.
+git diff "$BASE"..HEAD | grep -E '^\+.*(\.json\(\)|JSON\.parse|localStorage\.getItem|sessionStorage\.getItem)[^;]{0,80}\bas\s+(?!unknown|const|any)' -P | head -5
+
+# ── Family-addition trigger (fires on ADDITION, which every sibling grep misses) ──
+# A new member of an existing family inherits none of the family's invariants.
+# Every other trigger in this file matches a SUBTRACTIVE or in-place edit.
+git diff "$BASE"..HEAD | grep -E "^\+\s*case ['\"][A-Za-z0-9_]+['\"]\s*:" | head -5
+git diff "$BASE"..HEAD | grep -E '^\+.*(@(Get|Post|Put|Patch|Delete|Controller)\(|router\.(get|post|put|patch|delete)\(|app\.(get|post|put|patch|delete)\()' | head -5
+
+# ── One-shot transition trigger — SHAPE, not vocabulary ─────────────────────
+# `consumedAt`/`usedAt` above is a field-name list; a finalize handler spelled
+# `status: pending → active` matches none of it and shipped without a CAS claim.
+git diff "$BASE"..HEAD | grep -E '^\+.*(function|const)\s+\w*(finalize|complete|activate|settle|claim|publish|redeem)\w*\s*[(=]' -i | head -5
+git diff "$BASE"..HEAD | grep -E "^\+.*status\s*[:=]\s*['\"](active|published|completed|settled|confirmed)['\"]" | head -5
+
+# ── Progressive-degradation trigger ─────────────────────────────────────────
+# A <form> with no method natively submits GET — every field into the URL.
+git diff "$BASE"..HEAD | grep -E '^\+.*<form' | head -5
+
+# ── Pipeline causality trigger ──────────────────────────────────────────────
+git diff "$BASE"..HEAD --name-only | grep -E '^\.github/workflows/' | head -5
+
+# ── Collected-constraint trigger ────────────────────────────────────────────
+# A value captured to CONSTRAIN later behaviour must reach every decision that
+# must honour it; the largest cluster in the 2026-08-06 corpus dropped an allergy.
+git diff "$BASE"..HEAD | grep -E '^\+.*(allerg|restriction|dietary|consent|entitlement|quietHours|ageGate|tenantId)' -i | head -5
 ```
+
+> **Scope the greps to the SURFACE, not the diff.** Run every grep above a second
+> time over the files the diff DEPENDS ON — the modules it imports, and the
+> sibling members of any family it joins (other `case`s in the same dispatcher,
+> other routes in the same controller). A rule consulted only against added lines
+> cannot see the twin that already carries the invariant, which is how a finalize
+> handler shipped with no single-winner claim while its sibling in the same file
+> had one:
+>
+> ```bash
+> # Files the diff depends on, one hop out
+> git diff "$BASE"..HEAD --name-only | xargs -I{} grep -ohE "from ['\"]([./][^'\"]+)" {} 2>/dev/null \
+>   | sed "s/from ['\"]//" | sort -u | head -20
+> ```
 
 For each category that fires:
 
@@ -164,6 +214,59 @@ If it BLOCKS (a called/stubbed method is absent from the installed types, borrow
 
 ---
 
+## STEP 1.7: Run the executable craft gates (MANDATORY, unconditional)
+
+STEP 1.5 loads *priors* — prose a reviewer must remember to apply. This step runs
+*gates* — code that decides. Run these on **every** review regardless of what the diff
+touched, because their whole value is that they re-check surfaces the diff did not touch.
+
+That property is the point. A 2026-08-06 mining pass over 1,011 external-review findings
+found that for most recurring classes the catalog already held the right rule and it did
+not fire — several rules even record the very incident they later failed to prevent. The
+common cause was that every trigger was keyed to vocabulary appearing in the diff. A gate
+enumerating the whole surface cannot be "not consulted".
+
+```bash
+GATES="$HOME/.claude/skills/engineering-craft/templates"
+
+# Exit 0 = clean OR not applicable; exit 1 = findings, always and only.
+# A gate whose target is absent prints "NOT APPLICABLE — <what was missing>" and
+# exits 0. Conflating "this repo has no workflows" with "violations found" is a
+# false RED, and a step that hard-blocks every repo lacking the surface gets removed.
+node "$GATES/pipeline-causality.template.mjs"        --config .claude/gates/pipeline.json 2>/dev/null
+node "$GATES/form-degradation.template.mjs"          --dir "$SRC_DIRS"
+node "$GATES/skip-policy.template.mjs"               --dir "$TEST_DIR" --config .claude/gates/skip.json 2>/dev/null
+node "$GATES/trust-boundary-decoding.template.mjs"   --dir "$SRC_DIRS"
+node "$GATES/async-child-busy-contract.template.mjs" --dir "$SRC_DIRS"
+node "$GATES/probe-sensitivity.template.mjs"         --config .claude/gates/probe-sensitivity.json 2>/dev/null
+node "$GATES/family-registry.template.mjs"           --config .claude/gates/claim-registry.json 2>/dev/null
+```
+
+**Severity mapping** — a gate finding is evidence, not an automatic block:
+
+| Gate | Finding severity | Why |
+|---|---|---|
+| `probe-sensitivity` | **P1** | A probe that stays green on an injected defect is worse than no probe — everything downstream trusts it |
+| `family-registry` | **P1** if an action is `claimed` with no primitive; **P2** if merely unclassified | Registry drift reads as verified; unclassified is an undecided question |
+| `pipeline-causality` | **P1** | A red suite can ship |
+| `form-degradation` | **P1** if the form carries credentials/PII; else **P2** | The no-JS path puts fields in the URL, history and `Referer` |
+| `trust-boundary-decoding` | **P2** | Real, but the blast radius is a later TypeError |
+| `skip-policy` | **P2** | Absent coverage reading as present |
+| `async-child-busy-contract` | **P2** | A partial save that reports success |
+
+**Pre-existing findings do not block this diff.** These gates enumerate the whole surface,
+so on first adoption they will report debt the current author did not create. Record the
+baseline in `.claude/gates/baseline.json` and block only on findings **new since the
+baseline** — otherwise the gate is unrunnable on day one and gets switched off, which is
+how a repo ends up with no gate at all. Findings inside the diff's own files always block
+at the severity above.
+
+If the gates are absent (`$GATES` missing — the skill did not bootstrap), note it in the
+findings and continue. Do NOT silently skip: an unreported skipped gate is the exact
+false-green this step exists to prevent.
+
+---
+
 ## STEP 2: Run Parallel Reviewers (MANDATORY)
 
 Announce before spawning each agent:
@@ -175,6 +278,7 @@ Announce before spawning each agent:
 🤖 [dev-pipeline] spawning: typescript-reviewer — type safety audit (if .ts/.tsx in diff)
 🤖 [dev-pipeline] spawning: security-reviewer — auth, env vars, SQL, user input (if applicable)
 🤖 [dev-pipeline] spawning: test-reviewer — test coverage + mock completeness
+🤖 [dev-pipeline] spawning: external-review-class-reviewer — the 8 classes external reviewers keep finding
 🤖 [dev-pipeline] spawning: code-review-plugin — 5-agent sweep (if installed)
 ```
 
@@ -206,6 +310,37 @@ Launch these reviewers in parallel. Each gets its own context window. Do NOT run
 
 **D. Test reviewer** (if test files changed OR production code changed without test changes)
 - Prompt: "Review: are the tests actually testing the behaviour change? Any `.only` / `.skip`? Mock completeness — are all interface fields present? Did production code change without matching test updates? **Cross-file lens**: if production code added a new method / new constructor arg / new side effect, verify every spec that instantiates the class provides it. Look for `services-page.test.tsx`-style tautologies (test rewritten to match new behavior — see FAILURE_MODES.md #10)."
+
+**D.5. External-review-class reviewer** (always — the perspectives an external AI reviewer keeps finding)
+
+- Prompt: "Load `~/.claude/skills/engineering-craft/checklists/impl-time-gates.md` and
+  `categories/verification-integrity/README.md` first. Review this diff through the failure
+  CLASSES mined from 1,011 external-reviewer findings across four repos. For each, answer the
+  checklist's question against THIS diff and cite file:line, or state the class does not apply:
+
+  1. **Did you join a family?** Is the thing added a new member of an existing family (a new
+     `case` in a dispatcher, a new route serving an existing data class, a new handler for an
+     existing token class)? Enumerate the family's existing members and the invariants they
+     carry. Does the new one carry each? *This is the highest-recurrence class and the one no
+     other reviewer catches, because the twin is not in the diff.*
+  2. **One-shot transitions** — match on SHAPE not vocabulary. `pending → active`,
+     `draft → published`, any `finalize`/`complete`/`activate`/`settle` handler is a one-shot
+     transition exactly as much as `consumedAt` is. Is the write predicated on the pre-state?
+  3. **Multi-store durability** — for every early return/throw after a remote mutation, what
+     is durable if the process dies there? Does the failure path compensate?
+  4. **Have you seen the checks fail?** For any probe/assertion added or relied on: does it
+     bind to the SUBJECT or merely to a TOKEN that appears somewhere in the file? Any skip?
+  5. **Degraded mode** — what does this surface do when the script has not run?
+  6. **Trust boundaries** — parsed or cast? Does the client type declare fields the server
+     never sends?
+  7. **Presentation vs authorization** — is any entitlement rendered from a cached/derived
+     copy the server would answer differently?
+  8. **Collected constraints** — does a value captured to CONSTRAIN behaviour reach every
+     decision that must honour it? (The largest cluster in the corpus dropped an allergy.)
+
+  Rank P1/P2/P3. A class you cannot rule out is a finding, not a pass."
+- Input: `git diff $BASE..HEAD` + the STEP 1.7 gate output + the dependency-closure file list from STEP 1.5
+- Severity escalation: findings 1, 2 and 4 escalate to **P1** — each has shipped to production in this codebase family.
 
 **E. Delegate to installed `/code-review`** (the 5-agent plugin)
 If the `/code-review` slash command is installed (from the `code-review` plugin), invoke it in parallel with A–D. It runs its own 5-agent sweep (CLAUDE.md compliance, bug scan, git history, prior PR comments, inline comments) with a 0–100 score.
