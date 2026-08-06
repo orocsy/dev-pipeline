@@ -43,24 +43,53 @@ if (( NOW - LAST > 86400 )); then
     # and three whole categories behind the published catalog while every session
     # believed it was current. A refresh that cannot report its own failure is
     # indistinguishable from one that is working.
-    ( TMP="$(mktemp -d)" \
-      && git clone -q --depth 1 https://github.com/orocsy/engineering-craft.git "$TMP/ec" >/dev/null 2>&1 \
-      && rm -rf "$EC_SKILL.old" \
-      && { [[ -e "$EC_SKILL" ]] && mv "$EC_SKILL" "$EC_SKILL.old" || true; } \
-      && mv "$TMP/ec" "$EC_SKILL" \
-      && { [[ -f "$EC_SKILL.old/.public-mirror-config" ]] && cp "$EC_SKILL.old/.public-mirror-config" "$EC_SKILL/" || true; } \
-      && rm -rf "$EC_SKILL.old" "$TMP" \
-      && echo "$NOW" > "$MARKER" ) &
+    # SERIALIZED. This branch moves the live skill directory aside and swaps a fresh
+    # clone into its place. Two sessions starting together would both pass the
+    # `-d .git` test, both mkdir their own temp clone, and race on the mv — the loser
+    # can leave the skill at `$EC_SKILL.old` and nothing at `$EC_SKILL`, i.e. a
+    # destructive repair that DELETES the catalog it was meant to refresh. Concurrent
+    # sessions are the normal case here, not the edge case.
+    ( LOCK="$HOME/.claude/.engineering-craft-refresh.lock"
+      if ! mkdir "$LOCK" 2>/dev/null; then
+        # Another session owns the swap. Stale-lock guard: if the owner died, the
+        # directory would block every future refresh forever.
+        if [[ -n "$(find "$LOCK" -maxdepth 0 -mmin +10 2>/dev/null)" ]]; then
+          rmdir "$LOCK" 2>/dev/null || true
+        fi
+        exit 0
+      fi
+      trap 'rmdir "$LOCK" 2>/dev/null || true' EXIT
+      TMP="$(mktemp -d)"
+      if git clone -q --depth 1 https://github.com/orocsy/engineering-craft.git "$TMP/ec" >/dev/null 2>&1 \
+         && [[ -d "$TMP/ec/categories" ]]; then
+        rm -rf "$EC_SKILL.old"
+        [[ -e "$EC_SKILL" ]] && mv "$EC_SKILL" "$EC_SKILL.old"
+        if mv "$TMP/ec" "$EC_SKILL"; then
+          [[ -f "$EC_SKILL.old/.public-mirror-config" ]] && cp "$EC_SKILL.old/.public-mirror-config" "$EC_SKILL/"
+          rm -rf "$EC_SKILL.old"
+          echo "$NOW" > "$MARKER"
+        else
+          # Swap failed after the move-aside — restore rather than leave nothing.
+          [[ -d "$EC_SKILL.old" ]] && mv "$EC_SKILL.old" "$EC_SKILL"
+        fi
+      fi
+      rm -rf "$TMP" ) &
   fi
 fi
 
 # Staleness is reported, not just repaired: the repair is async and rate-limited,
 # so a session that starts against a stale copy must be told rather than left to
 # assume the catalog it can see is the catalog that exists.
-if [[ -d "$EC_SKILL/categories" ]]; then
+#
+# Reported for BOTH failure shapes. The first cut only entered this block when
+# `$EC_SKILL/categories` existed, so the worst case — no skill at all, or a clone
+# that died leaving an empty directory — printed nothing and read as healthy.
+if [[ ! -d "$EC_SKILL/categories" ]]; then
+  echo "[dev-pipeline] engineering-craft skill is MISSING or empty at $EC_SKILL — the craft priors and gates are unavailable this session. A refresh was queued; if it keeps failing: git clone --depth 1 https://github.com/orocsy/engineering-craft.git $EC_SKILL"
+else
   EC_RULES=$(ls "$EC_SKILL"/categories/*/rules/*.md 2>/dev/null | wc -l | tr -d ' ')
   if [[ "${EC_RULES:-0}" -lt 60 ]]; then
-    echo "[dev-pipeline] engineering-craft skill looks stale (${EC_RULES} rules; expected 70+). A refresh was queued — re-check next session, or: rm -rf ~/.claude/skills/engineering-craft && git clone --depth 1 https://github.com/orocsy/engineering-craft.git ~/.claude/skills/engineering-craft"
+    echo "[dev-pipeline] engineering-craft skill looks stale (${EC_RULES} rules; expected 70+). A refresh was queued — re-check next session, or: rm -rf $EC_SKILL && git clone --depth 1 https://github.com/orocsy/engineering-craft.git $EC_SKILL"
   fi
 fi
 

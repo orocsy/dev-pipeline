@@ -29,6 +29,15 @@ vocabulary, so a synonym or an untouched sibling escaped all of them.
   Now re-clones over a non-repo directory (atomically, preserving `.public-mirror-config`)
   and **reports staleness** when the loaded copy has implausibly few rules — a refresh that
   cannot report its own failure is indistinguishable from one that works.
+- **`tools/run-craft-gates.sh`** — the gate invocation is now a SCRIPT, not a fenced
+  block. The first cut lived as bash inside `review.md` and referenced `$SRC_DIRS`/`$TEST_DIR`
+  that nothing set, `${GATE_ARGS[...]}` that was never declared, and a baseline comparison
+  with no implementation. A code fence in a command file is read, never run, so nobody
+  noticed — every "verification" ran the gates by hand with different arguments, which is a
+  different program. Three distinct exit codes (0 clean/NA · 1 findings · 2 gate execution
+  error), per-template existence checks, repo-shape detection, and real baseline
+  persistence. Wired into review, validate, pr-review, fix-review and fix — the whole
+  gate-running family, not one member of it.
 - **`commands/review.md` STEP 1.7 — run the executable gates, unconditionally.** STEP 1.5
   loads *priors* (prose a reviewer must remember); STEP 1.7 runs *gates* (code that
   decides): `probe-sensitivity`, `family-registry`, `pipeline-causality`,

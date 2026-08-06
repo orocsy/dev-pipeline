@@ -65,3 +65,20 @@ Present fix summary:
 - Review status after re-review
 
 If `task_plan.md` exists, update Phase 11 as complete.
+
+---
+
+## Before you call it fixed: run the gates
+
+This command does not reach `/dev-pipeline:validate` or `/dev-pipeline:review`, so a fix
+landed here is otherwise ungated. Run the craft gates against the files you touched before
+declaring the fix complete:
+
+```bash
+git diff --name-only HEAD > /tmp/changed-files.txt
+tools/run-craft-gates.sh --changed-files /tmp/changed-files.txt
+# 0 clean/NA · 1 findings · 2 gate execution error (gates did NOT run — not a pass)
+```
+
+A fix that closes one finding and opens another is the single most common way a review
+round becomes three. Then `/dev-pipeline:review` to re-bless HEAD before pushing.

@@ -112,7 +112,16 @@ git diff "$BASE"..HEAD --name-only | grep -E 'scripts/(verify|smoke|check)-' | h
 # MOST likely to fire exactly when the environment is broken.
 git diff "$BASE"..HEAD | grep -E '^\+.*(test|it|describe|suite)\s*\.\s*(skip|fixme|todo)\s*\(|^\+.*\bxit\(' | head -5
 # Trust boundaries: `as T` is erased at build time and validates nothing.
-git diff "$BASE"..HEAD | grep -E '^\+.*(\.json\(\)|JSON\.parse|localStorage\.getItem|sessionStorage\.getItem)[^;]{0,80}\bas\s+(?!unknown|const|any)' -P | head -5
+# THREE cheap greps chained, deliberately:
+#  - not `grep -P`: the PCRE lookahead is GNU/ugrep-only, so on stock macOS/BSD grep
+#    the line silently matched nothing — indistinguishable from "no hits".
+#  - not one ERE with `[^;]{0,80}` before the alternation either: that bounded repeat
+#    hung ugrep 7.5 outright, which is worse than the silent miss it replaced.
+#  Chaining keeps each pattern linear and portable.
+git diff "$BASE"..HEAD \
+  | grep -E '^\+.*(\.json\(\)|JSON\.parse|localStorage\.getItem|sessionStorage\.getItem)' \
+  | grep -E '[[:space:]]as[[:space:]]+[A-Za-z_$]' \
+  | grep -Ev '[[:space:]]as[[:space:]]+(unknown|const|any)([^A-Za-z0-9_]|$)' | head -5
 
 # ── Family-addition trigger (fires on ADDITION, which every sibling grep misses) ──
 # A new member of an existing family inherits none of the family's invariants.
@@ -148,9 +157,19 @@ git diff "$BASE"..HEAD | grep -E '^\+.*(allerg|restriction|dietary|consent|entit
 > had one:
 >
 > ```bash
-> # Files the diff depends on, one hop out
-> git diff "$BASE"..HEAD --name-only | xargs -I{} grep -ohE "from ['\"]([./][^'\"]+)" {} 2>/dev/null \
->   | sed "s/from ['\"]//" | sort -u | head -20
+> # Files the diff depends on, one hop out — RESOLVED to real repo paths.
+> # A bare specifier like '../lib/foo' is not a file: it needs the importer's
+> # directory prepended and an extension/index resolved, or the grep below runs
+> # against paths that do not exist and silently finds nothing.
+> git diff "$BASE"..HEAD --name-only | while IFS= read -r f; do
+>   [ -f "$f" ] || continue
+>   d="$(dirname "$f")"
+>   grep -ohE "from ['\"](\.[^'\"]+)" "$f" 2>/dev/null | sed -E "s/from ['\"]//" | while IFS= read -r spec; do
+>     for cand in "$d/$spec" "$d/$spec.ts" "$d/$spec.tsx" "$d/$spec.js" "$d/$spec/index.ts"; do
+>       [ -f "$cand" ] && { printf '%s\n' "$(cd "$(dirname "$cand")" && pwd)/$(basename "$cand")"; break; }
+>     done
+>   done
+> done | sort -u | sed "s|^$PWD/||" | head -20
 > ```
 
 For each category that fires:
@@ -227,20 +246,22 @@ common cause was that every trigger was keyed to vocabulary appearing in the dif
 enumerating the whole surface cannot be "not consulted".
 
 ```bash
-GATES="$HOME/.claude/skills/engineering-craft/templates"
-
-# Exit 0 = clean OR not applicable; exit 1 = findings, always and only.
-# A gate whose target is absent prints "NOT APPLICABLE — <what was missing>" and
-# exits 0. Conflating "this repo has no workflows" with "violations found" is a
-# false RED, and a step that hard-blocks every repo lacking the surface gets removed.
-node "$GATES/pipeline-causality.template.mjs"        --config .claude/gates/pipeline.json 2>/dev/null
-node "$GATES/form-degradation.template.mjs"          --dir "$SRC_DIRS"
-node "$GATES/skip-policy.template.mjs"               --dir "$TEST_DIR" --config .claude/gates/skip.json 2>/dev/null
-node "$GATES/trust-boundary-decoding.template.mjs"   --dir "$SRC_DIRS"
-node "$GATES/async-child-busy-contract.template.mjs" --dir "$SRC_DIRS"
-node "$GATES/probe-sensitivity.template.mjs"         --config .claude/gates/probe-sensitivity.json 2>/dev/null
-node "$GATES/family-registry.template.mjs"           --config .claude/gates/claim-registry.json 2>/dev/null
+# One entry point. Defined variables, per-gate arguments, per-template existence
+# checks, baseline persistence and result aggregation all live in the script — a
+# fenced block here would be READ, not RUN, which is exactly how the first cut of
+# this step shipped referencing $SRC_DIRS and $TEST_DIR that nothing ever set.
+git diff --name-only "$BASE"..HEAD > /tmp/changed-files.txt
+tools/run-craft-gates.sh --changed-files /tmp/changed-files.txt
+GATE_RC=$?
 ```
+
+`GATE_RC` has three distinct meanings — do not collapse them:
+
+| rc | Meaning | Action |
+|----|---------|--------|
+| 0 | clean, or no gate applies to this repo | continue |
+| 1 | findings **new since baseline**, or any finding in a file this diff touched | apply the severity table below |
+| 2 | **gate execution error** — a template is missing, crashed, or broke its own exit contract | **P1**. The gates did not run; this is not a pass. Fix the setup and re-run. |
 
 **Severity mapping** — a gate finding is evidence, not an automatic block:
 
@@ -314,7 +335,7 @@ Launch these reviewers in parallel. Each gets its own context window. Do NOT run
 **D.5. External-review-class reviewer** (always — the perspectives an external AI reviewer keeps finding)
 
 - Prompt: "Load `~/.claude/skills/engineering-craft/checklists/impl-time-gates.md` and
-  `categories/verification-integrity/README.md` first. Review this diff through the failure
+  `~/.claude/skills/engineering-craft/categories/verification-integrity/README.md` first. Review this diff through the failure
   CLASSES mined from 1,011 external-reviewer findings across four repos. For each, answer the
   checklist's question against THIS diff and cite file:line, or state the class does not apply:
 

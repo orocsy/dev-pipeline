@@ -54,6 +54,26 @@ All must pass before proceeding.
 
 ---
 
+## STEP 3.9: Gate the fixes before pushing them (MANDATORY)
+
+A review-fix commit is still a commit. This command reaches neither
+`/dev-pipeline:validate` nor `/dev-pipeline:review`, so without this step a fix round
+pushes code that no gate has seen — and a fix made under time pressure to close a
+reviewer's finding is exactly when a second one gets introduced.
+
+```bash
+git diff --name-only HEAD > /tmp/changed-files.txt
+tools/run-craft-gates.sh --changed-files /tmp/changed-files.txt
+GATE_RC=$?   # 0 clean/NA · 1 findings · 2 gate execution error — gates did NOT run
+```
+
+`2` blocks: the gates did not run, which is not a pass. `1` blocks when the finding is
+in a file this fix touched. Then run `/dev-pipeline:review` to re-bless HEAD — the
+pre-push hook refuses the push otherwise, and every new commit invalidates the previous
+blessing.
+
+---
+
 ## STEP 4: Commit and Push
 
 ```bash

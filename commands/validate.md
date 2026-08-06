@@ -106,16 +106,13 @@ failure the gates themselves exist to catch. (Found by dogfooding: the review th
 introduced STEP 1.7 enumerated its own sibling commands and found `validate.md` uncovered.)
 
 ```bash
-GATES="$HOME/.claude/skills/engineering-craft/templates"
-[ -d "$GATES" ] || echo "⚠ craft gates unavailable — engineering-craft skill not bootstrapped; recording as a gap, not skipping silently"
-
-# Every gate exits 0 when its target is absent, printing "NOT APPLICABLE — …".
-# Exit 1 always means findings, never "this repo has no workflows/TS/config".
-for g in pipeline-causality form-degradation skip-policy trust-boundary-decoding \
-         async-child-busy-contract probe-sensitivity family-registry; do
-  [ -f "$GATES/$g.template.mjs" ] && node "$GATES/$g.template.mjs" ${GATE_ARGS[$g]:-}
-done
+tools/run-craft-gates.sh
+GATE_RC=$?   # 0 clean/NA · 1 findings · 2 gate execution error (P1 — gates did NOT run)
 ```
+
+Aggregate `GATE_RC` into the Phase 8 summary alongside lint/typecheck/tests/build.
+A non-zero here fails the phase exactly like a failing test would; `2` fails it harder,
+because an unrun gate is a bigger problem than a known finding.
 
 Severity mapping and the baseline rule are identical to review STEP 1.7 — see that step;
 do not restate them here, so the two cannot drift apart.
