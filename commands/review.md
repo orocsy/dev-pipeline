@@ -264,8 +264,12 @@ if [ -z "$GATE_RUNNER" ]; then
   echo "GATE ERROR — run-craft-gates.sh not found (looked in \$CLAUDE_PLUGIN_ROOT, the marketplace path, and ./tools)."
   echo "  The gates did NOT run. This is a P1, not a pass."
 else
-  git diff --name-only "$BASE"..HEAD > /tmp/changed-files.txt
-  "$GATE_RUNNER" --changed-files /tmp/changed-files.txt
+  # Per-invocation path: a fixed /tmp name lets a concurrent session
+  # overwrite the list before the runner reads it, silently restoring a
+  # baseline amnesty for a file this diff actually touched.
+  CHANGED_LIST="$(mktemp)"; trap \'rm -f "$CHANGED_LIST"\' EXIT
+  git diff --name-only "$BASE"..HEAD > "$CHANGED_LIST"
+  "$GATE_RUNNER" --changed-files "$CHANGED_LIST"
   GATE_RC=$?
 fi
 ```

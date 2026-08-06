@@ -46,7 +46,10 @@ if (( NOW - LAST > 86400 )) || (( EC_HEALTHY == 0 )); then
     ( if git -C "$EC_SKILL" pull --ff-only -q >/dev/null 2>&1; then
         echo "$NOW" > "$MARKER"; rm -f "$MARKER.fail"
       else
-        echo "$NOW" > "$MARKER.fail"
+        # Write ONCE and keep the first failure's timestamp. Overwriting on every
+        # session start refreshed the mtime, so the >24h staleness test below could
+        # never fire and a permanently failing checkout stayed silent indefinitely.
+        [[ -f "$MARKER.fail" ]] || echo "$NOW" > "$MARKER.fail"
       fi ) &
   else
     # Covers BOTH "absent" and "present but not a git checkout".
@@ -74,7 +77,10 @@ if (( NOW - LAST > 86400 )) || (( EC_HEALTHY == 0 )); then
       fi
       trap 'rmdir "$LOCK" 2>/dev/null || true' EXIT
       TMP="$(mktemp -d)"
-      if git clone -q --depth 1 https://github.com/orocsy/engineering-craft.git "$TMP/ec" >/dev/null 2>&1 \
+      # Same remote as setup-machine and review's bootstrap. Cloning upstream over a
+      # configured fork replaced its catalog and then deleted the moved-aside copy —
+      # fork-specific rules gone, with no error.
+      if git clone -q --depth 1 "${ENGINEERING_CRAFT_REPO:-https://github.com/orocsy/engineering-craft.git}" "$TMP/ec" >/dev/null 2>&1 \
          && [[ -d "$TMP/ec/categories" ]]; then
         rm -rf "$EC_SKILL.old"
         [[ -e "$EC_SKILL" ]] && mv "$EC_SKILL" "$EC_SKILL.old"
@@ -104,7 +110,10 @@ else
   if [[ -f "$MARKER.fail" ]] && [[ -n "$(find "$MARKER.fail" -maxdepth 0 -mmin +1440 2>/dev/null)" ]]; then
     echo "[dev-pipeline] engineering-craft refresh has been FAILING for >24h (see: git -C $EC_SKILL pull --ff-only). The loaded catalog may be behind."
   fi
-  EC_RULES=$(ls "$EC_SKILL"/categories/*/rules/*.md 2>/dev/null | wc -l | tr -d ' ')
+  # Both layouts: categories/<cat>/rules/<slug>.md AND categories/<cat>/<slug>.md
+  # (the shape consolidate-lessons produces). A legacy-only glob under-counted a
+  # freshly-synced catalog and advised deleting it — see commands/detect.md.
+  EC_RULES=$(find "$EC_SKILL/categories" -name '*.md' ! -name 'README.md' 2>/dev/null | wc -l | tr -d ' ')
   if [[ "${EC_RULES:-0}" -lt 60 ]]; then
     echo "[dev-pipeline] engineering-craft skill looks stale (${EC_RULES} rules; expected 70+). A refresh was queued — re-check next session, or: rm -rf $EC_SKILL && git clone --depth 1 https://github.com/orocsy/engineering-craft.git $EC_SKILL"
   fi

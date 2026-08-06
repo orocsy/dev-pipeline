@@ -115,7 +115,11 @@ detect_test_dir() {
   local cfg
   cfg=$([[ -f "$CONFIG_FILE" ]] && jqr '.testDir // empty' <"$CONFIG_FILE")
   if [[ -n "${cfg:-}" ]]; then echo "$cfg"; return; fi
-  for d in tests test e2e __tests__ spec; do [[ -d "$d" ]] && { echo "$d"; return; }; done
+  # Every root, not the first. Returning early meant a repo with both tests/ and e2e/
+  # never had its E2E skips inspected while the aggregate reported the gate passing.
+  local roots=()
+  for d in tests test e2e __tests__ spec; do [[ -d "$d" ]] && roots+=("$d"); done
+  if [[ ${#roots[@]} -gt 0 ]]; then (IFS=,; echo "${roots[*]}"); return; fi
   # No dedicated test dir — but colocated specs are the common layout, and returning
   # "" made skip-policy report NOT APPLICABLE on every such repo. Point it at the
   # source roots instead; it filters to spec files itself.
@@ -139,11 +143,27 @@ detect_proof_steps_json() {
     arr=$(jqr -c '.proofSteps // empty' <"$CONFIG_FILE")
     if [[ -n "${arr:-}" && "$arr" != "null" && "$arr" != "[]" ]]; then printf '%s' "$arr"; return; fi
   fi
-  local pm="npm"
-  [[ -f pnpm-lock.yaml ]] && pm="pnpm"
-  [[ -f yarn.lock ]] && pm="yarn"
-  [[ -f bun.lockb ]] && pm="bun"
-  printf '["%s test"]' "$pm"
+  # Node is not the only supported stack. Emitting `npm test` for a Python/Rust/Go
+  # repo asks the anchored matcher to find a command that does not exist there, so a
+  # correctly-causal pipeline is reported as a P1 — a gate that cries wolf on an
+  # entire language gets switched off.
+  if [[ -f package.json ]]; then
+    local pm="npm"
+    [[ -f pnpm-lock.yaml ]] && pm="pnpm"
+    [[ -f yarn.lock ]] && pm="yarn"
+    [[ -f bun.lockb ]] && pm="bun"
+    printf '["%s test"]' "$pm"; return
+  fi
+  [[ -f Cargo.toml ]] && { printf '["cargo test"]'; return; }
+  [[ -f go.mod ]] && { printf '["go test"]'; return; }
+  if [[ -f pyproject.toml || -f requirements.txt || -f tox.ini ]]; then
+    printf '["pytest","python -m pytest"]'; return
+  fi
+  [[ -f Gemfile ]] && { printf '["bundle exec rspec","rake test"]'; return; }
+  [[ -f pom.xml ]] && { printf '["mvn test"]'; return; }
+  [[ -f build.gradle || -f build.gradle.kts ]] && { printf '["gradle test"]'; return; }
+  # Unknown stack: emit the common forms rather than one wrong guess.
+  printf '["npm test","make test"]'
 }
 
 SRC_DIRS="$(detect_src_dirs)"
@@ -206,7 +226,15 @@ for gate in $ALL_GATES; do
 
   case "$rc" in
     0)
-      if printf '%s\n' "$out" | grep -q '^NOT APPLICABLE'; then
+      # A gate exiting 0 while PRINTING findings is the inverse contract violation
+      # of "exit 1 with no FAIL lines", and strictly worse: labelling it PASS
+      # discards every diagnostic it just produced. Both directions are execution
+      # errors — the gate is not reporting what it found.
+      if [[ "$fails" -gt 0 ]]; then
+        SUMMARY+=("  ERROR $gate — exit 0 with $fails FAIL line(s) (contract violation; findings discarded)")
+        printf '%s\n' "$out" | grep '^FAIL' | head -3 | sed 's/^/          /' >&2
+        EXEC_ERRORS=$((EXEC_ERRORS + 1))
+      elif printf '%s\n' "$out" | grep -q '^NOT APPLICABLE'; then
         SUMMARY+=("  N/A   $gate")
       else
         SUMMARY+=("  PASS  $gate")

@@ -122,8 +122,12 @@ if [ -z "$GATE_RUNNER" ]; then
 else
   # Phase 8 runs pre-commit, so the changed set includes the working tree.
   BASE="$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD main 2>/dev/null || echo HEAD~1)"
-  git diff --name-only "$BASE" > /tmp/changed-files.txt
-  "$GATE_RUNNER" --changed-files /tmp/changed-files.txt
+  # Per-invocation path: a fixed /tmp name lets a concurrent session
+  # overwrite the list before the runner reads it, silently restoring a
+  # baseline amnesty for a file this diff actually touched.
+  CHANGED_LIST="$(mktemp)"; trap \'rm -f "$CHANGED_LIST"\' EXIT
+  git diff --name-only "$BASE" > "$CHANGED_LIST"
+  "$GATE_RUNNER" --changed-files "$CHANGED_LIST"
   GATE_RC=$?   # 0 clean/NA · 1 findings · 2 gate execution error (P1 — gates did NOT run)
 fi
 ```
