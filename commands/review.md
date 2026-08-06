@@ -267,7 +267,7 @@ else
   # Per-invocation path: a fixed /tmp name lets a concurrent session
   # overwrite the list before the runner reads it, silently restoring a
   # baseline amnesty for a file this diff actually touched.
-  CHANGED_LIST="$(mktemp)"; trap \'rm -f "$CHANGED_LIST"\' EXIT
+  CHANGED_LIST="$(mktemp)"; trap 'rm -f "$CHANGED_LIST"' EXIT
   git diff --name-only "$BASE"..HEAD > "$CHANGED_LIST"
   "$GATE_RUNNER" --changed-files "$CHANGED_LIST"
   GATE_RC=$?
