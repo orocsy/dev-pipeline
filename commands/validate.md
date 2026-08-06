@@ -97,6 +97,50 @@ fi
 
 ---
 
+## STEP 2.7: Executable craft gates (MANDATORY, unconditional)
+
+Same gate set as `/dev-pipeline:review` STEP 1.7, run here too because **this command does
+not invoke review** — it is a peer gate chain, not a caller. A gate wired only into the
+review path never fires for anyone who validates and commits, which is the family-addition
+failure the gates themselves exist to catch. (Found by dogfooding: the review that
+introduced STEP 1.7 enumerated its own sibling commands and found `validate.md` uncovered.)
+
+```bash
+# Resolve the runner from the PLUGIN, not the cwd. These commands run inside CONSUMER
+# repos, where `tools/run-craft-gates.sh` does not exist — the relative path made the
+# whole gate step a silent no-op everywhere it actually mattered.
+GATE_RUNNER=""
+for cand in \
+  "${CLAUDE_PLUGIN_ROOT:-}/tools/run-craft-gates.sh" \
+  "$HOME/.claude/plugins/marketplaces/local/plugins/dev-pipeline/tools/run-craft-gates.sh" \
+  "./tools/run-craft-gates.sh"; do
+  [ -n "$cand" ] && [ -f "$cand" ] && { GATE_RUNNER="$cand"; break; }
+done
+if [ -z "$GATE_RUNNER" ]; then
+  echo "GATE ERROR — run-craft-gates.sh not found (looked in \$CLAUDE_PLUGIN_ROOT, the marketplace path, and ./tools)."
+  echo "  The gates did NOT run. This is a P1, not a pass."
+else
+  # Phase 8 runs pre-commit, so the changed set includes the working tree.
+  BASE="$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD main 2>/dev/null || echo HEAD~1)"
+  # Per-invocation path: a fixed /tmp name lets a concurrent session
+  # overwrite the list before the runner reads it, silently restoring a
+  # baseline amnesty for a file this diff actually touched.
+  CHANGED_LIST="$(mktemp)"; trap 'rm -f "$CHANGED_LIST"' EXIT
+  git diff --name-only "$BASE" > "$CHANGED_LIST"
+  "$GATE_RUNNER" --changed-files "$CHANGED_LIST"
+  GATE_RC=$?   # 0 clean/NA · 1 findings · 2 gate execution error (P1 — gates did NOT run)
+fi
+```
+
+Aggregate `GATE_RC` into the Phase 8 summary alongside lint/typecheck/tests/build.
+A non-zero here fails the phase exactly like a failing test would; `2` fails it harder,
+because an unrun gate is a bigger problem than a known finding.
+
+Severity mapping and the baseline rule are identical to review STEP 1.7 — see that step;
+do not restate them here, so the two cannot drift apart.
+
+---
+
 ## STEP 3: Unit Tests
 
 ```bash

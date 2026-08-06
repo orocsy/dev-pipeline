@@ -54,6 +54,45 @@ All must pass before proceeding.
 
 ---
 
+## STEP 3.9: Gate the fixes before pushing them (MANDATORY)
+
+A review-fix commit is still a commit. This command reaches neither
+`/dev-pipeline:validate` nor `/dev-pipeline:review`, so without this step a fix round
+pushes code that no gate has seen — and a fix made under time pressure to close a
+reviewer's finding is exactly when a second one gets introduced.
+
+```bash
+# Resolve the runner from the PLUGIN, not the cwd. These commands run inside CONSUMER
+# repos, where `tools/run-craft-gates.sh` does not exist — the relative path made the
+# whole gate step a silent no-op everywhere it actually mattered.
+GATE_RUNNER=""
+for cand in \
+  "${CLAUDE_PLUGIN_ROOT:-}/tools/run-craft-gates.sh" \
+  "$HOME/.claude/plugins/marketplaces/local/plugins/dev-pipeline/tools/run-craft-gates.sh" \
+  "./tools/run-craft-gates.sh"; do
+  [ -n "$cand" ] && [ -f "$cand" ] && { GATE_RUNNER="$cand"; break; }
+done
+if [ -z "$GATE_RUNNER" ]; then
+  echo "GATE ERROR — run-craft-gates.sh not found (looked in \$CLAUDE_PLUGIN_ROOT, the marketplace path, and ./tools)."
+  echo "  The gates did NOT run. This is a P1, not a pass."
+else
+  # Per-invocation path: a fixed /tmp name lets a concurrent session
+  # overwrite the list before the runner reads it, silently restoring a
+  # baseline amnesty for a file this diff actually touched.
+  CHANGED_LIST="$(mktemp)"; trap 'rm -f "$CHANGED_LIST"' EXIT
+  git diff --name-only HEAD > "$CHANGED_LIST"
+  "$GATE_RUNNER" --changed-files "$CHANGED_LIST"
+  GATE_RC=$?   # 0 clean/NA · 1 findings · 2 gate execution error — gates did NOT run
+fi
+```
+
+`2` blocks: the gates did not run, which is not a pass. `1` blocks when the finding is
+in a file this fix touched. Then run `/dev-pipeline:review` to re-bless HEAD — the
+pre-push hook refuses the push otherwise, and every new commit invalidates the previous
+blessing.
+
+---
+
 ## STEP 4: Commit and Push
 
 ```bash

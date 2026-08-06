@@ -1,0 +1,11 @@
+{
+  "sha": "3c90ec40eadf8f55999c96a0ae512a7298bf03a8",
+  "ts": "2026-08-06T03:58:47Z",
+  "knowledgeReferences": [
+    { "id": "verification-integrity/probe-must-fail-on-injected-defect", "category": "verification-integrity", "usedIn": "STEP 1.7 dogfood — found the exit-code false RED" },
+    { "id": "verification-integrity/exhaustive-registry-beats-diff-review", "category": "verification-integrity", "usedIn": "STEP 2 reviewer D.5 — found the validate.md sibling gap" },
+    { "id": "verification-integrity/skip-is-a-decision-not-a-default", "category": "verification-integrity", "usedIn": "STEP 1.5 trigger prior" },
+    { "id": "progressive-degradation/form-without-method-submits-get", "category": "progressive-degradation", "usedIn": "STEP 1.5 trigger prior" },
+    { "id": "tooling-footguns/gh-secret-set-stdin", "category": "tooling-footguns", "usedIn": "STEP 1.5 prior — shell hook edit" }
+  ]
+}

@@ -55,3 +55,26 @@ If yes, delegate to `/code-review`.
 - Validate AFTER EACH fix (never accumulate)
 - Stage only necessary files (never `git add -A`)
 - If a fix introduces new issues, fix those before moving on
+
+---
+
+## Before you call it fixed: run the gates
+
+This command does not reach `/dev-pipeline:validate` or `/dev-pipeline:review`, so a fix
+landed here is otherwise ungated. Run the craft gates against the files you touched before
+declaring the fix complete:
+
+```bash
+# Per-invocation path: a fixed /tmp name lets a concurrent session
+# overwrite the list before the runner reads it, silently restoring a
+# baseline amnesty for a file this diff actually touched.
+CHANGED_LIST="$(mktemp)"; trap 'rm -f "$CHANGED_LIST"' EXIT
+git diff --name-only HEAD > "$CHANGED_LIST"
+GATE_RUNNER="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/marketplaces/local/plugins/dev-pipeline}/tools/run-craft-gates.sh"
+[ -f "$GATE_RUNNER" ] || { echo "GATE ERROR — runner not found; gates did NOT run (P1, not a pass)"; }
+"$GATE_RUNNER" --changed-files "$CHANGED_LIST"
+# 0 clean/NA · 1 findings · 2 gate execution error (gates did NOT run — not a pass)
+```
+
+A fix that closes one finding and opens another is the single most common way a review
+round becomes three. Then `/dev-pipeline:review` to re-bless HEAD before pushing.
