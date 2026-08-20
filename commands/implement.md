@@ -21,12 +21,17 @@ All steps are pre-approved. Run to completion.
 git fetch origin --quiet 2>/dev/null
 PTR_BRANCH=$(jq -r '.branch // empty' .claude/pipeline-state.json 2>/dev/null)
 CUR_BRANCH=$(git branch --show-current)
+POINTER_VALID=0
+bash "${CLAUDE_PLUGIN_ROOT}/tools/pipeline-pointer-valid.sh" .claude/pipeline-state.json "$CUR_BRANCH" 2>/dev/null && POINTER_VALID=1
 if [ -n "$PTR_BRANCH" ] && [ "$PTR_BRANCH" != "$CUR_BRANCH" ]; then
   echo "⚠️  pipeline-state.json points at '$PTR_BRANCH' but you're on '$CUR_BRANCH' — pointer STALE."
 fi
 if [ -n "$PTR_BRANCH" ] && ! git rev-parse --verify "origin/$PTR_BRANCH" >/dev/null 2>&1; then
   echo "⚠️  pointer branch '$PTR_BRANCH' is merged/gone — its work is already in the tracked"
   echo "    execution doc. Regenerate the pointer for the current branch (see doc-writer)."
+fi
+if [ -f .claude/pipeline-state.json ] && [ "$POINTER_VALID" != "1" ] && [ "$PTR_BRANCH" == "$CUR_BRANCH" ]; then
+  echo "⚠️  pipeline-state.json predates HEAD — pointer STALE."
 fi
 ```
 
@@ -43,17 +48,23 @@ Read `.claude/docs/ARCHITECTURE.md` / `RECENT_CHANGES.md` if present. Load the s
 # repo-newest breakdown unconditionally lets a stale malformed one from a
 # PREVIOUS feature block unrelated work:
 #   1. the pointer's docs.breakdown (validated earlier in STEP 0 — skip if stale)
-#   2. the task-slug glob docs/<task>/*-miu-breakdown.md
-#   3. repo-newest as LAST RESORT, with an annotation
-BREAKDOWN=$(jq -r '.docs.breakdown // empty' .claude/pipeline-state.json 2>/dev/null)
-[[ -n "$BREAKDOWN" && ! -f "$BREAKDOWN" ]] && BREAKDOWN=""
-if [[ -z "$BREAKDOWN" ]]; then
-  TASK=$(jq -r '.task // empty' .claude/pipeline-state.json 2>/dev/null)
-  [[ -n "$TASK" ]] && BREAKDOWN=$(ls -t "docs/$TASK"/*-miu-breakdown.md 2>/dev/null | head -1)
+#   2. the task/branch-aware resolver (supports EXECUTION.md / MIU_BREAKDOWN.md
+#      and slugged lowercase filenames)
+#   3. no repo-newest fallback — selecting an unrelated feature's plan is worse
+#      than stopping to reconcile the handoff
+set +e
+TRACE_SPECS="$(bash "${CLAUDE_PLUGIN_ROOT}/tools/resolve-traceability-specs.sh" .claude/pipeline-state.json "$(git branch --show-current)")"
+TRACE_RC=$?
+set -e
+if [[ "$TRACE_RC" != "0" ]]; then
+  echo "🛑 Tracked feature handoff is missing or ambiguous (resolver rc=$TRACE_RC)."
+  echo "   Do not use pointer paths or another feature's plan; run /dev-pipeline:sync."
+  exit 1
 fi
+BREAKDOWN="$(printf '%s\n' "$TRACE_SPECS" | grep -Ei '(^|/)(MIU_BREAKDOWN\.md|[^/]+-miu-breakdown\.md)$' | head -1)"
 if [[ -z "$BREAKDOWN" ]]; then
-  BREAKDOWN=$(ls -t docs/*/*-miu-breakdown.md 2>/dev/null | head -1)
-  [[ -n "$BREAKDOWN" ]] && echo "⚠️  breakdown resolved by newest-file fallback: $BREAKDOWN — confirm it belongs to THIS feature before trusting the gate (pointer/task slug did not resolve)."
+  echo "ℹ️  No branch/task-matched MIU breakdown found — allowed only for a trivial bypass or single-MIU fix flow."
+  echo "   The tracked execution/ISSUE record remains authoritative; do not select another feature's plan."
 fi
 if [[ -n "$BREAKDOWN" ]]; then
   bash "${CLAUDE_PLUGIN_ROOT}/tools/validate-miu-breakdown.sh" "$BREAKDOWN" || {

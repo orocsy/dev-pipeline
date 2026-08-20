@@ -14,43 +14,35 @@ All steps pre-approved.
 
 ## STEP 0: Locate Specs
 
-The pipeline writes specs to predictable locations. Read them in priority order:
+The pipeline writes specs to predictable locations. Read them in priority order, using the
+same branch/task-aware resolver as implementation so all roles trace the SAME feature:
 
 ```bash
-# 1. Active MIU progress (canonical)
-MIU_FILE=".claude/miu-progress.json"
-
-# 2. Original spec (referenced in the MIU)
 SPECS=()
-if [[ -f "$MIU_FILE" ]]; then
-  # Pull spec_path from in-progress / pending-validation MIUs
-  while IFS= read -r p; do
-    [[ -f "$p" ]] && SPECS+=("$p")
-  done < <(jq -r '.tasks[] | select(.status == "pending-validation" or .status == "in-progress") | .spec_path // empty' "$MIU_FILE")
+TRACE_TMP="$(mktemp)"
+set +e
+bash "${CLAUDE_PLUGIN_ROOT}/tools/resolve-traceability-specs.sh" .claude/pipeline-state.json "$(git branch --show-current)" > "$TRACE_TMP"
+TRACE_RC=$?
+set -e
+if [[ "$TRACE_RC" != "0" ]]; then
+  rm -f "$TRACE_TMP"
+  echo "🛑 PHASE 8.6 BLOCKED — tracked feature handoff is missing or ambiguous (resolver rc=$TRACE_RC)."
+  echo "   Run /dev-pipeline:sync; do not select another feature's specs."
+  exit 1
 fi
-
-# 3. Default doc locations
+while IFS= read -r f; do
+  [[ -f "$f" ]] && SPECS+=("$f")
+done < "$TRACE_TMP"
+rm -f "$TRACE_TMP"
 #    ISSUE.md is the minimal anchor written by the technical-fault skip branch
 #    (dev-pipeline.md / plan.md Phase 1.0) — its "Done when" line IS the
 #    acceptance criterion for no-SPEC bug runs.
 #    SPEC.md carries the §6 quality criteria this phase promises to trace —
 #    it must be discovered here, not only via deprecated miu-progress.json.
-for candidate in \
-  docs/**/*-execution.md \
-  docs/**/*-plan.md \
-  docs/**/SPEC.md \
-  docs/**/ISSUE.md \
-  docs/PROJECT_STATUS.md \
-  .claude/docs/PROJECT_STATUS.md; do
-  for f in $candidate; do
-    [[ -f "$f" ]] && SPECS+=("$f")
-  done
-done
-
 if [[ ${#SPECS[@]} -eq 0 ]]; then
   echo "🛑 PHASE 8.6 BLOCKED — no spec found to trace against."
   echo "   Either:"
-  echo "   1. The current MIU has no spec_path (fix .claude/miu-progress.json), or"
+  echo "   1. No branch/task-matched tracked execution/breakdown exists (run /dev-pipeline:sync), or"
   echo "   2. The work is undocumented (run /dev-pipeline:plan to write a spec retroactively)"
   exit 1
 fi

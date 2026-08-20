@@ -77,6 +77,7 @@ After G4: Phases 7–12 run without further approval.
 - **Stop** (`hooks/stop-review-guard.sh`): blocks ending the turn while `.claude/.auto-review-pending` names a commit whose SHA is unblessed — run `/dev-pipeline:review`, then finish. This is Rule 2/8 made deterministic.
 - Git hooks (installed via `~/.claude/setup-git-hooks.sh`): pre-commit lint/typecheck · pre-push blessing + doc guard · post-commit journal + AUTO-REVIEW DIRECTIVE.
 - State: `.claude/pipeline-state.json` (thin pointer; tracked docs are the truth — see `agents/doc-writer.md`), `.claude/agent-events.jsonl` (audit trail).
+- Shell regression suite for tracked-handoff/resume plumbing: `tests/run.sh`.
 
 ---
 

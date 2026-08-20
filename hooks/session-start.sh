@@ -8,11 +8,51 @@
 set +e
 
 # ── 1. Pipeline state (the resume signal) ────────────────────────────────────
-if [[ -f .claude/pipeline-state.json ]] && command -v jq >/dev/null 2>&1; then
-  STATE="$(jq -r '"task=" + (.task // "?") + " branch=" + (.branch // "?") + " phase=" + (.phase // "?") + " miu=" + (.currentMiu // "none") + "(" + (.currentMiuStatus // "-") + ")"' .claude/pipeline-state.json 2>/dev/null)"
+#
+# Tracked docs are the authority and must work in a fresh clone. The local pointer is
+# gitignored by design, so checking it first (and doing nothing when absent) made every
+# cross-agent handoff depend on machine-local state. Agents then guessed from the newest
+# plan file and invented competing MIU schemes.
+#
+# Resolve the tracked execution record by the CURRENT BRANCH DECLARED INSIDE THE DOC.
+# Do not guess from filenames: real repositories contain both EXECUTION.md and
+# <feature>-execution.md, and the docs directory slug can differ from the branch slug.
+CUR_BRANCH="$(git branch --show-current 2>/dev/null)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+POINTER_PATH="$REPO_ROOT/.claude/pipeline-state.json"
+set +e
+TRACKED_EXECUTION="$(cd "$REPO_ROOT" && bash "$SCRIPT_DIR/../tools/resolve-feature-doc.sh" execution "" "$CUR_BRANCH")"
+TRACKED_RC=$?
+set -e
+if [[ "$TRACKED_RC" != "0" && "$TRACKED_RC" != "1" ]]; then
+  echo "[dev-pipeline] TRACKED HANDOFF AMBIGUOUS — resolver failed closed (rc=$TRACKED_RC). Fix duplicate/conflicting Branch declarations; pointer fallback is forbidden."
+  exit 0
+fi
+POINTER_VALID=0
+bash "$SCRIPT_DIR/../tools/pipeline-pointer-valid.sh" "$POINTER_PATH" "$CUR_BRANCH" 2>/dev/null && POINTER_VALID=1
+if [[ -z "$TRACKED_EXECUTION" && "$POINTER_VALID" == "1" ]]; then
+  POINTER_TASK="$(jq -r '.task // empty' "$POINTER_PATH" 2>/dev/null)"
+  TRACKED_EXECUTION="$(cd "$REPO_ROOT" && bash "$SCRIPT_DIR/../tools/resolve-feature-doc.sh" execution "$POINTER_TASK" "" 2>/dev/null || true)"
+fi
+
+if [[ -n "$TRACKED_EXECUTION" ]]; then
+  TRACKED_EXECUTION_PATH="$TRACKED_EXECUTION"
+  [[ "$TRACKED_EXECUTION_PATH" != /* ]] && TRACKED_EXECUTION_PATH="$REPO_ROOT/$TRACKED_EXECUTION_PATH"
+  DOC_STATUS="$(sed -n 's/^Status:[[:space:]]*//p' "$TRACKED_EXECUTION_PATH" 2>/dev/null | head -1)"
+  DOC_PHASE="$(sed -n 's/^\*\*Current phase:\*\*[[:space:]]*`\([^`]*\)`.*/\1/p' "$TRACKED_EXECUTION_PATH" 2>/dev/null | head -1)"
+  DOC_MIU="$(sed -n 's/^\*\*Current\/next MIU:\*\*[[:space:]]*//p' "$TRACKED_EXECUTION_PATH" 2>/dev/null | head -1)"
+  [[ -z "$DOC_STATUS" ]] && DOC_STATUS="status not stated"
+  [[ -z "$DOC_PHASE" ]] && DOC_PHASE="unknown"
+  [[ -z "$DOC_MIU" ]] && DOC_MIU="not stated"
+  echo "[dev-pipeline] TRACKED HANDOFF: branch=$CUR_BRANCH phase=$DOC_PHASE status=$DOC_STATUS miu=$DOC_MIU source=$TRACKED_EXECUTION — this tracked record outranks local pointers and other plans."
+elif [[ "$POINTER_VALID" == "1" ]] && command -v jq >/dev/null 2>&1; then
+  STATE="$(jq -r '"task=" + (.task // "?") + " branch=" + (.branch // "?") + " phase=" + (.phase // "?") + " miu=" + (.currentMiu // "none") + "(" + (.currentMiuStatus // "-") + ")"' "$POINTER_PATH" 2>/dev/null)"
   if [[ -n "$STATE" && "$STATE" != *"task=? branch=?"* ]]; then
-    echo "[dev-pipeline] ACTIVE PIPELINE: $STATE — resume it (Rule 5); do not start a new flow. Verify against docs/<task>/*-execution.md if the pointer looks stale."
+    echo "[dev-pipeline] POINTER-ONLY PIPELINE: $STATE — tracked execution handoff not found. Do not invent a plan; run /dev-pipeline:sync to create/reconcile the portable record."
   fi
+elif [[ -f "$POINTER_PATH" ]]; then
+  echo "[dev-pipeline] STALE POINTER IGNORED — branch/timestamp/remote check failed. Resolve the tracked handoff for the current branch or run /dev-pipeline:sync; do not use its task/MIU fields."
 fi
 
 # Pending auto-review from a previous session?
@@ -120,7 +160,6 @@ else
 fi
 
 # ── 3. Co-review nudge (opt-in channel; Rule 21 — suggestion only) ──────────
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -d .claude/co-review && -f "$SCRIPT_DIR/co-review-nudge.sh" ]]; then
   bash "$SCRIPT_DIR/co-review-nudge.sh" 2>/dev/null | head -5
 fi

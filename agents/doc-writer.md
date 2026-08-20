@@ -51,6 +51,23 @@ There are two tiers of state. Do not confuse them.
 ### 1. Update the tracked execution doc (the canonical record)
 For the current MIU, ensure `docs/<feature>/<feature>-execution.md` has an entry with: **What / Why / Tests written / Validation result / Result** PLUS the mandatory **Engineering rationale** (why this code not the obvious alternative; trade-offs; what failed first; what you'd revisit). If the entry is missing, write it from the diff + the MIU spec + the validation output. If it exists but is thin, deepen it. Length scales with the work.
 
+The execution document MUST begin with the portable handoff header below. SessionStart parses
+these exact fields in a fresh clone, where the gitignored pointer does not exist:
+
+```markdown
+# <Feature> — Execution
+Status: <one-line current state>.
+Branch: `<exact git branch>`
+
+**Current phase:** `plan | implement | validate | deliver`.
+
+**Current/next MIU:** <id/status or `none; all approved MIUs complete`>.
+```
+
+There is exactly one `Branch:` field per execution document and exactly one execution document
+declaring a branch. Do not use `Previous Branch:` as authority. Update these fields at every MIU
+boundary and delivery transition alongside the detailed entry.
+
 The per-MIU record also carries a **Deviations** field — every mid-MIU divergence from the approved MIU spec/architecture that was resolved conservatively (per the deviation rule in `commands/implement.md` STEP 1). Each entry records:
 - **What diverged** — the point where the approved plan didn't fit reality
 - **Why** — the edge case that forced it
