@@ -33,6 +33,10 @@ In practice, PR-review issues (Step 1) are almost always technical — `review-a
 
 Why this gate exists (see Rules 18 & 19): if you "fix" a behavioural bug without first deciding what the behaviour *should* be, you either ship your own guess or — worse — rewrite the test to agree with the new code, producing a green build that proves nothing. Lock intent first; then the fix and its test mean something.
 
+### Step 1.6: Production evidence (bugs seen in a deployed environment)
+
+When the issue was reported from a deployed environment, reproduce it there READ-ONLY before changing code, and record the exact probe and its output (request, response, screenshot). After the fix deploys, run the SAME probe and record the result. "Tests pass" is not the same statement as "the probe that showed the bug now shows it fixed". If the reproduction shows a different cause than the report suggests, say so before fixing. (Past example: a search leak was shown live by searching an internal id before the fix and confirmed gone with the same search after it.)
+
 ### Step 2: Fix Issues
 
 Before the first fix: read `.claude/project-context.json` → `bestPracticeSources[]` (the stack-matched pin — mapping in `skills/skill-router/SKILL.md` → "Best-Practice Source Routing"). For each issue whose files match an `installed` source's signal, load that skill BEFORE implementing the fix — the fix should follow the source's patterns, not re-derive them. `missing` sources → recorded fallback (usually Context7), never a blocker. No pin (direct `/dev-pipeline:fix` without detect) → skip with a one-line annotation.

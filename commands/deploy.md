@@ -290,16 +290,29 @@ echo "✅ AWS CDK deployment complete"
 
 ---
 
-## STEP 5: Monitor CI/CD
+## STEP 5: Monitor CI/CD — never wait silently
 
-After pushing:
-```bash
-# Wait for GitHub Actions to pick up
-sleep 5
-RUN_ID=$(gh run list --limit 1 --json databaseId --jq '.[0].databaseId')
-echo "Watching CI run: $RUN_ID"
-gh run watch "$RUN_ID" --exit-status && echo "✅ CI passed" || echo "❌ CI failed — see: gh run view $RUN_ID"
-```
+Deploys can take most of an hour. The user must never find you idle on one.
+
+1. **Say the expected wait** in one line, from the project's recent runs (`gh run list --workflow <deploy> --json createdAt,updatedAt,conclusion`), and what you will do meanwhile.
+2. **Watch in the background, on the signal that matters.** Prefer the deployed service's own release marker (a health endpoint returning the release id / commit) over the workflow status — the code is live when the service says so. Run the watcher with `run_in_background` and exit on: release id matches, run failed, or run cancelled.
+   ```bash
+   SHA=$(git rev-parse --short HEAD)
+   for i in $(seq 1 90); do
+     LIVE=$(curl -s "$HEALTH_URL" | jq -r '.data.releaseId // .releaseId' | cut -c1-7)
+     [ "$LIVE" = "$SHA" ] && echo "live $(date -u +%H:%M)" && exit 0
+     S=$(gh run view "$RUN_ID" --json status,conclusion --jq '"\(.status) \(.conclusion)"')
+     case "$S" in "completed failure"*|"completed cancelled"*) echo "ended: $S"; exit 1;; esac
+     sleep 60
+   done
+   ```
+3. **Keep working** on the next useful step (docs, the next fix, read-only checks) and report state changes as they happen.
+4. **Tell infrastructure failures from code failures before reacting.** A step stuck installing tools, a job time limit hit while tests were still passing, a run cancelled by a newer one in the same concurrency group — none of these are your change. Read the step names and timings (`gh run view <id> --json jobs`) before touching code.
+5. **Know the queue.** Workflows that share a concurrency group (deploys, dispatched E2E) replace each other's PENDING runs; pushing during a pending run you need can cancel it. Check environment branch policies before dispatching a run from a feature branch.
+
+## STEP 5.5: Look at what the change touches
+
+After the release is live, open every screen the change (or a data job it ran) touches, in a real browser, and capture it. Counting rows or reading a status endpoint does not show a broken image, a refused button, or an empty list. (Past miss: a backfill finished with perfect counts; the admin list showed broken thumbnails for most rows, found by the owner.)
 
 ---
 

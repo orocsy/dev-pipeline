@@ -34,6 +34,23 @@ Each entry uses structured format:
 - Pattern-Key for recurrence tracking
 - Status tracking (new → acknowledged → resolved)
 
+### Step 2b: Write worked cases for engineering lessons
+
+One-line lessons ("a new rule must cover every writer") cannot be matched to a future task or acted on. For each lesson worth keeping beyond this project, write a **case** in the engineering-craft rule format (frontmatter with `applies-to`, `historical-incidents`, `impact`; then the sections below) and save it to `.learnings/cases/<kebab-slug>.md` for `/dev-pipeline:consolidate-lessons` to fold in:
+
+| Section | Holds |
+|---|---|
+| Symptom | What a user or test actually saw |
+| Wrong mental model | What we believed, and why it was plausible |
+| How we found out | The measurement, probe, review finding or question that broke it |
+| Options considered | The alternatives and why each was rejected |
+| Incorrect / Correct | Real code before and after (trimmed, not invented) |
+| Tests | The tests that now guard it |
+| Pattern name + triggers | A short name and the task words that should call it up |
+| Still uncertain | What may still be wrong with the decision |
+
+Prefer fewer, deeper cases: the ones that cost a P1, an owner-found incident, or more than one round of fixes.
+
 ### Step 3: Check for Promotions
 
 Review existing learnings for patterns that recur (≥3 occurrences in 30 days):

@@ -85,6 +85,8 @@ For each entry, decide:
 
 Be conservative — when in doubt, prefer `noise` over a low-quality `new-pattern`. The repo's value is in curation, not volume.
 
+**Quality bar for `new-pattern`.** A new rule must carry: the symptom, the wrong mental model, the evidence that broke it, incorrect AND correct code taken from the real change, the guarding tests, and trigger words. A journal entry that is only a commit body rarely has these — look for a matching worked case in the project's `.learnings/cases/` (written by `/dev-pipeline:learn` Step 2b) and build the rule from it; without one, classify as `refinement` (if it extends an existing rule) or `noise`.
+
 **Cross-file-seam entries route to the plugin, NOT to an engineering-craft category.** `$FAILURE_MODES` (the `cross-file-reasoning` skill's catalog) is the single CANONICAL home for cross-file-seam failure modes — env-var empty-string collapse, framework-prefix doubling, SDK-option-unverified, conditional coupling, in-tx fire-and-forget, wrapper-lifecycle, mock drift, single-place-fix blindness, etc. engineering-craft's `categories/cross-file-seams/` is a GENERATED mirror of that file (published in Step 4.5), so do NOT create or refine a cross-file rule directly under any engineering-craft category. Instead, for an entry classified as a cross-file seam:
 
 - **Verdict `cross-file`** (a 4th verdict, alongside new-pattern/refinement/noise): the lesson is a cross-file seam.

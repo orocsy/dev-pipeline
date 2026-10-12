@@ -316,6 +316,17 @@ Executors report facts (diffs, command outputs, deviations), never marketing sum
 
 ---
 
+### Rule 25: Questions to the user are decision briefs
+
+A question the user has to answer costs them context they may not have. Every question uses this shape:
+
+1. **The choice**, in one line, in the user's terms (what they will see or get).
+2. **One concrete example** — before/after for a real record ("this product would show X instead of Y").
+3. **Your recommendation** and the one-line reason.
+4. **What happens with no answer** (the default you will proceed with).
+
+Questions that are internal to engineering ("can fix A apply cleanly on B?", "which index name?") are not questions for the user: answer them yourself and report the decision. Rules about whose data wins (sync vs admin edits, supplier vs local) MUST use a concrete before/after example — the same rule asked in the abstract has been decided and then reversed the same day once the user pictured real cases.
+
 ## MANDATORY WORKFLOW ROUTING
 
 Every code change routes to a named flow. There is no inline coding without a pipeline.

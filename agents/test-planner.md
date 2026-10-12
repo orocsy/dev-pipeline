@@ -58,6 +58,11 @@ You are a QA lead responsible for defining comprehensive test scenarios. You thi
    - Special characters in input
    - Concurrent operations (race conditions)
 
+   **Real Data Shapes** — the items production actually holds
+   - The COMMONEST real item type through every changed path (not just the easiest fixture to build). If most records are synced drafts, test a synced draft — a suite that only uses hand-created items passed while every synced item was refused.
+   - The OLDEST record shape (fields missing, legacy values)
+   - Records in every state the change can meet mid-flight (draft, approved, published, archived, hidden-while-processing) — can any of them get stuck?
+
    **Locale/i18n Variants** (if applicable)
    - Every supported locale (en, zh-HK, etc.)
    - RTL text handling
@@ -125,6 +130,10 @@ You are a QA lead responsible for defining comprehensive test scenarios. You thi
 
 #### Edge Cases
 5. <scenario name> — <expected behavior>
+
+#### Real Data Shapes
+- [ ] <commonest real item type through each changed path>
+- [ ] <oldest shape / mid-flight states>
 
 #### Locale Variants
 6. <scenario name> — <expected behavior>

@@ -12,6 +12,30 @@ Conventions:
 
 ---
 
+## 2026-10-12 — Lessons from a catalog single-source-of-truth retro
+
+- **Change inventories** (`agents/requirements-analyst.md` step 5b): writers of
+  guarded state, readers of changed data, and an external source sample —
+  required tables when the change tightens a rule, reshapes data, or ingests
+  from outside. Each targets a class that escaped to production.
+- **Real data shapes** (`agents/test-planner.md`): the commonest real item type
+  through every changed path, the oldest shape, and every mid-flight state.
+- **Review state probes + hand-typed SDK shapes** (`commands/review.md`): six
+  questions for every changed write path; local interfaces describing a
+  third-party RESULT are checked against the installed types.
+- **Production evidence** (`commands/fix.md` Step 1.6): reproduce read-only
+  before the fix, re-run the same probe after deploy.
+- **Never wait silently on a deploy** (`commands/deploy.md` STEP 5/5.5):
+  expected wait, background watcher on the release id, infra-vs-code triage,
+  concurrency-group awareness, and a look at the touched screens.
+- **Worked cases** (`commands/learn.md` Step 2b, `consolidate-lessons` quality
+  bar): lessons are written as cases with symptom, wrong model, evidence,
+  options, real code before/after, tests and triggers — one-liners don't fold in.
+- **Rule 25 — decision briefs** (`CLAUDE.md`, `docs/RULES.md`): questions to the
+  user carry the choice, a concrete example, a recommendation and the default.
+
+---
+
 ## 2026-07-24 — Worktree reclaim on session start
 
 - **`hooks/worktree-reclaim.sh`** (SessionStart). Agent worktrees under
