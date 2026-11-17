@@ -11,6 +11,12 @@ Feature request: $ARGUMENTS
 
 ---
 
+## PHASE −1: Recipe check (before Phase 0, one line)
+
+This command is the `feature` recipe — the heaviest one. Before Phase 0, match `$ARGUMENTS` against the recipe table (CLAUDE.md → ROUTING; source `recipes/recipes.json`). If a lighter recipe's *When* fits first (`review-only`, `docs-sync`, `ui-design-round`, `prd-digest`, `test-only`, `bug-fix`, `enhancement`, `contract-change`, …), announce `Recipe: <id> — <flow>`, run that recipe's flow instead, and stop here. Stay only when `feature` is the first fit or an escalation brought you here, and announce `Recipe: feature — /dev-pipeline:pipeline`. A user who typed `/dev-pipeline:pipeline` explicitly has chosen `feature`: honour it, and say in one line which lighter recipe would also have fit.
+
+---
+
 ## PHASE 0: Smart Detection (silent, automatic — no user interaction)
 
 Run `/dev-pipeline:detect` before anything else.

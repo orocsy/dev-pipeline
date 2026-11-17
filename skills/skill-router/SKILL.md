@@ -1,6 +1,6 @@
 ---
 name: skill-router
-description: Auto-select the correct skills and MCP tools for each pipeline phase based on detected tech stack and task type. Covers design-phase routing (Stitch MCP → Figma MCP → image → ui-ux-pro-max/frontend-design → inline self-generation when neither skill is installed or the stack is outside React/Next/Remix → design-checker → skip), tech-stack skill routing (next → vercel-react + vercel-composition, nestjs → nestjs-best-practices, rust → rust-idioms, go → go-idioms, etc.), best-practice source routing (stack-matched, phase-weighted — typescript-best-practices, vercel:react-best-practices, Better-T-Stack components — consulted by implement/review/validate/fix, pinned in project-context.json), and deploy-adapter selection (vercel.json → vercel-adapter, supabase/ → supabase-adapter, fly.toml → fly-adapter). Trigger at start of design phase, architecture phase, implementation phase, and before delivery. Never ask the user which skill to use — the router decides from `project-profile.json`.
+description: Auto-select the task recipe (which phases/commands run for this task type, from recipes/recipes.json) and the correct skills and MCP tools for each pipeline phase based on detected tech stack and task type. Covers recipe selection, design-phase routing (Stitch MCP → Figma MCP → image → ui-ux-pro-max/frontend-design → inline self-generation when neither skill is installed or the stack is outside React/Next/Remix → design-checker → skip), tech-stack skill routing (next → vercel-react + vercel-composition, nestjs → nestjs-best-practices, rust → rust-idioms, go → go-idioms, etc.), best-practice source routing (stack-matched, phase-weighted — typescript-best-practices, vercel:react-best-practices, Better-T-Stack components — consulted by implement/review/validate/fix, pinned in project-context.json), and deploy-adapter selection (vercel.json → vercel-adapter, supabase/ → supabase-adapter, fly.toml → fly-adapter). Trigger at start of design phase, architecture phase, implementation phase, and before delivery. Never ask the user which skill to use — the router decides from `project-profile.json`.
 ---
 
 # Skill Router
@@ -15,6 +15,41 @@ description: Auto-select the correct skills and MCP tools for each pipeline phas
 ---
 
 This skill is the single decision point for "which skill / MCP / adapter do I use right now?" Agents MUST consult this router before reaching for any tool; the router reads `project-profile.json` (from `project-detector`) and emits a decision.
+
+## Recipe Routing (before any phase — which phases run at all)
+
+The first decision is not which skill but which **recipe**: the task-type → phase/command combination in [`recipes/recipes.json`](../../recipes/recipes.json). The entry commands (`/dev-pipeline:dev-pipeline`, `/dev-pipeline:pipeline`) and every routed turn start here, so an agent does not run the full 12-phase pipeline for a review, a docs sync or a UI design round. The table below is generated from `recipes.json` by `tools/render-recipes.py` (do not hand-edit it; `tests/recipes.test.sh` fails when it is stale). The learning watcher (`tools/learning-watcher/`) records which recipe each session followed and how it went, and proposes changes on the `learning/inbox` branch; a person merges them.
+
+<!-- recipes:full:begin -->
+Selection:
+
+1. Walk `recipes` top to bottom and take the FIRST whose `when` fits the request; the order runs from most specific to the full pipeline.
+2. If an `escalate` trigger is already true, take its target instead.
+3. Announce one line before any work: `Recipe: <id> — <flow>`, and log {"event":"recipe.selected","recipe":"<id>","reason":"..."} to .claude/agent-events.jsonl.
+4. If an escalation trigger appears mid-task, stop, announce `Recipe: <new> (escalated from <old>: <reason>)` and continue in the new flow from the matching phase.
+5. Ambiguous between two recipes: ask ONE question naming both. Never default to the full pipeline just because it is the safest-looking choice.
+
+| Recipe (legacy type) | Flow | Skips | Escalate | Done when |
+|---|---|---|---|---|
+| `hotfix` (HOTFIX) | /dev-pipeline:hotfix → smoke the production URLs (Rules 17, 20) → follow up with `bug-fix` for the class fix | elicitation, design, architecture, MIU breakdown | — | Production smoke green on live URLs; a `bug-fix` follow-up is recorded. |
+| `trivial` (TRIVIAL) | implement directly WITH a test → log {"event":"trivial-bypass"} to .claude/agent-events.jsonl | every phase except the test | a third file or any guarded surface appears -> enhancement | Test passes; event logged. |
+| `docs-sync` (DOCS) | /dev-pipeline:sync (living docs) or the doc-writer agent → /dev-pipeline:review only if the docs define a contract (API, env, URL, schema) → /dev-pipeline:deliver | spec, design, architecture, MIUs, tests | the doc change implies a contract change -> contract-change | Docs match the code they describe; links resolve. |
+| `review-only` (REVIEW) | /dev-pipeline:review (local diff) or the code-review skill (PR/branch) → report findings ranked by severity → stop: fixes go through `bug-fix` or `pr-feedback` on the user's yes | all writing phases; makes no edits | the user asks to fix what was found -> bug-fix or pr-feedback | Findings reported (or HEAD blessed when the diff is clean). |
+| `test-only` (ADD_TESTS) | test-planner agent (scenarios first) → write tests against EXISTING behaviour → /dev-pipeline:validate → /dev-pipeline:review → /dev-pipeline:deliver | spec, design, architecture | a new test exposes a real bug -> bug-fix (never rewrite the expectation, Rule 19) | New tests fail when the behaviour they guard is broken (checked once by mutation or revert) and pass now. |
+| `ui-design-round` (UI_DESIGN) | design-checker agent (confirm UI scope) → design skill for the stack: ui-ux-pro-max (spec) / huashu-design (HTML prototype, 3 directions) / frontend-design → write docs/<slug>/ui-design.md (+ prototype) covering EVERY platform the project ships → user picks a direction → stop: build it with `enhancement` or `feature` | architecture, MIUs, code, deliver | the user says build it -> enhancement (one surface) or feature (new flow) | The user picked a direction and ui-design.md is on disk. |
+| `prd-digest` (PRD) | prd-parser skill → spec-elicitor (Mode A) for gaps only → /dev-pipeline:plan (phases 1-6) -> docs/<slug>/SPEC.md + MIU list → stop at G4 | implement, validate, deliver | the PRD is for a NEW project -> new-project | SPEC.md and the MIU breakdown are approved at G4; open questions listed. |
+| `new-project` (NEW_PROJECT) | /dev-pipeline:scaffold-from-prd | existing-project phases | — | Scaffold builds and its first test passes. |
+| `contract-change` (CONTRACT) | /dev-pipeline:plan scoped to the contract + every consumer → change the producer AND regenerate every consumer's types in the same PR → /dev-pipeline:verify-contract → /dev-pipeline:verify-blast-radius → /dev-pipeline:validate → /dev-pipeline:review → /dev-pipeline:deliver → message each consuming lane's session with the contract diff (never ask the user to relay) | UI design (unless a consumer's UI changes), HLD diagrams | a new product capability sits behind the contract -> feature | Producer and every consumer build against the new contract; each consuming lane has been told. |
+| `bug-fix` (BUG_FIX) | /dev-pipeline:fix (business-vs-technical triage, Rule 23) → regression test first (red) → /dev-pipeline:validate → /dev-pipeline:review → /dev-pipeline:deliver | HLD/LLD, MIU breakdown (one MIU) | intermittent, multi-module or unclear root cause -> feature (BUG_FIX_COMPLEX runs /dev-pipeline:pipeline); production down -> hotfix | Regression test went red then green; siblings of the root cause checked (Rule 11). |
+| `pr-feedback` (PR_REVIEW_FIX) | /dev-pipeline:pr-review → /dev-pipeline:validate → /dev-pipeline:review → push | spec, design, architecture | a comment asks for new behaviour -> enhancement | Every comment fixed or answered with evidence; HEAD blessed. |
+| `enhancement` (ENHANCEMENT) | /dev-pipeline:update (Scope-Lock if the scope is undecided) → /dev-pipeline:validate → /dev-pipeline:review → /dev-pipeline:deliver | HLD/LLD diagrams, cloud-design-patterns audit, separate G1-G3 (one Scope-Lock instead) | touches schema, auth, payments, env vars or URL topology -> feature; needs a new screen or flow -> ui-design-round first, then feature | Change validated, reviewed and delivered; affected UI checked on every platform it ships to. |
+| `refactor` (REFACTOR_PROPOSAL) | /dev-pipeline:refactor (propose-only, Rule 9) → accepted items run as `enhancement` or `feature` | silent rewrites | — | Proposal written; the user accepted or declined by ID. |
+| `perf` (PERFORMANCE) | /dev-pipeline:perf → fixes run as `enhancement` | spec unless a budget must be decided | — | Before/after numbers recorded. |
+| `deliver` (DELIVERY) | /dev-pipeline:deliver | everything before delivery | — | Merged and verified on production URLs. |
+| `feature` (NEW_FEATURE) | /dev-pipeline:pipeline (phases 0-12, gates G1-G4) | nothing | — | PR merged, production verified (Rules 17, 20), traceability (8.6) green. |
+<!-- recipes:full:end -->
+
+Record the choice like any other routing call (Output Contract below) with `"event": "recipe.selected"`.
 
 ## Requirements / Intent Routing (Phase 1 — before any design)
 
@@ -218,6 +253,7 @@ Before deciding to use a Stitch / Figma / Supabase MCP, verify the connection is
 
 ## Activation Triggers
 
+- Every routed turn, before any phase: pick the recipe (Recipe Routing)
 - Start of Phase 2 (design) in any flow
 - Start of Phase 5 (architecture / skill selection)
 - Start of Phase 7 (implementation)

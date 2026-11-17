@@ -23,7 +23,7 @@ You are a self-running agent. You MUST invoke the correct pipeline flow automati
 
 ### Rule 1: Route EVERY code request to a pipeline command FIRST
 
-Before writing ANY code, invoke the matching command from the workflow routing table below. Do NOT start coding inline. Do NOT "quickly fix" something without a flow. The pipeline IS how you work.
+Before writing ANY code, pick the recipe (MANDATORY WORKFLOW ROUTING below) and start its first step. Do NOT start coding inline. Do NOT "quickly fix" something without a flow. The pipeline IS how you work.
 
 ### Rule 2: Follow hook directives IMMEDIATELY
 
@@ -318,24 +318,9 @@ Executors report facts (diffs, command outputs, deviations), never marketing sum
 
 ## MANDATORY WORKFLOW ROUTING
 
-Every code change routes to a named flow. There is no inline coding without a pipeline.
+Every code change routes to a named **recipe**: a task type mapped to the phase/command combination it needs. The map is [`recipes/recipes.json`](../recipes/recipes.json), rendered into CLAUDE.md → ROUTING (compact) and `skills/skill-router/SKILL.md` → Recipe Routing (flow, skips, escalation, done-when) by `tools/render-recipes.py`. Each recipe keeps its old task type in `legacy_type` (NEW_FEATURE → `feature`, BUG_FIX → `bug-fix`, ADD_TESTS → `test-only`, …), and the complex/intermittent bug (BUG_FIX_COMPLEX) is `bug-fix`'s escalation into `feature`. Dependency upgrades run as `enhancement`; initialising an existing repo runs `/dev-pipeline:init` and then the recipe that fits.
 
-| User Request Pattern | Task Type | Flow |
-|---|---|---|
-| "Add/Build/Create/Implement [new]" | NEW_FEATURE | `/dev-pipeline:pipeline` |
-| "Improve/Update/Enhance [existing]" | ENHANCEMENT | `/dev-pipeline:update` |
-| "Refactor/Clean up [X]" | REFACTOR | `/dev-pipeline:pipeline` (skip design phases) |
-| "Fix [bug]", "[error message]" | BUG_FIX_SIMPLE | `/dev-pipeline:fix` |
-| "Debug [intermittent issue]" | BUG_FIX_COMPLEX | `/dev-pipeline:pipeline` |
-| "Address review", "PR feedback" | PR_REVIEW_FIX | `/dev-pipeline:pr-review` |
-| "Production down", "Hotfix" | HOTFIX | `/dev-pipeline:hotfix` |
-| "Add tests to existing code" | ADD_TESTS | `/dev-pipeline:pipeline` (skip design + architecture) |
-| "New project from scratch" / "Scaffold from PRD" | NEW_PROJECT | `/dev-pipeline:scaffold-from-prd` (uses spec-forge) |
-| "Initialise existing repo" | INIT_EXISTING | `/dev-pipeline:init` then `/dev-pipeline:pipeline` |
-| "Upgrade dependency X" | DEPENDENCY_UPDATE | `/dev-pipeline:update` |
-| "Performance investigation" | PERFORMANCE | `/dev-pipeline:perf` then `/dev-pipeline:pipeline` if fixes needed |
-| "Refactor/Clean up/Simplify/Modernize" | REFACTOR_PROPOSAL | `/dev-pipeline:refactor` (propose-only, never auto-apply) |
-| Anything unclassified | BUG_FIX_SIMPLE | `/dev-pipeline:fix` (safe default) |
+Why recipes: the old table sent most requests into the full 12-phase pipeline. Reviews, docs syncs, design rounds and PRD digests need a fraction of it, and running everything made the pipeline slow enough that sessions skipped it entirely (the learning watcher counts those as `ad-hoc`). A recipe names exactly which phases run and when to escalate to a heavier one.
 
 **Guarantees for every flow:**
 1. Spec before code — understand before implementing
@@ -373,25 +358,31 @@ The user does NOT need to type a slash command. You route automatically.
 
 **Mechanism (runs on every user turn that involves code):**
 
-1. **Parse the request** for intent keywords against the routing table above.
-2. **Classify** into one of: NEW_FEATURE, ENHANCEMENT, REFACTOR, BUG_FIX_SIMPLE, BUG_FIX_COMPLEX, PR_REVIEW_FIX, HOTFIX, ADD_TESTS, NEW_PROJECT, DEPENDENCY_UPDATE, PERFORMANCE, REFACTOR_PROPOSAL.
-3. **Announce the routing** in one line: *"Classified as BUG_FIX_SIMPLE → invoking `/dev-pipeline:fix`."*
-4. **Invoke the command** before writing any code.
+1. **Walk the recipe table** (CLAUDE.md → ROUTING) top to bottom; take the first recipe whose *When* fits, or the target of an escalation trigger that is already true.
+2. **Announce it** in exactly this form: *"Recipe: bug-fix — `/dev-pipeline:fix` → red test → validate → review → deliver"*. The learning watcher parses `Recipe: <id>` from transcripts to measure which recipes work.
+3. **Log** `{"event":"recipe.selected","recipe":"<id>","reason":"…"}` to `.claude/agent-events.jsonl`.
+4. **Start the recipe's first step** before writing any code; escalate mid-task with `Recipe: <new> (escalated from <old>: <reason>)`.
 
 **Concrete examples:**
 
-| User says | Classification | Auto-invoked |
+| User says | Recipe | First step |
 |---|---|---|
-| "fix the login bug" | BUG_FIX_SIMPLE | `/dev-pipeline:fix` |
-| "the auth endpoint returns 500 intermittently" | BUG_FIX_COMPLEX | `/dev-pipeline:pipeline` |
-| "add a dark mode toggle" | NEW_FEATURE | `/dev-pipeline:pipeline` |
-| "the dashboard feels slow" | PERFORMANCE | `/dev-pipeline:perf` |
-| "address the review comments" | PR_REVIEW_FIX | `/dev-pipeline:pr-review` |
-| "ship it" / "merge" / "open PR" | DELIVERY | `/dev-pipeline:deliver` |
-| "clean this file up" / "make this more idiomatic" | REFACTOR_PROPOSAL | `/dev-pipeline:refactor` (propose-only) |
-| "production is down" | HOTFIX | `/dev-pipeline:hotfix` |
+| "fix the login bug" | `bug-fix` | `/dev-pipeline:fix` |
+| "the auth endpoint returns 500 intermittently" | `bug-fix` → escalates to `feature` | `/dev-pipeline:pipeline` |
+| "add a dark mode toggle" | `ui-design-round` if the look is undecided, else `feature` | design-checker / `/dev-pipeline:pipeline` |
+| "make the empty state friendlier" | `enhancement` | `/dev-pipeline:update` |
+| "review this branch" | `review-only` | `/dev-pipeline:review` |
+| "here's the PRD for v1.2" | `prd-digest` | prd-parser skill |
+| "add the field to the booking API" (web + iOS consume it) | `contract-change` | `/dev-pipeline:plan` scoped to the contract |
+| "add tests for the cancel flow" | `test-only` | test-planner agent |
+| "update the handoff doc" | `docs-sync` | `/dev-pipeline:sync` |
+| "the dashboard feels slow" | `perf` | `/dev-pipeline:perf` |
+| "address the review comments" | `pr-feedback` | `/dev-pipeline:pr-review` |
+| "ship it" / "merge" / "open PR" | `deliver` | `/dev-pipeline:deliver` |
+| "clean this file up" | `refactor` | `/dev-pipeline:refactor` (propose-only) |
+| "production is down" | `hotfix` | `/dev-pipeline:hotfix` |
 
-If the request is ambiguous, ask ONE classification question, then proceed. Never silently fall through to ad-hoc coding.
+If the request is ambiguous between two recipes, ask ONE question naming both, then proceed. Never silently fall through to ad-hoc coding.
 
 ---
 
