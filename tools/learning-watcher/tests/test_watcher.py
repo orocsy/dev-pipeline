@@ -214,6 +214,19 @@ class LintTests(WatcherEnv):
         self.assertEqual(self.lint("costs $28.00  privacy-lint: allow example price").returncode, 0)
 
 
+class IOSStackTests(unittest.TestCase):
+    def test_ios_signals_are_tagged(self):
+        sys.path.insert(0, LW)
+        import capture  # noqa: E402
+        b = capture.Burst("/x/-Users-u-projects-app/s.jsonl", 0, {"excerpt_chars": 200, "recap_chars": 360, "max_items": 8})
+        b.tool_use({"id": "1", "name": "Bash", "input": {"command": "xcodebuild -scheme App -destination 'platform=iOS Simulator' test"}})
+        b.tool_use({"id": "2", "name": "Edit", "input": {"file_path": "/r/apps/ios/App/DesignSystem/PrimaryButton.swift"}})
+        b.tool_use({"id": "3", "name": "Write", "input": {"file_path": "/r/apps/ios/AppUITests/BookingFlowUITests.swift"}})
+        b.tool_use({"id": "4", "name": "mcp__Claude_Code_iOS_Simulator__control", "input": {"action": "screenshot"}})
+        for tag in ("swift", "ios", "ios-tests", "ios-simulator", "swiftui-design-system"):
+            self.assertIn(tag, b.stack, tag)
+
+
 class RecipeInferenceTests(unittest.TestCase):
     def test_infer(self):
         sys.path.insert(0, LW)

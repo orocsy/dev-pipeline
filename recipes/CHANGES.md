@@ -14,3 +14,12 @@ a person reviews and merges them, then runs `python3 tools/render-recipes.py`.
 - Evidence: in the first 10 days of watcher data most sessions used no
   dev-pipeline command at all (counted as `ad-hoc`), and the routing table sent
   reviews, docs syncs, PRD digests and design rounds into the full pipeline.
+
+## 2026-11-18 — iOS coverage
+
+- `ui-design-round`, `enhancement` and `feature` now name the iOS checks
+  (largest accessibility Dynamic Type size, VoiceOver, Reduce Motion, simulator
+  run; engineering-craft `checklists/ios-swiftui-surface.md`).
+- Evidence: an iOS design-system session found no iOS best-practice source
+  anywhere in the router or the catalog; the project ships a SwiftUI app next to
+  its web apps.

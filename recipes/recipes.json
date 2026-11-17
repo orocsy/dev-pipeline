@@ -141,7 +141,7 @@
       "flow": [
         "design-checker agent (confirm UI scope)",
         "design skill for the stack: ui-ux-pro-max (spec) / huashu-design (HTML prototype, 3 directions) / frontend-design",
-        "write docs/<slug>/ui-design.md (+ prototype) covering EVERY platform the project ships",
+        "write docs/<slug>/ui-design.md (+ prototype) covering EVERY platform the project ships; for iOS include each state at the largest accessibility Dynamic Type size, VoiceOver labels and Reduce Motion behaviour",
         "user picks a direction",
         "stop: build it with `enhancement` or `feature`"
       ],
@@ -290,7 +290,7 @@
         "touches schema, auth, payments, env vars or URL topology -> feature",
         "needs a new screen or flow -> ui-design-round first, then feature"
       ],
-      "done_when": "Change validated, reviewed and delivered; affected UI checked on every platform it ships to.",
+      "done_when": "Change validated, reviewed and delivered; affected UI checked on every platform it ships to (iOS: largest accessibility text size, VoiceOver, Reduce Motion, in the simulator).",
       "infer_from": [
         "dev-pipeline:update"
       ],
@@ -363,7 +363,7 @@
       "short": "`/pipeline` (phases 0-12, G1-G4)",
       "skips": "nothing",
       "escalate": [],
-      "done_when": "PR merged, production verified (Rules 17, 20), traceability (8.6) green.",
+      "done_when": "PR merged, production verified (Rules 17, 20), traceability (8.6) green; iOS surfaces pass engineering-craft checklists/ios-swiftui-surface.md.",
       "infer_from": [
         "dev-pipeline:pipeline",
         "dev-pipeline:dev-pipeline",

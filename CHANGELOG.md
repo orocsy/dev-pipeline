@@ -28,6 +28,11 @@ Conventions:
   engineering-craft and recipe proposals on a local `learning/inbox` branch, citing outside
   sources; it never pushes. Why: hook-based capture missed most work and end-of-task
   consolidation rarely ran.
+- **iOS coverage**: `project-detector` now detects Xcode/XcodeGen/Tuist apps inside JS monorepos,
+  Swift version and XCTest/XCUITest/Swift Testing; `skill-router` gains Swift/SwiftUI/iOS rows in
+  design, tech-stack, best-practice and review routing (`ui-ux-pro-max --stack swiftui` plus
+  engineering-craft `checklists/ios-swiftui-surface.md`); the watcher tags iOS tests, simulator
+  use and SwiftUI design-system files, and its consolidation writes iOS lessons in iOS form.
 - **Privacy gate** (`privacy_lint.py` + a pre-push hook in engineering-craft and dev-pipeline):
   refuses keys, emails, prices, client domains, people's names, user paths and private terms in
   anything bound for a remote. `/dev-pipeline:consolidate-lessons` now lints before committing

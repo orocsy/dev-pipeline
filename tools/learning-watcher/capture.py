@@ -95,7 +95,9 @@ EXT_STACK = {
     ".sh": "shell", ".plist": "ios", ".xcconfig": "ios", ".storyboard": "ios", ".xcstrings": "ios",
 }
 PATH_STACK = [
-    (re.compile(r"/apps/ios/|\.xcodeproj|\.xcworkspace|Package\.swift"), "ios"),
+    (re.compile(r"/apps/ios/|\.xcodeproj|\.xcworkspace|Package\.swift|project\.yml$"), "ios"),
+    (re.compile(r"(?:UI)?Tests?/[^/]*\.swift$|Tests\.swift$"), "ios-tests"),
+    (re.compile(r"/(?:DesignSystem|Components|Theme|Tokens)/[^/]*\.swift$"), "swiftui-design-system"),
     (re.compile(r"\.(?:module|controller|service|guard|dto)\.ts$"), "nestjs"),
     (re.compile(r"next\.config|/app/.*(?:page|layout|route)\.tsx?$"), "nextjs"),
     (re.compile(r"\.github/workflows/"), "ci"),
@@ -105,6 +107,9 @@ PATH_STACK = [
 ]
 CMD_STACK = [
     (re.compile(r"\bxcodebuild\b|\bswift\s+(?:test|build|package)\b|\bxcrun\b"), "swift"),
+    (re.compile(r"\bxcodebuild\b[^\n]*\btest\b|\bswift\s+test\b"), "ios-tests"),
+    (re.compile(r"\bsimctl\b"), "ios-simulator"),
+    (re.compile(r"\bxcodegen\b|\baltool\b|\bnotarytool\b|\bxcrun\s+(?:altool|devicectl)\b"), "ios"),
     (re.compile(r"@nestjs|\bnest\s+(?:build|start|g)\b"), "nestjs"),
     (re.compile(r"\bnext\s+(?:build|dev|start)\b"), "nextjs"),
     (re.compile(r"\bprisma\b"), "prisma"),
@@ -282,6 +287,8 @@ class Burst:
         name = item.get("name") or "?"
         inp = item.get("input") or {}
         self.tools[name] += 1
+        if name.startswith("mcp__Claude_Code_iOS_Simulator__"):
+            self.stack["ios-simulator"] += 1
         kind, summary, extra = "tool", "", ""
         if name == "Skill":
             self.skills[str(inp.get("skill", "?"))] += 1
