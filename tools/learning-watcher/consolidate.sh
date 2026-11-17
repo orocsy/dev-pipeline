@@ -9,7 +9,7 @@
 #    shell, and write access only to the two inbox worktrees + $LW_HOME.
 # 4. Runs privacy_lint on each inbox diff. Clean -> commit LOCALLY on learning/inbox.
 #    Any finding -> the diff is saved to $LW_HOME/rejected/ and discarded.
-#    Nothing is ever pushed: Nina reviews, merges and pushes.
+#    Nothing is ever pushed: a person reviews, merges and pushes.
 # 5. Marks the digest's entries consolidated and posts a macOS notification.
 #
 # Usage: consolidate.sh [--force] [--dry-run]   (--dry-run: digest only, no model)
