@@ -270,7 +270,7 @@ class Burst:
         said = "\n".join(l for l in said.splitlines() if not l.lstrip().startswith(">")).strip()
         head = said[:300]
         if len(said) <= 800 and (CORRECTION_START.search(head) or CORRECTION_ANY.search(head)):
-            self._push(self.corrections, self._x(own))
+            self._push(self.corrections, self._x(said))
         elif APPROVAL.match(own) and len(own) <= 60:
             self.approvals += 1
             if PRAISE.search(own):
@@ -580,6 +580,27 @@ def seek_to_time(path: str, size: int, cutoff_iso: str) -> int:
     return lo
 
 
+def last_activity(path: str, size: int) -> float | None:
+    """Epoch of the newest user/assistant record near the end of the file.
+
+    File mtime is useless as an idle signal: the desktop app keeps appending
+    metadata records (titles, latches, frame links) to sessions nobody is using.
+    Conversation records are the ones that start with {"parentUuid".
+    """
+    with open(path, "rb") as fh:
+        fh.seek(max(0, size - 512 * 1024))
+        tail = fh.read()
+    for raw in reversed(tail.split(b"\n")):
+        if raw.startswith(b'{"parentUuid"'):
+            m = TS_RX.search(raw[:4096]) or TS_RX.search(raw[-4096:])
+            if m:
+                try:
+                    return datetime.fromisoformat(m.group(1).decode().replace("Z", "+00:00")).timestamp()
+                except ValueError:
+                    return None
+    return None
+
+
 def iter_records(chunk: bytes):
     for line in chunk.split(b"\n"):
         if not line:
@@ -638,6 +659,8 @@ def main(argv=None) -> int:
     ap.add_argument("--backfill-hours", type=float, default=float(os.environ.get("LW_BACKFILL_HOURS", 48)))
     ap.add_argument("--idle-minutes", type=float, default=float(os.environ.get("LW_IDLE_MINUTES", 20)))
     ap.add_argument("--flush-bytes", type=int, default=48 * 1024 * 1024)
+    ap.add_argument("--max-defer-hours", type=float, default=float(os.environ.get("LW_MAX_DEFER_HOURS", 2)),
+                    help="capture a never-idle session at least this often")
     ap.add_argument("--include-subagents", action="store_true")
     ap.add_argument("--dry-run", action="store_true", help="print entries, write nothing")
     a = ap.parse_args(argv)
@@ -691,11 +714,12 @@ def main(argv=None) -> int:
         pending = st.st_size - offset
         if pending <= 0:
             continue
-        idle = now - st.st_mtime >= a.idle_minutes * 60
-        if not idle and pending < a.flush_bytes:
+        active_at = last_activity(path, st.st_size) if now - st.st_mtime < a.idle_minutes * 60 else None
+        idle = active_at is None or now - active_at >= a.idle_minutes * 60
+        since = (cur or {}).get("deferred_since", now)
+        if not idle and pending < a.flush_bytes and now - since < a.max_defer_hours * 3600:
             deferred += 1
-            if cur is None:
-                new_cursors[path] = {"ino": st.st_ino, "offset": offset}
+            new_cursors[path] = {"ino": st.st_ino, "offset": offset, "deferred_since": since}
             continue
         with open(path, "rb") as fh:
             fh.seek(offset)
