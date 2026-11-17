@@ -1,5 +1,5 @@
 ---
-description: Sweep per-project `.learnings/JOURNAL.md` files, classify entries as new-pattern vs refinement, fold into the engineering-craft repo, commit + push to the public mirror. Auto-scheduled via launchd every 2 days (see ~/Library/LaunchAgents/com.engineering-craft.consolidation-reminder.plist). Safe to run manually any time.
+description: Sweep per-project `.learnings/JOURNAL.md` files and the learning watcher's digest, classify entries as new-pattern vs refinement, fold into the engineering-craft repo, privacy-lint, commit, and push to the public mirror only after the user says yes. The learning watcher (tools/learning-watcher) runs the unattended daily version. Safe to run manually any time.
 argument-hint: "[--dry-run] [--repo <path>]"
 ---
 
@@ -14,6 +14,7 @@ This is the missing automation piece the engineering-craft README has been claim
 ## Inputs
 
 - **Journal sources**: every `<repo>/.learnings/JOURNAL.md` under `~/projects/*/`. Each entry is unconsolidated unless it carries a `<!-- consolidated: YYYY-MM-DD -->` marker.
+- **Learning watcher** (`tools/learning-watcher/`, installed at `~/.claude/learning/`): it captures every session automatically and consolidates daily on its own, onto the local `learning/inbox` branch. When you run this command by hand, also build today's digest with `bash ~/.claude/learning/bin/consolidate.sh --dry-run` and treat its items as extra entries (afterwards: `python3 ~/.claude/learning/bin/digest.py --mark-consolidated ~/.claude/learning/digests/<date>.ids`). If `learning/inbox` already has commits, review and merge those first.
 - **Target repo**: resolve in this order:
   1. `--repo <path>` flag (explicit override always wins)
   2. `MIRROR_DIR` from `~/.claude/skills/engineering-craft/.public-mirror-config` if that file exists (this is what `bootstrap/install.sh` writes when the engineering-craft fresh-machine bootstrap has been run)
@@ -150,8 +151,8 @@ If `$FAILURE_MODES` was also appended this run (a `cross-file-new` verdict), com
 if ! git -C "$PLUGIN_DIR" diff --quiet -- skills/cross-file-reasoning/FAILURE_MODES.md; then
   git -C "$PLUGIN_DIR" add skills/cross-file-reasoning/FAILURE_MODES.md
   git -C "$PLUGIN_DIR" commit -m "feat(cross-file-reasoning): +<N> failure mode(s) from consolidation $(date -u +%Y-%m-%d)"
-  # Push the plugin only if the user's review gate allows; otherwise print a reminder.
-  git -C "$PLUGIN_DIR" push origin main 2>&1 || echo "⚠ plugin push deferred — push $PLUGIN_DIR manually"
+  # Never push from here: show the user the commit and push only on their yes.
+  echo "plugin commit ready in $PLUGIN_DIR — push after the user approves"
 fi
 ```
 
@@ -171,6 +172,10 @@ COUNT_REFINED=<count of refinement>
 COUNT_NOISE=<count of noise>
 COUNT_XFILE=<count of cross-file-new>   # mirrored from the plugin's canonical catalog
 
+# Privacy gate (hard): nothing private may reach the public mirror.
+python3 "$HOME/.claude/learning/bin/privacy_lint.py" --git-worktree --repo "$TARGET" --public \
+  || { echo "privacy lint failed — rewrite the flagged lines generically, then re-run"; exit 1; }
+
 git commit -m "$(cat <<EOF
 chore(consolidate): fold $COUNT_NEW patterns + $COUNT_REFINED refinements + $COUNT_XFILE cross-file from $(date -u +%Y-%m-%d)
 
@@ -183,6 +188,8 @@ Run: /dev-pipeline:consolidate-lessons
 EOF
 )"
 
+# Show the user `git -C "$TARGET" diff --stat origin/main` and the new rule titles,
+# and push ONLY after they say yes (the public mirror; the pre-push hook re-checks).
 git push origin main
 ```
 
@@ -257,6 +264,7 @@ When creating a new `categories/<category>/<slug>.md`:
 ## Anti-patterns (do NOT do these)
 
 - ❌ Auto-pushing engineering-craft if `git pull --ff-only` failed — surface the divergence, don't force-resolve.
+- ❌ Pushing without the user's yes, or with a failing `privacy_lint.py`. The mirror is PUBLIC: no project, client, product or people's names, emails, domains, prices, IDs, keys, user paths or non-English business text. Describe incidents generically ("a booking service").
 - ❌ Marking entries consolidated WITHOUT actually evaluating them (i.e. don't fake the verdict to clear the backlog).
 - ❌ Creating a `new-pattern` file with fewer than 3 sentences in "The Lesson" section — that's a sign the source entry didn't generalize. Mark `noise`.
 - ❌ Editing the consolidated-marker on entries already marked — once consolidated, leave it.
@@ -266,8 +274,9 @@ When creating a new `categories/<category>/<slug>.md`:
 
 ## When this runs
 
-- **Scheduled**: launchd plist `com.engineering-craft.consolidation-reminder` fires every 2 days (`StartInterval=172800`, counted from load — not a fixed wall-clock time), runs a sweep script that COUNTS unconsolidated entries and posts a macOS notification (`23 new entries in 8 repos — run /dev-pipeline:consolidate-lessons`). The actual consolidation is interactive because classification needs LLM judgment. The plist body is installed by engineering-craft's `bootstrap/install.sh` and points at this plugin's `hooks/consolidate-lessons-notify.sh`.
+- **Scheduled (current)**: the learning watcher's `com.dev-pipeline.learning-watcher.consolidate` runs daily at 07:30 with a hard budget, commits to `learning/inbox` locally and never pushes. See `tools/learning-watcher/README.md`.
+- **Scheduled (legacy reminder)**: launchd plist `com.engineering-craft.consolidation-reminder` fires every 2 days (`StartInterval=172800`, counted from load — not a fixed wall-clock time), runs a sweep script that COUNTS unconsolidated entries and posts a macOS notification (`23 new entries in 8 repos — run /dev-pipeline:consolidate-lessons`). The actual consolidation is interactive because classification needs LLM judgment. The plist body is installed by engineering-craft's `bootstrap/install.sh` and points at this plugin's `hooks/consolidate-lessons-notify.sh`.
 - **Manual**: any time, with or without `--dry-run`.
 - **End of feature**: `/dev-pipeline:learn` may suggest invoking this if it just promoted a learning that looks generalizable.
 
-The scheduled job does NOT auto-run `claude -p` — that path is brittle for an LLM-judgment task. Notification + interactive is the deliberate design.
+The legacy reminder does NOT auto-run `claude -p`. The learning watcher does, but only with a hard dollar and turn cap, no shell, write access to two inbox worktrees, a privacy lint on the result, and no push: an unattended run can propose, never publish.

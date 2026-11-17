@@ -12,6 +12,29 @@ Conventions:
 
 ---
 
+## 2026-11-18 — Task recipes; an always-on learning watcher
+
+- **Recipes** ([`recipes/recipes.json`](recipes/recipes.json)): 16 task types, each mapped to
+  only the phases it needs — feature, enhancement, bug-fix, hotfix, review-only, test-only,
+  docs-sync, ui-design-round, prd-digest, contract-change, plus trivial, new-project,
+  pr-feedback, refactor, perf and deliver. CLAUDE.md → ROUTING and `skill-router` → Recipe
+  Routing are generated from it (`tools/render-recipes.py`; `tests/recipes.test.sh` fails when
+  stale). `/dev-pipeline:dev-pipeline` now opens with PHASE −1, which hands off to a lighter
+  recipe when one fits. Every routed turn announces `Recipe: <id> — <flow>`.
+- **Learning watcher** ([`tools/learning-watcher/`](tools/learning-watcher/README.md)): launchd
+  reads new transcript lines every 15 minutes (zero tokens, byte cursors, idempotent) and journals
+  skills used, errors and retry loops, reverts, review findings, user corrections and wins,
+  redacted, outside every repo. A daily capped `claude -p` run folds the journal into
+  engineering-craft and recipe proposals on a local `learning/inbox` branch, citing outside
+  sources; it never pushes. Why: hook-based capture missed most work and end-of-task
+  consolidation rarely ran.
+- **Privacy gate** (`privacy_lint.py` + a pre-push hook in engineering-craft and dev-pipeline):
+  refuses keys, emails, prices, client domains, people's names, user paths and private terms in
+  anything bound for a remote. `/dev-pipeline:consolidate-lessons` now lints before committing
+  and pushes only on the user's yes.
+
+---
+
 ## 2026-08-06 — Review runs the craft GATES, not just the priors; skill refresh unbroken
 
 Mined 1,011 external-reviewer (Codex) findings across 152 PRs in four repos into 18

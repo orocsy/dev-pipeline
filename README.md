@@ -35,6 +35,14 @@ CLAUDE.md        — plugin-level instructions auto-loaded by Claude Code
 | Repo | `orocsy/dev-pipeline` (private) | `orocsy/spec-forge` (private for now) |
 | Concern | methodology + commands for **existing-project** work | scaffold registry for **new-project** bootstrap |
 
+## Recipes and the learning watcher
+
+- `recipes/recipes.json` — task type → the phase/command combination it needs; the router
+  (CLAUDE.md → ROUTING, `skills/skill-router`) picks from it so not every task runs the full pipeline.
+- `tools/learning-watcher/` — always-on capture of what each session did, went wrong and got
+  right, consolidated daily into engineering-craft and recipe proposals. Off switch and privacy
+  rules: [its README](tools/learning-watcher/README.md).
+
 ## Commands index
 
 ### Master flow
