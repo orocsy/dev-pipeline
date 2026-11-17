@@ -63,6 +63,20 @@ spending cap; `claude -p --max-budget-usd` does.
   smaller model, is hard-capped in dollars and turns, and is skipped entirely when there is
   little new to learn from. Tune it all in `~/.claude/learning/config.env`.
 
+## One-time setup: sign the CLI in
+
+Capture needs nothing. The daily model run calls the standalone `claude` CLI, and the desktop
+app's sign-in does not carry over to it (launchd jobs and nested runs both report "Not logged
+in"). Run this once in a terminal:
+
+```bash
+claude auth login
+```
+
+Until then the daily run stops before any model call, leaves entries pending, and posts a
+notification saying so; capture keeps working. Headless alternative: `claude setup-token`, then
+put `CLAUDE_CODE_OAUTH_TOKEN=…` in `~/.claude/learning/config.env` (mode 600).
+
 ## Privacy
 
 Transcripts contain keys, emails, client names and business details. Two layers keep them out

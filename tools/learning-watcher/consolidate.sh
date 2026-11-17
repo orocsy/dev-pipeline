@@ -36,7 +36,7 @@ DATE="$(date +%Y-%m-%d)"
 LOG="$LW_HOME/logs/consolidate.log"
 mkdir -p "$LW_HOME"/{digests,reports,rejected,logs,inbox,state}
 log() { echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $*" >> "$LOG"; }
-notify() { osascript -e "display notification \"$2\" with title \"$1\"" >/dev/null 2>&1 || true; }
+notify() { [[ -n "${LW_NO_NOTIFY:-}" ]] && return 0; osascript -e "display notification \"$2\" with title \"$1\"" >/dev/null 2>&1 || true; }
 
 [[ -e "$LW_HOME/PAUSED" ]] && { log "paused"; exit 0; }
 LOCK="$LW_HOME/state/consolidate.lock.d"
@@ -53,6 +53,15 @@ if [[ "$PENDING" -lt "$LW_MIN_ENTRIES" && "$FORCE" -eq 0 ]]; then
   exit 0
 fi
 if [[ "$DRY" -eq 1 ]]; then log "dry-run: digest at $DIGEST ($PENDING entries)"; echo "$DIGEST"; exit 0; fi
+
+# ---- the model needs a signed-in CLI (the desktop app's sign-in does not carry over)
+if [[ -z "${ANTHROPIC_API_KEY:-}${CLAUDE_CODE_OAUTH_TOKEN:-}" ]] && \
+   ! "$CLAUDE_BIN" auth status 2>/dev/null | grep -q '"loggedIn": *true'; then
+  log "skip: claude CLI is not signed in; $PENDING entries stay pending"
+  notify "Learning watcher" "Daily consolidation is waiting: run 'claude auth login' once in a terminal. Capture keeps working."
+  echo "claude CLI not signed in — run: claude auth login"
+  exit 0
+fi
 
 # ---- inbox worktrees: learning/inbox, based on the repo's local main ---------
 prepare_inbox() {  # repo name base-branch
