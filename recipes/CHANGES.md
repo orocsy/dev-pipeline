@@ -34,3 +34,14 @@ a person reviews and merges them, then runs `python3 tools/render-recipes.py`.
 - Evidence: a live payment-provider setup where the owner had to correct the
   steps (missed dialog choice and permission column, mixed environments, a lock
   discovered late) and two sandbox secrets were printed in chat.
+
+## 2026-11-18 — first consolidation (by hand)
+
+- `contract-change` gains a joint-run step: every consuming lane runs against
+  the producer's local server before merge. Evidence: backend and web lane
+  entries record the joint run finding a bug already live in production.
+- `provider-setup` notes now hold the live payment-provider specifics
+  (restricted-key dialog choice, the Connect permission column, where OAuth is
+  locked and what unlocks it, value-pattern masking leaking quoted secrets).
+- No other recipe change: recipes were not live yet (branch unmerged), so every
+  session in the window was `ad-hoc` or inferred; there is no outcome evidence.

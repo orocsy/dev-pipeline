@@ -19,7 +19,7 @@ Take the FIRST recipe below whose *When* fits, announce it in one line — `Reci
 | `ui-design-round` | The ask is visual/UX: designs, options, mockups, a redesign, or a partner's UI change request. No building yet. | design-checker → design skill → ui-design.md for every platform → user picks → stop |
 | `prd-digest` | A PRD, brief or spec arrives for an EXISTING project and must become a plan. No code yet. | prd-parser → spec-elicitor gaps → `/plan` (1-6) → stop at G4 |
 | `new-project` | Start a brand-new project from a PRD or description. | `/scaffold-from-prd` |
-| `contract-change` | An API/OpenAPI/DTO/shared-fixture change that another lane (backend, web, iOS, admin) consumes. | `/plan` (contract + consumers) → producer + all consumer types in one PR → `/verify-contract` → `/verify-blast-radius` → `/review` → `/deliver` → tell each lane |
+| `contract-change` | An API/OpenAPI/DTO/shared-fixture change that another lane (backend, web, iOS, admin) consumes. | `/plan` (contract + consumers) → producer + all consumer types in one PR → `/verify-contract` → `/verify-blast-radius` → joint run of every consumer → `/review` → `/deliver` → tell each lane |
 | `provider-setup` | Set up or change a third-party provider account (payments, email, DNS, hosting, app store, OAuth) where some steps only the owner can do in a dashboard. | stack-setup → read the real dashboard → click-by-click owner steps, one list per environment → locks up front → secure-key-handoff → verify |
 | `bug-fix` | A reported bug, error message or wrong behaviour with a findable cause. | `/fix` → red test → `/validate` → `/review` → `/deliver` |
 | `pr-feedback` | Review comments on an open PR need answering or fixing. | `/pr-review` → `/validate` → `/review` → push |

@@ -210,12 +210,13 @@
         "change the producer AND regenerate every consumer's types in the same PR",
         "/dev-pipeline:verify-contract",
         "/dev-pipeline:verify-blast-radius",
+        "joint run: every consuming lane runs its app against the producer's local server with test data, all flows, before anything merges",
         "/dev-pipeline:validate",
         "/dev-pipeline:review",
         "/dev-pipeline:deliver",
         "message each consuming lane's session with the contract diff (never ask the user to relay)"
       ],
-      "short": "`/plan` (contract + consumers) → producer + all consumer types in one PR → `/verify-contract` → `/verify-blast-radius` → `/review` → `/deliver` → tell each lane",
+      "short": "`/plan` (contract + consumers) → producer + all consumer types in one PR → `/verify-contract` → `/verify-blast-radius` → joint run of every consumer → `/review` → `/deliver` → tell each lane",
       "skips": "UI design (unless a consumer's UI changes), HLD diagrams",
       "escalate": [
         "a new product capability sits behind the contract -> feature"
@@ -224,7 +225,13 @@
       "infer_from": [
         "dev-pipeline:verify-contract"
       ],
-      "learned": []
+      "learned": [
+        {
+          "date": "2026-11-18",
+          "note": "A joint run of the website, console and admin against the backend's local server (6 of 6 flows, twice) found a bug already live in production before the new contract merged.",
+          "evidence": "2 sessions (backend and web lanes), first manual consolidation"
+        }
+      ]
     },
     {
       "id": "provider-setup",
@@ -234,10 +241,10 @@
       "flow": [
         "stack-setup skill: check what already exists and do every step an API or CLI allows yourself",
         "open the provider's REAL dashboard in the browser and read each page before writing a step; never guess page, menu or field names",
-        "write the owner's steps click by click: every field, toggle, dropdown value, pop-up and confirmation, including dialogs that ask what a key is for and per-row permission columns",
+        "write the owner's steps click by click for the page as it is today: every field, toggle, dropdown value, pop-up and confirmation (engineering-craft process/owner-steps-from-the-live-dashboard)",
         "one list per environment (sandbox/test and live never interleaved), each self-contained",
         "say up front which settings the provider keeps locked and what unlocks them (account profile, live activation) before any step depends on them",
-        "secrets only through the secure-key-handoff skill; never print a key in chat or logs, rotate any that leaked",
+        "secrets only through the secure-key-handoff skill; never print a key in chat or logs — mask by key name (`cut -d= -f1`), never by value pattern (engineering-craft tooling-footguns/mask-secrets-by-key-name); rotate any that leaked",
         "verify with stack-setup's check (or the provider's API) and record what exists"
       ],
       "short": "stack-setup → read the real dashboard → click-by-click owner steps, one list per environment → locks up front → secure-key-handoff → verify",
@@ -254,8 +261,18 @@
       "learned": [
         {
           "date": "2026-11-18",
-          "note": "A live payment-provider setup: steps written from docs missed a key-creation dialog's 'how will you use this key' choice and a per-row Connect permission column, mixed sandbox and live, and found only at the end that OAuth and the live client ID stay locked until the platform profile and live activation are done. Two sandbox secrets were printed in chat and had to be rotated.",
-          "evidence": "1 session plus the owner's own feedback"
+          "note": "Stripe restricted keys: the 'How will you use this key?' pop-up needs 'Powering an integration you've built'; every permission row has a second Connect column — Write for PaymentIntents and Refunds when charging on connected accounts, None for platform-only billing.",
+          "evidence": "live setup, owner feedback"
+        },
+        {
+          "date": "2026-11-18",
+          "note": "Stripe keeps Onboarding options → OAuth 'Enable OAuth' and the live client ID unavailable until the Connect setup guide is finished (business model, platform profile, live account activation): list that first. A guessed 'Connect → Settings → OAuth' path did not exist — read the dashboard in the browser.",
+          "evidence": "live setup, owner feedback"
+        },
+        {
+          "date": "2026-11-18",
+          "note": "A sed mask matching only unquoted values printed two quoted sandbox secrets into chat; they had to be rotated. Mask by key name.",
+          "evidence": "live setup"
         }
       ]
     },
