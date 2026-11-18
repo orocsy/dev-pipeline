@@ -14,10 +14,11 @@ Conventions:
 
 ## 2026-11-18 — Task recipes; an always-on learning watcher
 
-- **Recipes** ([`recipes/recipes.json`](recipes/recipes.json)): 16 task types, each mapped to
+- **Recipes** ([`recipes/recipes.json`](recipes/recipes.json)): 17 task types, each mapped to
   only the phases it needs — feature, enhancement, bug-fix, hotfix, review-only, test-only,
-  docs-sync, ui-design-round, prd-digest, contract-change, plus trivial, new-project,
-  pr-feedback, refactor, perf and deliver. CLAUDE.md → ROUTING and `skill-router` → Recipe
+  docs-sync, ui-design-round, prd-digest, contract-change, provider-setup (owner dashboard steps
+  read from the live dashboard, click by click, one list per environment), plus trivial,
+  new-project, pr-feedback, refactor, perf and deliver. CLAUDE.md → ROUTING and `skill-router` → Recipe
   Routing are generated from it (`tools/render-recipes.py`; `tests/recipes.test.sh` fails when
   stale). `/dev-pipeline:dev-pipeline` now opens with PHASE −1, which hands off to a lighter
   recipe when one fits. Every routed turn announces `Recipe: <id> — <flow>`.

@@ -214,6 +214,31 @@ class LintTests(WatcherEnv):
         self.assertEqual(self.lint("costs $28.00  privacy-lint: allow example price").returncode, 0)
 
 
+class WrappedFeedbackTests(WatcherEnv):
+    def test_feedback_inside_artifact_context_counts_as_human(self):
+        t = lambda m: f"2099-02-01T10:{m:02d}:00.000Z"
+        wrapped = ('<artifact-view-context artifact="x">\n{"context":{"mode":"edit"}}\n'
+                   '<artifact-content-authored-by-others/>\n</artifact-view-context>\n\n'
+                   '<!-- reply 2 -->\n> Settings → OAuth: allow OAuth and add the redirect address.\n\n'
+                   'You mean onboarding options OAuth, enable and add this redirect url right?\n')
+        self.write([
+            line(type="custom-title", customTitle="Backend branch setup", sessionId="s"),
+            assistant([bash("b1", "gh pr view 46")], t(1)),
+            result("b1", "ok", t(1)),
+            human(wrapped, t(2)),
+            assistant([{"type": "tool_use", "id": "w1", "name": "mcp__ccd_turn__wrap_up", "input": {"recap": "Steps rewritten."}}], t(3)),
+            result("w1", "ok", t(3)),
+        ])
+        self.capture()
+        ev = self.events()[0]
+        self.assertEqual(ev["title"], "Backend branch setup")
+        self.assertEqual(ev["human_turns"], 1)
+        self.assertEqual(len(ev["clarifications"]), 1)
+        self.assertIn("redirect url right?", ev["clarifications"][0])
+        self.assertIn("· Backend branch setup ·", self.journal())
+        self.assertIn("user had to ask", self.journal())
+
+
 class IOSStackTests(unittest.TestCase):
     def test_ios_signals_are_tagged(self):
         sys.path.insert(0, LW)
@@ -238,6 +263,7 @@ class RecipeInferenceTests(unittest.TestCase):
         self.assertEqual(lib.infer(Counter({"huashu-design": 1}), Counter()), "ui-design-round")
         self.assertEqual(lib.infer(Counter(), Counter({"dev-pipeline:test-planner": 1})), "test-only")
         self.assertIsNone(lib.infer(Counter({"stripe:test-cards": 1}), Counter()))
+        self.assertEqual(lib.infer(Counter({"stack-setup": 1}), Counter()), "provider-setup")
 
 
 if __name__ == "__main__":

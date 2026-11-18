@@ -11,6 +11,7 @@
   "infer_order": [
     "hotfix",
     "new-project",
+    "provider-setup",
     "contract-change",
     "prd-digest",
     "feature",
@@ -224,6 +225,39 @@
         "dev-pipeline:verify-contract"
       ],
       "learned": []
+    },
+    {
+      "id": "provider-setup",
+      "title": "Provider setup (owner steps)",
+      "legacy_type": "PROVIDER_SETUP",
+      "when": "Set up or change a third-party provider account (payments, email, DNS, hosting, app store, OAuth) where some steps only the owner can do in a dashboard.",
+      "flow": [
+        "stack-setup skill: check what already exists and do every step an API or CLI allows yourself",
+        "open the provider's REAL dashboard in the browser and read each page before writing a step; never guess page, menu or field names",
+        "write the owner's steps click by click: every field, toggle, dropdown value, pop-up and confirmation, including dialogs that ask what a key is for and per-row permission columns",
+        "one list per environment (sandbox/test and live never interleaved), each self-contained",
+        "say up front which settings the provider keeps locked and what unlocks them (account profile, live activation) before any step depends on them",
+        "secrets only through the secure-key-handoff skill; never print a key in chat or logs, rotate any that leaked",
+        "verify with stack-setup's check (or the provider's API) and record what exists"
+      ],
+      "short": "stack-setup → read the real dashboard → click-by-click owner steps, one list per environment → locks up front → secure-key-handoff → verify",
+      "skips": "spec, design, architecture, MIUs (code the setup needs runs as its own recipe)",
+      "escalate": [
+        "the setup needs new code or env vars -> enhancement",
+        "it changes a contract other lanes consume -> contract-change"
+      ],
+      "done_when": "Every API/CLI step is done by the agent; the owner's remaining steps are click by click, one list per environment, checked against the live dashboard; stack-setup check is green; no secret appeared in chat.",
+      "infer_from": [
+        "stack-setup",
+        "secure-key-handoff"
+      ],
+      "learned": [
+        {
+          "date": "2026-11-18",
+          "note": "A live payment-provider setup: steps written from docs missed a key-creation dialog's 'how will you use this key' choice and a per-row Connect permission column, mixed sandbox and live, and found only at the end that OAuth and the live client ID stay locked until the platform profile and live activation are done. Two sandbox secrets were printed in chat and had to be rotated.",
+          "evidence": "1 session plus the owner's own feedback"
+        }
+      ]
     },
     {
       "id": "bug-fix",

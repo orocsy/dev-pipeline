@@ -84,7 +84,7 @@ def recipe_stats(events: list[dict]) -> dict:
         r = recipe_of(ev)
         s["recipes"][r] += 1
         s["announced"] |= bool(ev.get("recipe_announced"))
-        s["corrections"] += len(ev.get("corrections", []))
+        s["corrections"] += len(ev.get("corrections", [])) + len(ev.get("clarifications", []))
         s["errors"] += ev.get("errors_total", 0)
         s["reverts"] += len(ev.get("reverts", []))
         s["interrupts"] += ev.get("interrupts", 0)
@@ -160,9 +160,12 @@ def build(events: list[dict], stats: dict, max_chars: int) -> str:
 
     corr = []
     for e in events:
+        where = " · ".join(x for x in (e["project"], e.get("title", ""), recipe_of(e)) if x)
         for c in e.get("corrections", []):
-            corr.append(f"- [{e['project']} · {recipe_of(e)}] \"{c}\"")
-    sections.append(("User corrections (what the user had to say to put the agent right)", corr or ["- none"]))
+            corr.append(f"- [{where}] \"{c}\"")
+        for q in e.get("clarifications", []):
+            corr.append(f"- [{where}] asked: \"{q}\"")
+    sections.append(("User corrections and clarifying questions (what the user had to say or ask)", corr or ["- none"]))
 
     other = []
     for e in events:
@@ -181,7 +184,7 @@ def build(events: list[dict], stats: dict, max_chars: int) -> str:
     wins = []
     for e in events:
         for r in e.get("recaps", []):
-            wins.append(f"- [{e['project']} · {recipe_of(e)}] {r}")
+            wins.append(f"- [{' · '.join(x for x in (e['project'], e.get('title', ''), recipe_of(e)) if x)}] {r}")
         for g in e.get("green_after_red", []):
             wins.append(f"- green after red [{e['project']}]: {g}")
         for p in e.get("praise", []):

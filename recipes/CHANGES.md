@@ -23,3 +23,14 @@ a person reviews and merges them, then runs `python3 tools/render-recipes.py`.
 - Evidence: an iOS design-system session found no iOS best-practice source
   anywhere in the router or the catalog; the project ships a SwiftUI app next to
   its web apps.
+
+## 2026-11-18 — provider-setup
+
+- New recipe `provider-setup` for third-party account setup where the owner
+  must click through a dashboard: agent does every API/CLI step, reads the real
+  dashboard in the browser, writes click-by-click steps (every field and pop-up),
+  one list per environment, warns about locked settings up front, moves secrets
+  only through secure-key-handoff, verifies with stack-setup.
+- Evidence: a live payment-provider setup where the owner had to correct the
+  steps (missed dialog choice and permission column, mixed environments, a lock
+  discovered late) and two sandbox secrets were printed in chat.

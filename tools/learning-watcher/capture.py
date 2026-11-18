@@ -38,7 +38,7 @@ HOME = os.path.expanduser("~")
 LW_HOME = os.environ.get("LW_HOME", os.path.join(HOME, ".claude", "learning"))
 PROJECTS_DIR = os.environ.get("LW_PROJECTS_DIR", os.path.join(HOME, ".claude", "projects"))
 
-KEEP_TYPES = {b"user", b"assistant", b"system", b"attachment"}
+KEEP_TYPES = {b"user", b"assistant", b"system", b"attachment", b"custom-title"}
 
 # --------------------------------------------------------------------------
 # Signal patterns
@@ -86,6 +86,10 @@ SEVERITY = re.compile(r"(?m)^[\s>*#\-\d.|]*\**\s*(P[0-3]|CRITICAL|HIGH|MEDIUM)\b
 COMMAND_TAG = re.compile(r"<command-name>/?([\w:.-]+)</command-name>")
 PASTE = re.compile(r"<pasted_content[^>]*>.*?(?:</pasted_content>|$)", re.S)
 SYSREM = re.compile(r"<system-reminder>.*?</system-reminder>", re.S)
+# Context the app wraps around what the user typed (artifact view state, IDE
+# selections). The user's own words follow the wrapper.
+WRAPPERS = re.compile(r"<(artifact-view-context|ide_selection|ide_opened_file|ide_diagnostics)\b[^>]*>.*?</\1>"
+                      r"|<artifact-content-authored-by-others\s*/>", re.S)
 
 EXT_STACK = {
     ".swift": "swift", ".m": "objc", ".kt": "kotlin", ".java": "java", ".ts": "typescript",
@@ -249,6 +253,8 @@ class Burst:
         self.review: Counter = Counter()
         self.stack: Counter = Counter()
         self.compactions = 0
+        self.title = ""
+        self.clarifications: list[str] = []
 
     # -- helpers -------------------------------------------------------------
     def _x(self, text: str, n: int | None = None) -> str:
@@ -262,7 +268,8 @@ class Burst:
     def human(self, text: str) -> None:
         for m in COMMAND_TAG.finditer(text):
             self.skills[m.group(1).lstrip("/")] += 1
-        own = SYSREM.sub("", PASTE.sub(" [paste] ", text)).strip()
+        own = WRAPPERS.sub(" ", SYSREM.sub("", PASTE.sub(" [paste] ", text))).strip()
+        own = re.sub(r"^(?:\s*<!--.*?-->)+", "", own, flags=re.S).strip()  # leading reply markers
         if INTERRUPT in own:
             self.interrupts += 1
             return
@@ -274,6 +281,11 @@ class Burst:
         said = re.sub(r"<!--.*?-->|@\"[^\"]+\"", " ", own, flags=re.S)
         said = "\n".join(l for l in said.splitlines() if not l.lstrip().startswith(">")).strip()
         head = said[:300]
+        # Questions back about the agent's own instructions ("You mean X, right?")
+        # are friction too: the steps were not clear enough to follow.
+        for q in [l.strip() for l in said.splitlines()]:
+            if 8 < len(q) <= 240 and q.endswith(("?", "？")):
+                self._push(self.clarifications, self._x(q, 200))
         if len(said) <= 800 and (CORRECTION_START.search(head) or CORRECTION_ANY.search(head)):
             self._push(self.corrections, self._x(said))
         elif APPROVAL.match(own) and len(own) <= 60:
@@ -416,10 +428,12 @@ class Burst:
                         self.legacy_types[m.group(1)] += 1
         elif t == "system" and r.get("subtype") == "compact_boundary":
             self.compactions += 1
+        elif t == "custom-title" and r.get("customTitle"):
+            self.title = redact.redact(str(r["customTitle"]), 80)
 
     # -- output --------------------------------------------------------------
     def significant(self) -> bool:
-        signal = (self.errors_total or self.corrections or self.interrupts or self.denials or self.reverts
+        signal = (self.errors_total or self.corrections or self.clarifications or self.interrupts or self.denials or self.reverts
                   or self.commits or self.prs or self.recaps or self.green_after_red or sum(self.review.values())
                   or self.recipes or self.praise)
         busy = self.human_turns > 0 or sum(self.tools.values()) >= 3
@@ -437,6 +451,7 @@ class Burst:
             "session": self.session,
             "project": self.project,
             "branch": redact.redact(self.branch, 80),
+            "title": self.title,
             "start": self.first_ts,
             "end": self.last_ts,
             "captured": now_iso(),
@@ -452,6 +467,7 @@ class Burst:
             "errors_total": self.errors_total,
             "error_sigs": [[s, n, sample] for s, (n, sample) in sigs[: self.cfg["max_items"]]],
             "corrections": self.corrections,
+            "clarifications": self.clarifications,
             "interrupts": self.interrupts,
             "denials": self.denials,
             "reverts": self.reverts,
@@ -476,7 +492,8 @@ def render_markdown(ev: dict) -> str:
     end = (ev["end"] or "")[:16].replace("T", " ")
     if end[:10] == start[:10]:
         end = end[11:]
-    out = [f"## [{ev['id']}] {start}→{end} UTC · {ev['project']} · {ev['branch'] or '-'}"]
+    lane = f" · {ev['title']}" if ev.get("title") else ""
+    out = [f"## [{ev['id']}] {start}→{end} UTC · {ev['project']}{lane} · {ev['branch'] or '-'}"]
     out.append(f"- turns: {ev['human_turns']} human · {ev['tool_calls']} tool calls"
                + (f" · {ev['compactions']} compaction(s)" if ev["compactions"] else ""))
     rec = ", ".join(ev["recipe_announced"]) or "—"
@@ -495,6 +512,8 @@ def render_markdown(ev: dict) -> str:
             probs.append(f"  - {sig}{' ×' + str(n) if n > 1 else ''}: \"{sample}\"")
     for c in ev["corrections"]:
         probs.append(f"user correction: \"{c}\"")
+    for q in ev.get("clarifications", []):
+        probs.append(f"user had to ask: \"{q}\"")
     if ev["interrupts"]:
         probs.append(f"interrupted by user ×{ev['interrupts']}")
     for d in ev["denials"]:
@@ -701,9 +720,12 @@ def main(argv=None) -> int:
     read_total = 0
     deferred = 0
 
+    own_slug = re.sub(r"[/.]", "-", LW_HOME)
     for path in files:
         if budget <= 0:
             break
+        if os.path.basename(os.path.dirname(path)) == own_slug:
+            continue  # the watcher's own consolidation runs
         try:
             st = os.stat(path)
         except FileNotFoundError:

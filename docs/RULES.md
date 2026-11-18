@@ -380,6 +380,7 @@ The user does NOT need to type a slash command. You route automatically.
 | "address the review comments" | `pr-feedback` | `/dev-pipeline:pr-review` |
 | "ship it" / "merge" / "open PR" | `deliver` | `/dev-pipeline:deliver` |
 | "clean this file up" | `refactor` | `/dev-pipeline:refactor` (propose-only) |
+| "set up the live payment keys" / "connect the email domain" | `provider-setup` | stack-setup skill, then the live dashboard in the browser |
 | "production is down" | `hotfix` | `/dev-pipeline:hotfix` |
 
 If the request is ambiguous between two recipes, ask ONE question naming both, then proceed. Never silently fall through to ad-hoc coding.
