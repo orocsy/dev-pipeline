@@ -1,6 +1,6 @@
 ---
 name: skill-router
-description: Auto-select the correct skills and MCP tools for each pipeline phase based on detected tech stack and task type. Covers design-phase routing (Stitch MCP → Figma MCP → image → ui-ux-pro-max/frontend-design → inline self-generation when neither skill is installed or the stack is outside React/Next/Remix → design-checker → skip), tech-stack skill routing (next → vercel-react + vercel-composition, nestjs → nestjs-best-practices, rust → rust-idioms, go → go-idioms, etc.), best-practice source routing (stack-matched, phase-weighted — typescript-best-practices, vercel:react-best-practices, Better-T-Stack components — consulted by implement/review/validate/fix, pinned in project-context.json), and deploy-adapter selection (vercel.json → vercel-adapter, supabase/ → supabase-adapter, fly.toml → fly-adapter). Trigger at start of design phase, architecture phase, implementation phase, and before delivery. Never ask the user which skill to use — the router decides from `project-profile.json`.
+description: Select existing skills, tools and workflow routes from the project type and the user request. Use for public website launches, technical SEO, Search Console, indexing, performance and Core Web Vitals. Also routes design tools, architecture, stack-specific implementation and review guidance, and deployment adapters. Use the project profile and the evidence for the current task to pick a route.
 ---
 
 # Skill Router
@@ -28,6 +28,14 @@ Before design or code, decide WHETHER the request needs a Socratic intent-clarif
 | Purely technical fault (TypeError, crash, build break) / `/dev-pipeline:hotfix` | SKIP — straight to the fix | — |
 
 Record the decision in the event log like any other routing call (see Output Contract below).
+
+## Website quality routes
+
+- For Search Console, indexing, sitemap or canonical questions, use [seo](../../commands/seo.md). Resolve engineering-craft's `technical-seo-audit` skill there.
+- For a slow page, slow API, Core Web Vitals or a performance regression, use [perf](../../commands/perf.md). Resolve engineering-craft's `web-performance-audit` skill there. Add stack-specific guidance if the evidence points to that layer.
+- For a new or changed public website, run the relevant checks once a representative page runs. Recheck affected public routes after authorized delivery. For a read-only audit, record the findings and stop at the requested boundary.
+
+Use [Workflow routes](../../docs/WORKFLOW_ROUTES.md) for full builds, repairs, refactors and iterations. Use [Delivery evidence](../../docs/DELIVERY_EVIDENCE.md) for the final reader check. These routes work in the current session. Agent delegation and deployment still follow project authorization.
 
 ## Design Phase Routing
 

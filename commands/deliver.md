@@ -452,3 +452,7 @@ Production smoke: ✅ N/N passed (after 5min stabilisation)
 ```
 
 Update `task_plan.md` with all phases complete.
+
+## Delivery briefing
+
+Before reporting success, apply the [delivery evidence](../docs/DELIVERY_EVIDENCE.md) reader check to each user-visible claim. Link the actual verification and name what still needs an external result.

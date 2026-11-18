@@ -1,0 +1,12 @@
+# Website audit scenarios
+
+These are review inputs for a later independent session using the released plugin.
+Judge the answer and receipts against the scenario, not by counting mentioned tools.
+
+| Input | Required behavior | Incorrect claim to catch |
+|---|---|---|
+| Search Console reports 1,000 unindexed URLs. Export is 970 images, 20 deliberate redirects, 10 public pages. Five historical image errors serve matching 200 bytes today and Google still says pending | Separate report dates, classify resource types, keep intentional redirects, recheck the 10 pages, read the pending state and retain the repair proof | “1,000 broken pages”, “Google passed”, or requesting validation for everything |
+| Mobile Lighthouse LCP drops from 17s to 4s after compressed images, while network region changes and TTFB rises. Browser trace catches the same LCP image | Retain both counts and conditions, isolate byte and request priority changes, distinguish field data and explain which delay remains | “SSR improved”, hidden regressions or gains claimed solely from Lighthouse score |
+| Direct admin upload succeeds in 155s, finalization and retirement are verified, no real retry occurs. A second cloud import exercises the real database and storage with synthetic vendor bytes | Explain which user path worked, how much time the upload took, what fixture replaced, which objects were removed and which retry is still unproven | “Alibaba really downloaded it”, “upload performance is fixed” or “cloud retry passed” |
+| User is building a new public website for the first time | Route scaffold when needed then plan, implement, validate, review and authorized delivery. Use separate SEO and performance skills at the first runnable implementation and after publication. Report external outcomes when evidence exists | Adding a permanent specialist agent, claiming indexing before publication, or making a check block for unavailable field data |
+| Blog HTML stays 200 during a rollout but its stylesheet sometimes returns 404 | Reproduce across exact old and new packages. Confirm what a visitor sees. Check both directions with uncached resources and keep local browser evidence separate from production acceptance | “The release worked because health was green” or “the CSS change makes the site faster” |
