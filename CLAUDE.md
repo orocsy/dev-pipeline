@@ -1,31 +1,39 @@
 # dev-pipeline Plugin — Auto-Loading Instructions
 
-Auto-loads when the plugin is enabled. This file is deliberately SHORT: it carries the routing table, the gates, and the one-line form of every rule. Full bodies (rationale, failure-mode narratives, decision trees) live in [`docs/RULES.md`](docs/RULES.md) — same rule numbers. **What's new**: skim [`CHANGELOG.md`](CHANGELOG.md) at session start; anything there is in force.
+Auto-loads when the plugin is enabled. This file is deliberately SHORT: it carries the recipe routing table, the gates, and the one-line form of every rule. Full bodies (rationale, failure-mode narratives, decision trees) live in [`docs/RULES.md`](docs/RULES.md) — same rule numbers. **What's new**: skim [`CHANGELOG.md`](CHANGELOG.md) at session start; anything there is in force.
 
 ---
 
-## ROUTING (check every turn that involves code)
+## ROUTING — pick a recipe (check every turn that involves code)
 
-Classify the request, announce it in one line ("Classified as BUG_FIX → `/dev-pipeline:fix`"), invoke the command BEFORE writing code. Never silently fall through to ad-hoc coding.
+Take the FIRST recipe below whose *When* fits, announce it in one line — `Recipe: <id> — <flow>` — and start its first step BEFORE writing code. A recipe runs only the phases that task type needs: do not default to the full pipeline because it looks safest. Keep the announcement in exactly that form; the learning watcher reads it to learn which recipes work. Source of truth: [`recipes/recipes.json`](recipes/recipes.json); escalation triggers, skips and done-when are in [`skills/skill-router/SKILL.md`](skills/skill-router/SKILL.md) → Recipe Routing. In the table `/x` means `/dev-pipeline:x`.
 
-| Request pattern | Type | Flow |
+<!-- recipes:compact:begin -->
+| Recipe | When | Flow |
 |---|---|---|
-| "Add/Build/Create [new]" | NEW_FEATURE | `/dev-pipeline:pipeline` |
-| "Improve/Update/Enhance [existing]" | ENHANCEMENT | `/dev-pipeline:update` |
-| "Fix [bug]" / [error message] | BUG_FIX | `/dev-pipeline:fix` |
-| "Debug [intermittent issue]" | BUG_FIX_COMPLEX | `/dev-pipeline:pipeline` |
-| "Clean up/Refactor/Simplify [X]" | REFACTOR_PROPOSAL | `/dev-pipeline:refactor` (propose-only) |
-| "Address review/PR feedback" | PR_REVIEW_FIX | `/dev-pipeline:pr-review` |
-| "Production down" | HOTFIX | `/dev-pipeline:hotfix` |
-| "ship it" / "merge" / "open PR" | DELIVERY | `/dev-pipeline:deliver` |
-| "Add tests" | ADD_TESTS | `/dev-pipeline:pipeline` (skip design) |
-| "New project" / PRD | NEW_PROJECT | `/dev-pipeline:scaffold-from-prd` |
-| "Performance" | PERFORMANCE | `/dev-pipeline:perf` |
-| Unclassified code request | BUG_FIX | `/dev-pipeline:fix` (safe default) |
+| `hotfix` | Production is down or a critical regression is live right now. | `/hotfix` → prod smoke → `bug-fix` follow-up |
+| `trivial` | Diff fits one sentence, touches at most 2 files, and has no schema/env/auth/payment/URL-topology surface. | implement + test → log trivial-bypass |
+| `docs-sync` | Docs, living docs, handoff or README updates with no change to code behaviour. | `/sync` or doc-writer → `/deliver` |
+| `review-only` | Review, audit or second opinion on a diff, branch or PR; no fixing asked for. | `/review` or code-review → report → stop |
+| `test-only` | Add or repair tests, or raise coverage, without changing behaviour. | test-planner → tests → `/validate` → `/review` → `/deliver` |
+| `ui-design-round` | The ask is visual/UX: designs, options, mockups, a redesign, or a partner's UI change request. No building yet. | design-checker → design skill → ui-design.md for every platform → user picks → stop |
+| `prd-digest` | A PRD, brief or spec arrives for an EXISTING project and must become a plan. No code yet. | prd-parser → spec-elicitor gaps → `/plan` (1-6) → stop at G4 |
+| `new-project` | Start a brand-new project from a PRD or description. | `/scaffold-from-prd` |
+| `contract-change` | An API/OpenAPI/DTO/shared-fixture change that another lane (backend, web, iOS, admin) consumes. | `/plan` (contract + consumers) → producer + all consumer types in one PR → `/verify-contract` → `/verify-blast-radius` → joint run of every consumer → `/review` → `/deliver` → tell each lane |
+| `provider-setup` | Set up or change a third-party provider account (payments, email, DNS, hosting, app store, OAuth) where some steps only the owner can do in a dashboard. | stack-setup → read the real dashboard → click-by-click owner steps, one list per environment → locks up front → secure-key-handoff → verify |
+| `bug-fix` | A reported bug, error message or wrong behaviour with a findable cause. | `/fix` → red test → `/validate` → `/review` → `/deliver` |
+| `pr-feedback` | Review comments on an open PR need answering or fixing. | `/pr-review` → `/validate` → `/review` → push |
+| `enhancement` | Improve an existing feature inside one module with no schema/auth/payment/env/URL surface. | `/update` → `/validate` → `/review` → `/deliver` |
+| `refactor` | Clean up, restructure or simplify working code. | `/refactor` (propose-only) |
+| `perf` | Something is slow, heavy or janky. | `/perf` → fixes as `enhancement` |
+| `deliver` | Ship it: commit, push, open or merge a PR, deploy. | `/deliver` |
+| `feature` | New capability, screen, endpoint or flow; or anything touching schema, auth, payments, env vars or URL topology; or a complex/intermittent bug. | `/pipeline` (phases 0-12, G1-G4) |
+<!-- recipes:compact:end -->
 
-**Trivial-change bypass (the one sanctioned shortcut):** if the diff is describable in one sentence, touches ≤2 files, and has NO schema/env/auth/payment/URL-topology surface — implement directly WITH a test, then log `{"event":"trivial-bypass", "reason":…}` to `.claude/agent-events.jsonl`. Everything larger routes. When unsure, route.
-
-If ambiguous, ask ONE classification question. Business-intent ambiguity → the routed command runs the Socratic gate first (Rule 23).
+- **Escalate** the moment a recipe's trigger appears: `Recipe: feature (escalated from enhancement: touches auth)`, then continue from the matching phase.
+- **`trivial`** is the one sanctioned shortcut (implement WITH a test, log `{"event":"trivial-bypass","reason":…}` to `.claude/agent-events.jsonl`). When unsure, take the next recipe down.
+- **Unclear** between two recipes → ask ONE question naming both. Unclassifiable code request → `bug-fix`. Business-intent ambiguity → the routed command runs the Socratic gate first (Rule 23).
+- Never silently fall through to ad-hoc coding.
 
 ---
 
@@ -44,7 +52,7 @@ After G4: Phases 7–12 run without further approval.
 
 ## THE RULES (one line each — full bodies in docs/RULES.md, same numbers)
 
-1. **Route first** — every code request goes through a pipeline command (trivial bypass above is the only exception).
+1. **Route first** — every code request starts from a recipe (ROUTING above); `trivial` is the only recipe without a pipeline command.
 2. **Hook directives execute immediately** — an AUTO-REVIEW DIRECTIVE runs before your next response (the Stop hook enforces this deterministically).
 3. **Auto phase transitions** — all MIUs done → invoke `/dev-pipeline:deliver` yourself; don't wait to be asked.
 4. **Never merge outside the flow** — no direct `gh pr merge`; delivery is `/dev-pipeline:deliver`'s 10-step gate chain.

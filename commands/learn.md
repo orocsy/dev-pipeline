@@ -6,6 +6,8 @@ description: Capture learnings and knowledge from a development session for futu
 
 You are capturing knowledge from a completed development session for continuous improvement.
 
+> The learning watcher (`tools/learning-watcher/`) already records every session automatically — skills used, errors and retries, corrections, reverts, wins — into `~/.claude/learning/journal/`. Use this command for what a transcript cannot show: the *why* behind a decision, a lesson you want promoted now, or a correction to something the watcher got wrong.
+
 ---
 
 ## Knowledge Capture

@@ -35,11 +35,11 @@ This skill runs at **Phase 0** of every pipeline flow and during `/dev-pipeline:
    - `pom.xml` / `build.gradle` / `build.gradle.kts` → JVM (Java/Kotlin)
    - `*.csproj` / `*.sln` → .NET
    - `mix.exs` → Elixir
-   - `Package.swift` → Swift
+   - `Package.swift` → Swift (SPM). `*.xcodeproj` / `*.xcworkspace` / `project.yml` (XcodeGen) / `Project.swift` (Tuist) → Apple app: record `language: swift`, `platform: ios` (or `macos` from the target's SDK), `framework: swiftui` when sources `import SwiftUI`, and `swiftVersion` from `swift-tools-version` / `SWIFT_VERSION` (6.x ⇒ strict concurrency is on).
 
 2. **Monorepo detection** (before narrowing stack):
    - `pnpm-workspace.yaml`, `turbo.json`, `nx.json`, `lerna.json`, root `package.json` with `workspaces` → monorepo
-   - If monorepo, run detection per package in `apps/*` and `packages/*`.
+   - If monorepo, run detection per package in `apps/*` and `packages/*`. Non-Node packages count too: an `apps/ios/` with an Xcode project or a `packages/*/Package.swift` adds the Swift/iOS signals above alongside the Node ones, so a JS monorepo that ships an iPhone app is never detected as Node-only.
 
 3. **Framework narrowing** (per-package):
    - Check `next.config.{js,mjs,ts}`, `remix.config.js`, `astro.config.mjs`, `vite.config.{js,ts}`, `nest-cli.json`, `tsconfig.json` paths.
@@ -49,6 +49,7 @@ This skill runs at **Phase 0** of every pipeline flow and during `/dev-pipeline:
    - `jest.config.*` → Jest
    - `playwright.config.*` → Playwright (E2E)
    - `cypress.config.*` → Cypress
+   - Swift sources with `import Testing` → Swift Testing; `import XCTest` → XCTest; `XCUIApplication` in a `*UITests` target → XCUITest (simulator UI tests)
    - Record whether each is present; MIU planner uses this.
 
 5. **Linter / formatter**:

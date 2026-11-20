@@ -11,11 +11,19 @@ bash -n \
   "$ROOT/tests/pipeline-pointer-valid.test.sh" \
   "$ROOT/tests/resolve-feature-doc.test.sh" \
   "$ROOT/tests/resolve-traceability-specs.test.sh" \
-  "$ROOT/tests/session-start-tracked-handoff.test.sh"
+  "$ROOT/tests/session-start-tracked-handoff.test.sh" \
+  "$ROOT/tests/recipes.test.sh" \
+  "$ROOT/tests/learning-watcher.test.sh" \
+  "$ROOT/tools/learning-watcher/install.sh" \
+  "$ROOT/tools/learning-watcher/uninstall.sh" \
+  "$ROOT/tools/learning-watcher/consolidate.sh" \
+  "$ROOT/tools/learning-watcher/git-hooks/pre-push-privacy"
 
 "$ROOT/tests/resolve-feature-doc.test.sh"
 "$ROOT/tests/session-start-tracked-handoff.test.sh"
 "$ROOT/tests/pipeline-pointer-valid.test.sh"
 "$ROOT/tests/resolve-traceability-specs.test.sh"
+"$ROOT/tests/recipes.test.sh"
+"$ROOT/tests/learning-watcher.test.sh"
 
 echo "PASS: all dev-pipeline shell tests"

@@ -1,6 +1,6 @@
 ---
 name: skill-router
-description: Auto-select the correct skills and MCP tools for each pipeline phase based on detected tech stack and task type. Covers design-phase routing (Stitch MCP → Figma MCP → image → ui-ux-pro-max/frontend-design → inline self-generation when neither skill is installed or the stack is outside React/Next/Remix → design-checker → skip), tech-stack skill routing (next → vercel-react + vercel-composition, nestjs → nestjs-best-practices, rust → rust-idioms, go → go-idioms, etc.), best-practice source routing (stack-matched, phase-weighted — typescript-best-practices, vercel:react-best-practices, Better-T-Stack components — consulted by implement/review/validate/fix, pinned in project-context.json), and deploy-adapter selection (vercel.json → vercel-adapter, supabase/ → supabase-adapter, fly.toml → fly-adapter). Trigger at start of design phase, architecture phase, implementation phase, and before delivery. Never ask the user which skill to use — the router decides from `project-profile.json`.
+description: Auto-select the task recipe (which phases/commands run for this task type, from recipes/recipes.json) and the correct skills and MCP tools for each pipeline phase based on detected tech stack and task type. Covers recipe selection, design-phase routing (Stitch MCP → Figma MCP → image → ui-ux-pro-max/frontend-design → inline self-generation when neither skill is installed or the stack is outside React/Next/Remix → design-checker → skip), tech-stack skill routing (next → vercel-react + vercel-composition, nestjs → nestjs-best-practices, rust → rust-idioms, go → go-idioms, etc.), best-practice source routing (stack-matched, phase-weighted — typescript-best-practices, vercel:react-best-practices, Better-T-Stack components — consulted by implement/review/validate/fix, pinned in project-context.json), and deploy-adapter selection (vercel.json → vercel-adapter, supabase/ → supabase-adapter, fly.toml → fly-adapter). Trigger at start of design phase, architecture phase, implementation phase, and before delivery. Never ask the user which skill to use — the router decides from `project-profile.json`.
 ---
 
 # Skill Router
@@ -15,6 +15,50 @@ description: Auto-select the correct skills and MCP tools for each pipeline phas
 ---
 
 This skill is the single decision point for "which skill / MCP / adapter do I use right now?" Agents MUST consult this router before reaching for any tool; the router reads `project-profile.json` (from `project-detector`) and emits a decision.
+
+## Recipe Routing (before any phase — which phases run at all)
+
+The first decision is not which skill but which **recipe**: the task-type → phase/command combination in [`recipes/recipes.json`](../../recipes/recipes.json). The entry commands (`/dev-pipeline:dev-pipeline`, `/dev-pipeline:pipeline`) and every routed turn start here, so an agent does not run the full 12-phase pipeline for a review, a docs sync or a UI design round. The table below is generated from `recipes.json` by `tools/render-recipes.py` (do not hand-edit it; `tests/recipes.test.sh` fails when it is stale). The learning watcher (`tools/learning-watcher/`) records which recipe each session followed and how it went, and proposes changes on the `learning/inbox` branch; a person merges them.
+
+<!-- recipes:full:begin -->
+Selection:
+
+1. Walk `recipes` top to bottom and take the FIRST whose `when` fits the request; the order runs from most specific to the full pipeline.
+2. If an `escalate` trigger is already true, take its target instead.
+3. Announce one line before any work: `Recipe: <id> — <flow>`, and log {"event":"recipe.selected","recipe":"<id>","reason":"..."} to .claude/agent-events.jsonl.
+4. If an escalation trigger appears mid-task, stop, announce `Recipe: <new> (escalated from <old>: <reason>)` and continue in the new flow from the matching phase.
+5. Ambiguous between two recipes: ask ONE question naming both. Never default to the full pipeline just because it is the safest-looking choice.
+
+| Recipe (legacy type) | Flow | Skips | Escalate | Done when |
+|---|---|---|---|---|
+| `hotfix` (HOTFIX) | /dev-pipeline:hotfix → smoke the production URLs (Rules 17, 20) → follow up with `bug-fix` for the class fix | elicitation, design, architecture, MIU breakdown | — | Production smoke green on live URLs; a `bug-fix` follow-up is recorded. |
+| `trivial` (TRIVIAL) | implement directly WITH a test → log {"event":"trivial-bypass"} to .claude/agent-events.jsonl | every phase except the test | a third file or any guarded surface appears -> enhancement | Test passes; event logged. |
+| `docs-sync` (DOCS) | /dev-pipeline:sync (living docs) or the doc-writer agent → /dev-pipeline:review only if the docs define a contract (API, env, URL, schema) → /dev-pipeline:deliver | spec, design, architecture, MIUs, tests | the doc change implies a contract change -> contract-change | Docs match the code they describe; links resolve. |
+| `review-only` (REVIEW) | /dev-pipeline:review (local diff) or the code-review skill (PR/branch) → report findings ranked by severity → stop: fixes go through `bug-fix` or `pr-feedback` on the user's yes | all writing phases; makes no edits | the user asks to fix what was found -> bug-fix or pr-feedback | Findings reported (or HEAD blessed when the diff is clean). |
+| `test-only` (ADD_TESTS) | test-planner agent (scenarios first) → write tests against EXISTING behaviour → /dev-pipeline:validate → /dev-pipeline:review → /dev-pipeline:deliver | spec, design, architecture | a new test exposes a real bug -> bug-fix (never rewrite the expectation, Rule 19) | New tests fail when the behaviour they guard is broken (checked once by mutation or revert) and pass now. |
+| `ui-design-round` (UI_DESIGN) | design-checker agent (confirm UI scope) → design skill for the stack: ui-ux-pro-max (spec) / huashu-design (HTML prototype, 3 directions) / frontend-design → write docs/<slug>/ui-design.md (+ prototype) covering EVERY platform the project ships; for iOS include each state at the largest accessibility Dynamic Type size, VoiceOver labels and Reduce Motion behaviour → user picks a direction → stop: build it with `enhancement` or `feature` | architecture, MIUs, code, deliver | the user says build it -> enhancement (one surface) or feature (new flow) | The user picked a direction and ui-design.md is on disk. |
+| `prd-digest` (PRD) | prd-parser skill → spec-elicitor (Mode A) for gaps only → /dev-pipeline:plan (phases 1-6) -> docs/<slug>/SPEC.md + MIU list → stop at G4 | implement, validate, deliver | the PRD is for a NEW project -> new-project | SPEC.md and the MIU breakdown are approved at G4; open questions listed. |
+| `new-project` (NEW_PROJECT) | /dev-pipeline:scaffold-from-prd | existing-project phases | — | Scaffold builds and its first test passes. |
+| `contract-change` (CONTRACT) | /dev-pipeline:plan scoped to the contract + every consumer → change the producer AND regenerate every consumer's types in the same PR → /dev-pipeline:verify-contract → /dev-pipeline:verify-blast-radius → joint run: every consuming lane runs its app against the producer's local server with test data, all flows, before anything merges → /dev-pipeline:validate → /dev-pipeline:review → /dev-pipeline:deliver → message each consuming lane's session with the contract diff (never ask the user to relay) | UI design (unless a consumer's UI changes), HLD diagrams | a new product capability sits behind the contract -> feature | Producer and every consumer build against the new contract; each consuming lane has been told. |
+| `provider-setup` (PROVIDER_SETUP) | stack-setup skill: check what already exists and do every step an API or CLI allows yourself → open the provider's REAL dashboard yourself (built-in browser, or Playwright when that is quicker) and read each page before writing a step; never guess page, menu or field names, and never ask the owner to read pages for you → write the owner's steps click by click for the page as it is today: every field, toggle, dropdown value, pop-up and confirmation (engineering-craft process/owner-steps-from-the-live-dashboard) → one list per environment (sandbox/test and live never interleaved), each self-contained → say up front which settings the provider keeps locked and what unlocks them (account profile, live activation) before any step depends on them → secrets only through the secure-key-handoff skill; never print a key in chat or logs — mask by key name (`cut -d= -f1`), never by value pattern (engineering-craft tooling-footguns/mask-secrets-by-key-name); rotate any that leaked → verify with stack-setup's check (or the provider's API) and record what exists | spec, design, architecture, MIUs (code the setup needs runs as its own recipe) | the setup needs new code or env vars -> enhancement; it changes a contract other lanes consume -> contract-change | Every API/CLI step is done by the agent; the owner's remaining steps are click by click, one list per environment, checked against the live dashboard; stack-setup check is green; no secret appeared in chat. |
+| `bug-fix` (BUG_FIX) | /dev-pipeline:fix (business-vs-technical triage, Rule 23) → regression test first (red) → /dev-pipeline:validate → /dev-pipeline:review → /dev-pipeline:deliver | HLD/LLD, MIU breakdown (one MIU) | intermittent, multi-module or unclear root cause -> feature (BUG_FIX_COMPLEX runs /dev-pipeline:pipeline); production down -> hotfix | Regression test went red then green; siblings of the root cause checked (Rule 11). |
+| `pr-feedback` (PR_REVIEW_FIX) | /dev-pipeline:pr-review → /dev-pipeline:validate → /dev-pipeline:review → push | spec, design, architecture | a comment asks for new behaviour -> enhancement | Every comment fixed or answered with evidence; HEAD blessed. |
+| `enhancement` (ENHANCEMENT) | /dev-pipeline:update (Scope-Lock if the scope is undecided) → /dev-pipeline:validate → /dev-pipeline:review → /dev-pipeline:deliver | HLD/LLD diagrams, cloud-design-patterns audit, separate G1-G3 (one Scope-Lock instead) | touches schema, auth, payments, env vars or URL topology -> feature; needs a new screen or flow -> ui-design-round first, then feature | Change validated, reviewed and delivered; affected UI checked on every platform it ships to (iOS: largest accessibility text size, VoiceOver, Reduce Motion, in the simulator). |
+| `refactor` (REFACTOR_PROPOSAL) | /dev-pipeline:refactor (propose-only, Rule 9) → accepted items run as `enhancement` or `feature` | silent rewrites | — | Proposal written; the user accepted or declined by ID. |
+| `perf` (PERFORMANCE) | /dev-pipeline:perf → fixes run as `enhancement` | spec unless a budget must be decided | — | Before/after numbers recorded. |
+| `deliver` (DELIVERY) | /dev-pipeline:deliver | everything before delivery | — | Merged and verified on production URLs. |
+| `feature` (NEW_FEATURE) | /dev-pipeline:pipeline (phases 0-12, gates G1-G4) | nothing | — | PR merged, production verified (Rules 17, 20), traceability (8.6) green; iOS surfaces pass engineering-craft checklists/ios-swiftui-surface.md. |
+
+Learned notes (added by the learning watcher, merged by a person):
+
+- `contract-change` (2026-11-18, 2 sessions (backend and web lanes), first manual consolidation): A joint run of the website, console and admin against the backend's local server (6 of 6 flows, twice) found a bug already live in production before the new contract merged.
+- `provider-setup` (2026-11-18, live setup, owner feedback): Stripe restricted keys: the 'How will you use this key?' pop-up needs 'Powering an integration you've built'; every permission row has a second Connect column — Write for PaymentIntents and Refunds when charging on connected accounts, None for platform-only billing.
+- `provider-setup` (2026-11-18, live setup, owner feedback): Stripe keeps Onboarding options → OAuth 'Enable OAuth' and the live client ID unavailable until the Connect setup guide is finished (business model, platform profile, live account activation): list that first. A guessed 'Connect → Settings → OAuth' path did not exist — read the dashboard in the browser.
+- `provider-setup` (2026-11-18, live setup): A sed mask matching only unquoted values printed two quoted sandbox secrets into chat; they had to be rotated. Mask by key name.
+- `provider-setup` (2026-11-20, 1 session, owner correction): The owner had to ask why the agent kept sending them to a browser plugin instead of driving the dashboard itself with Playwright. Use whatever browser automation is available; hand the owner only sign-in, approval and the clicks no tool can do.
+<!-- recipes:full:end -->
+
+Record the choice like any other routing call (Output Contract below) with `"event": "recipe.selected"`.
 
 ## Requirements / Intent Routing (Phase 1 — before any design)
 
@@ -71,7 +115,8 @@ If excalidraw MCP is connected, also render + screenshot each diagram for visual
 | Stack is React/Next/Remix AND design spec already exists | `design-checker` (verify implementation matches spec) |
 | Stack is React/Next/Remix AND no design asset AND `ui-ux-pro-max` installed | `ui-ux-pro-max` — generate the design system/spec for the surfaces this feature touches (Phase 3.3 step 2) |
 | Stack is React/Next/Remix AND no design asset AND `ui-ux-pro-max` absent AND `frontend-design` installed | `frontend-design` (claude-plugins-official — installed default) — generate the per-surface spec (Phase 3.3 step 3) |
-| NEITHER `ui-ux-pro-max` nor `frontend-design` installed (any stack), OR stack is outside React/Next/Remix with no matching design generator | **inline self-generation** — produce the spec yourself, no skill invocation (the Phase 3.3 guaranteed-executable branch) |
+| Stack is SwiftUI/iOS AND no design asset AND `ui-ux-pro-max` installed | `ui-ux-pro-max` with `--stack swiftui`, plus the iOS surface checklist (engineering-craft `checklists/ios-swiftui-surface.md`): every state at the largest accessibility Dynamic Type size, VoiceOver labels, Reduce Motion behaviour, dark mode |
+| NEITHER `ui-ux-pro-max` nor `frontend-design` installed (any stack), OR stack is outside React/Next/Remix/SwiftUI with no matching design generator | **inline self-generation** — produce the spec yourself, no skill invocation (the Phase 3.3 guaranteed-executable branch) |
 
 If multiple MCPs are connected (Stitch + Figma), prefer the one referenced by the user in Phase 1. If neither is referenced, ask ONE question: "Stitch or Figma?" Do not ask a generic "what design tool?"
 
@@ -120,6 +165,9 @@ Read `project-profile.json`. Load the matching skill(s). Multiple may load per p
 | `language: python` + `fastapi` | `fastapi-patterns` |
 | `language: python` + `django` | `django-idioms` |
 | `language: typescript` | `typescript-strict` (always, for any TS project) |
+| `language: swift` | Swift API Design Guidelines + Swift 6 concurrency (migration guide) — no installed skill; see Best-Practice Source Routing |
+| `framework: swiftui` / `platform: ios` | `ui-ux-pro-max --stack swiftui` + engineering-craft `checklists/ios-swiftui-surface.md` |
+| `testFrameworks: [xctest / xcuitest / swift-testing]` | `checklists/ios-swiftui-surface.md` → Testing; simulator UI tests run through the iOS Simulator MCP (`mcp__Claude_Code_iOS_Simulator__*`) when present |
 | `testFrameworks: [vitest]` | `vitest-patterns` |
 | `testFrameworks: [jest]` | `jest-patterns` |
 | `testFrameworks: [playwright]` | `playwright-e2e` |
@@ -141,6 +189,10 @@ The declarative mapping from detected stack signals to **best-practice skill sou
 | `auth: better-auth` | `developer-kit-typescript:better-auth` | `developer-kit` marketplace | Context7 `better-auth`; scout flags |
 | `validation: zod` | `developer-kit-typescript:zod-validation-utilities` | `developer-kit` marketplace | Context7 `zod` |
 | `monorepo: turborepo` | `developer-kit-typescript:turborepo-monorepo` | `developer-kit` marketplace | Context7 `turborepo` |
+| `framework: swiftui` / `platform: ios` (UI) | `ui-ux-pro-max` (`--stack swiftui`, 50 SwiftUI rules) + engineering-craft `checklists/ios-swiftui-surface.md` | user-level `~/.claude/skills/` | Apple HIG + SwiftUI docs (links in the checklist); scout flags |
+| `language: swift` (concurrency, API design) | — none published yet (KNOWN GAP) | — | engineering-craft `checklists/ios-swiftui-surface.md` → Concurrency, then Swift.org (API Design Guidelines, Swift 6 migration guide) via Context7/WebFetch; scout suggests skill-doctor search |
+| `platform: ios` (accessibility: Dynamic Type, VoiceOver, Reduce Motion) | engineering-craft `checklists/ios-swiftui-surface.md` (craft's `accessibility-state-sync` category is web-only) | engineering-craft | Apple HIG Accessibility |
+| `testFrameworks: [xctest, xcuitest, swift-testing]` | — none published yet (KNOWN GAP) | — | checklist → Testing; Apple Testing / XCTest docs |
 | `framework: hono` | — none published yet (KNOWN GAP) | — | Context7 `hono`; scout suggests `/dev-pipeline:skill-doctor` search |
 | `rpc: trpc` / `orpc` | — none published yet (KNOWN GAP) | — | Context7 `trpc` / `orpc`; scout suggests skill-doctor search |
 | `framework: tanstack-start` / `tanstack-router` / `tanstack-query` | — none published yet (KNOWN GAP) | — | Context7 per package; scout suggests skill-doctor search |
@@ -203,6 +255,7 @@ After every commit, the post-commit hook triggers self-review. Which reviewers r
 | Any non-doc-only file | `cross-file-reviewer` (always — runs alongside deep-reviewer) | `cross-file-reasoning` |
 | Any file | `deep-reviewer` (always) | (none; uses cross-file lens via prompt instructions) |
 | `.ts` / `.tsx` | `typescript-reviewer` | `typescript-best-practices` (pinned best-practice source; see Best-Practice Source Routing) |
+| `.swift` / `.xcstrings` / `Info.plist` / `project.yml` | `deep-reviewer` primed for Swift (no dedicated reviewer yet) | `ui-ux-pro-max --stack swiftui` for views; `checklists/ios-swiftui-surface.md` (actor isolation and `Sendable`, Dynamic Type, VoiceOver labels, Reduce Motion, tests) |
 | Auth / crypto / `process.env.*` / `.env*` | `security-reviewer` | (none; uses cross-file env-var trace via prompt) — plus `better-auth` when that source is pinned |
 | SQL / migrations / `schema.prisma` / Drizzle schema | `db-reviewer` | `postgres-best-practices` / `prisma-patterns` / `drizzle-orm-patterns` (pinned) |
 | `*.test.*` / `*.spec.*` | `test-reviewer` | `vitest-patterns` / `jest-patterns` |
@@ -218,6 +271,7 @@ Before deciding to use a Stitch / Figma / Supabase MCP, verify the connection is
 
 ## Activation Triggers
 
+- Every routed turn, before any phase: pick the recipe (Recipe Routing)
 - Start of Phase 2 (design) in any flow
 - Start of Phase 5 (architecture / skill selection)
 - Start of Phase 7 (implementation)

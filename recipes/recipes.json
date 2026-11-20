@@ -1,0 +1,433 @@
+{
+  "$comment": "Canonical task-type -> phase/command map. The router (CLAUDE.md ROUTING + skills/skill-router) picks from this; tools/render-recipes.py renders the tables there (`short` in CLAUDE.md, `flow` in skill-router) (run it after editing, tests/recipes.test.sh checks they match). The learning watcher infers which recipe a session followed from `infer_from` and proposes changes in recipes/CHANGES.md.",
+  "version": 1,
+  "selection": [
+    "Walk `recipes` top to bottom and take the FIRST whose `when` fits the request; the order runs from most specific to the full pipeline.",
+    "If an `escalate` trigger is already true, take its target instead.",
+    "Announce one line before any work: `Recipe: <id> — <flow>`, and log {\"event\":\"recipe.selected\",\"recipe\":\"<id>\",\"reason\":\"...\"} to .claude/agent-events.jsonl.",
+    "If an escalation trigger appears mid-task, stop, announce `Recipe: <new> (escalated from <old>: <reason>)` and continue in the new flow from the matching phase.",
+    "Ambiguous between two recipes: ask ONE question naming both. Never default to the full pipeline just because it is the safest-looking choice."
+  ],
+  "infer_order": [
+    "hotfix",
+    "new-project",
+    "provider-setup",
+    "contract-change",
+    "prd-digest",
+    "feature",
+    "ui-design-round",
+    "bug-fix",
+    "pr-feedback",
+    "enhancement",
+    "refactor",
+    "perf",
+    "test-only",
+    "review-only",
+    "deliver",
+    "docs-sync"
+  ],
+  "recipes": [
+    {
+      "id": "hotfix",
+      "title": "Hotfix",
+      "legacy_type": "HOTFIX",
+      "when": "Production is down or a critical regression is live right now.",
+      "flow": [
+        "/dev-pipeline:hotfix",
+        "smoke the production URLs (Rules 17, 20)",
+        "follow up with `bug-fix` for the class fix"
+      ],
+      "short": "`/hotfix` → prod smoke → `bug-fix` follow-up",
+      "skips": "elicitation, design, architecture, MIU breakdown",
+      "escalate": [],
+      "done_when": "Production smoke green on live URLs; a `bug-fix` follow-up is recorded.",
+      "infer_from": [
+        "dev-pipeline:hotfix"
+      ],
+      "learned": []
+    },
+    {
+      "id": "trivial",
+      "title": "Trivial change",
+      "legacy_type": "TRIVIAL",
+      "when": "Diff fits one sentence, touches at most 2 files, and has no schema/env/auth/payment/URL-topology surface.",
+      "flow": [
+        "implement directly WITH a test",
+        "log {\"event\":\"trivial-bypass\"} to .claude/agent-events.jsonl"
+      ],
+      "short": "implement + test → log trivial-bypass",
+      "skips": "every phase except the test",
+      "escalate": [
+        "a third file or any guarded surface appears -> enhancement"
+      ],
+      "done_when": "Test passes; event logged.",
+      "infer_from": [],
+      "learned": []
+    },
+    {
+      "id": "docs-sync",
+      "title": "Docs sync",
+      "legacy_type": "DOCS",
+      "when": "Docs, living docs, handoff or README updates with no change to code behaviour.",
+      "flow": [
+        "/dev-pipeline:sync (living docs) or the doc-writer agent",
+        "/dev-pipeline:review only if the docs define a contract (API, env, URL, schema)",
+        "/dev-pipeline:deliver"
+      ],
+      "short": "`/sync` or doc-writer → `/deliver`",
+      "skips": "spec, design, architecture, MIUs, tests",
+      "escalate": [
+        "the doc change implies a contract change -> contract-change"
+      ],
+      "done_when": "Docs match the code they describe; links resolve.",
+      "infer_from": [
+        "dev-pipeline:sync",
+        "agent:dev-pipeline:doc-writer"
+      ],
+      "learned": []
+    },
+    {
+      "id": "review-only",
+      "title": "Review only",
+      "legacy_type": "REVIEW",
+      "when": "Review, audit or second opinion on a diff, branch or PR; no fixing asked for.",
+      "flow": [
+        "/dev-pipeline:review (local diff) or the code-review skill (PR/branch)",
+        "report findings ranked by severity",
+        "stop: fixes go through `bug-fix` or `pr-feedback` on the user's yes"
+      ],
+      "short": "`/review` or code-review → report → stop",
+      "skips": "all writing phases; makes no edits",
+      "escalate": [
+        "the user asks to fix what was found -> bug-fix or pr-feedback"
+      ],
+      "done_when": "Findings reported (or HEAD blessed when the diff is clean).",
+      "infer_from": [
+        "dev-pipeline:review",
+        "code-review",
+        "security-review",
+        "agent:dev-pipeline:review-analyzer"
+      ],
+      "learned": []
+    },
+    {
+      "id": "test-only",
+      "title": "Test only",
+      "legacy_type": "ADD_TESTS",
+      "when": "Add or repair tests, or raise coverage, without changing behaviour.",
+      "flow": [
+        "test-planner agent (scenarios first)",
+        "write tests against EXISTING behaviour",
+        "/dev-pipeline:validate",
+        "/dev-pipeline:review",
+        "/dev-pipeline:deliver"
+      ],
+      "short": "test-planner → tests → `/validate` → `/review` → `/deliver`",
+      "skips": "spec, design, architecture",
+      "escalate": [
+        "a new test exposes a real bug -> bug-fix (never rewrite the expectation, Rule 19)"
+      ],
+      "done_when": "New tests fail when the behaviour they guard is broken (checked once by mutation or revert) and pass now.",
+      "infer_from": [
+        "agent:dev-pipeline:test-planner",
+        "dev-pipeline:validate"
+      ],
+      "learned": []
+    },
+    {
+      "id": "ui-design-round",
+      "title": "UI design round",
+      "legacy_type": "UI_DESIGN",
+      "when": "The ask is visual/UX: designs, options, mockups, a redesign, or a partner's UI change request. No building yet.",
+      "flow": [
+        "design-checker agent (confirm UI scope)",
+        "design skill for the stack: ui-ux-pro-max (spec) / huashu-design (HTML prototype, 3 directions) / frontend-design",
+        "write docs/<slug>/ui-design.md (+ prototype) covering EVERY platform the project ships; for iOS include each state at the largest accessibility Dynamic Type size, VoiceOver labels and Reduce Motion behaviour",
+        "user picks a direction",
+        "stop: build it with `enhancement` or `feature`"
+      ],
+      "short": "design-checker → design skill → ui-design.md for every platform → user picks → stop",
+      "skips": "architecture, MIUs, code, deliver",
+      "escalate": [
+        "the user says build it -> enhancement (one surface) or feature (new flow)"
+      ],
+      "done_when": "The user picked a direction and ui-design.md is on disk.",
+      "infer_from": [
+        "ui-ux-pro-max",
+        "huashu-design",
+        "frontend-design",
+        "agent:dev-pipeline:design-checker"
+      ],
+      "learned": []
+    },
+    {
+      "id": "prd-digest",
+      "title": "Digest a new PRD",
+      "legacy_type": "PRD",
+      "when": "A PRD, brief or spec arrives for an EXISTING project and must become a plan. No code yet.",
+      "flow": [
+        "prd-parser skill",
+        "spec-elicitor (Mode A) for gaps only",
+        "/dev-pipeline:plan (phases 1-6) -> docs/<slug>/SPEC.md + MIU list",
+        "stop at G4"
+      ],
+      "short": "prd-parser → spec-elicitor gaps → `/plan` (1-6) → stop at G4",
+      "skips": "implement, validate, deliver",
+      "escalate": [
+        "the PRD is for a NEW project -> new-project"
+      ],
+      "done_when": "SPEC.md and the MIU breakdown are approved at G4; open questions listed.",
+      "infer_from": [
+        "dev-pipeline:prd-parser",
+        "dev-pipeline:spec-elicitor"
+      ],
+      "learned": []
+    },
+    {
+      "id": "new-project",
+      "title": "New project",
+      "legacy_type": "NEW_PROJECT",
+      "when": "Start a brand-new project from a PRD or description.",
+      "flow": [
+        "/dev-pipeline:scaffold-from-prd"
+      ],
+      "short": "`/scaffold-from-prd`",
+      "skips": "existing-project phases",
+      "escalate": [],
+      "done_when": "Scaffold builds and its first test passes.",
+      "infer_from": [
+        "dev-pipeline:scaffold-from-prd"
+      ],
+      "learned": []
+    },
+    {
+      "id": "contract-change",
+      "title": "Cross-lane contract change",
+      "legacy_type": "CONTRACT",
+      "when": "An API/OpenAPI/DTO/shared-fixture change that another lane (backend, web, iOS, admin) consumes.",
+      "flow": [
+        "/dev-pipeline:plan scoped to the contract + every consumer",
+        "change the producer AND regenerate every consumer's types in the same PR",
+        "/dev-pipeline:verify-contract",
+        "/dev-pipeline:verify-blast-radius",
+        "joint run: every consuming lane runs its app against the producer's local server with test data, all flows, before anything merges",
+        "/dev-pipeline:validate",
+        "/dev-pipeline:review",
+        "/dev-pipeline:deliver",
+        "message each consuming lane's session with the contract diff (never ask the user to relay)"
+      ],
+      "short": "`/plan` (contract + consumers) → producer + all consumer types in one PR → `/verify-contract` → `/verify-blast-radius` → joint run of every consumer → `/review` → `/deliver` → tell each lane",
+      "skips": "UI design (unless a consumer's UI changes), HLD diagrams",
+      "escalate": [
+        "a new product capability sits behind the contract -> feature"
+      ],
+      "done_when": "Producer and every consumer build against the new contract; each consuming lane has been told.",
+      "infer_from": [
+        "dev-pipeline:verify-contract"
+      ],
+      "learned": [
+        {
+          "date": "2026-11-18",
+          "note": "A joint run of the website, console and admin against the backend's local server (6 of 6 flows, twice) found a bug already live in production before the new contract merged.",
+          "evidence": "2 sessions (backend and web lanes), first manual consolidation"
+        }
+      ]
+    },
+    {
+      "id": "provider-setup",
+      "title": "Provider setup (owner steps)",
+      "legacy_type": "PROVIDER_SETUP",
+      "when": "Set up or change a third-party provider account (payments, email, DNS, hosting, app store, OAuth) where some steps only the owner can do in a dashboard.",
+      "flow": [
+        "stack-setup skill: check what already exists and do every step an API or CLI allows yourself",
+        "open the provider's REAL dashboard yourself (built-in browser, or Playwright when that is quicker) and read each page before writing a step; never guess page, menu or field names, and never ask the owner to read pages for you",
+        "write the owner's steps click by click for the page as it is today: every field, toggle, dropdown value, pop-up and confirmation (engineering-craft process/owner-steps-from-the-live-dashboard)",
+        "one list per environment (sandbox/test and live never interleaved), each self-contained",
+        "say up front which settings the provider keeps locked and what unlocks them (account profile, live activation) before any step depends on them",
+        "secrets only through the secure-key-handoff skill; never print a key in chat or logs — mask by key name (`cut -d= -f1`), never by value pattern (engineering-craft tooling-footguns/mask-secrets-by-key-name); rotate any that leaked",
+        "verify with stack-setup's check (or the provider's API) and record what exists"
+      ],
+      "short": "stack-setup → read the real dashboard → click-by-click owner steps, one list per environment → locks up front → secure-key-handoff → verify",
+      "skips": "spec, design, architecture, MIUs (code the setup needs runs as its own recipe)",
+      "escalate": [
+        "the setup needs new code or env vars -> enhancement",
+        "it changes a contract other lanes consume -> contract-change"
+      ],
+      "done_when": "Every API/CLI step is done by the agent; the owner's remaining steps are click by click, one list per environment, checked against the live dashboard; stack-setup check is green; no secret appeared in chat.",
+      "infer_from": [
+        "stack-setup",
+        "secure-key-handoff"
+      ],
+      "learned": [
+        {
+          "date": "2026-11-18",
+          "note": "Stripe restricted keys: the 'How will you use this key?' pop-up needs 'Powering an integration you've built'; every permission row has a second Connect column — Write for PaymentIntents and Refunds when charging on connected accounts, None for platform-only billing.",
+          "evidence": "live setup, owner feedback"
+        },
+        {
+          "date": "2026-11-18",
+          "note": "Stripe keeps Onboarding options → OAuth 'Enable OAuth' and the live client ID unavailable until the Connect setup guide is finished (business model, platform profile, live account activation): list that first. A guessed 'Connect → Settings → OAuth' path did not exist — read the dashboard in the browser.",
+          "evidence": "live setup, owner feedback"
+        },
+        {
+          "date": "2026-11-18",
+          "note": "A sed mask matching only unquoted values printed two quoted sandbox secrets into chat; they had to be rotated. Mask by key name.",
+          "evidence": "live setup"
+        },
+        {
+          "date": "2026-11-20",
+          "note": "The owner had to ask why the agent kept sending them to a browser plugin instead of driving the dashboard itself with Playwright. Use whatever browser automation is available; hand the owner only sign-in, approval and the clicks no tool can do.",
+          "evidence": "1 session, owner correction"
+        }
+      ]
+    },
+    {
+      "id": "bug-fix",
+      "title": "Bug fix",
+      "legacy_type": "BUG_FIX",
+      "when": "A reported bug, error message or wrong behaviour with a findable cause.",
+      "flow": [
+        "/dev-pipeline:fix (business-vs-technical triage, Rule 23)",
+        "regression test first (red)",
+        "/dev-pipeline:validate",
+        "/dev-pipeline:review",
+        "/dev-pipeline:deliver"
+      ],
+      "short": "`/fix` → red test → `/validate` → `/review` → `/deliver`",
+      "skips": "HLD/LLD, MIU breakdown (one MIU)",
+      "escalate": [
+        "intermittent, multi-module or unclear root cause -> feature (BUG_FIX_COMPLEX runs /dev-pipeline:pipeline)",
+        "production down -> hotfix"
+      ],
+      "done_when": "Regression test went red then green; siblings of the root cause checked (Rule 11).",
+      "infer_from": [
+        "dev-pipeline:fix",
+        "dev-pipeline:fix-review"
+      ],
+      "learned": []
+    },
+    {
+      "id": "pr-feedback",
+      "title": "Address PR feedback",
+      "legacy_type": "PR_REVIEW_FIX",
+      "when": "Review comments on an open PR need answering or fixing.",
+      "flow": [
+        "/dev-pipeline:pr-review",
+        "/dev-pipeline:validate",
+        "/dev-pipeline:review",
+        "push"
+      ],
+      "short": "`/pr-review` → `/validate` → `/review` → push",
+      "skips": "spec, design, architecture",
+      "escalate": [
+        "a comment asks for new behaviour -> enhancement"
+      ],
+      "done_when": "Every comment fixed or answered with evidence; HEAD blessed.",
+      "infer_from": [
+        "dev-pipeline:pr-review",
+        "dev-pipeline:co-review"
+      ],
+      "learned": []
+    },
+    {
+      "id": "enhancement",
+      "title": "Small enhancement",
+      "legacy_type": "ENHANCEMENT",
+      "when": "Improve an existing feature inside one module with no schema/auth/payment/env/URL surface.",
+      "flow": [
+        "/dev-pipeline:update (Scope-Lock if the scope is undecided)",
+        "/dev-pipeline:validate",
+        "/dev-pipeline:review",
+        "/dev-pipeline:deliver"
+      ],
+      "short": "`/update` → `/validate` → `/review` → `/deliver`",
+      "skips": "HLD/LLD diagrams, cloud-design-patterns audit, separate G1-G3 (one Scope-Lock instead)",
+      "escalate": [
+        "touches schema, auth, payments, env vars or URL topology -> feature",
+        "needs a new screen or flow -> ui-design-round first, then feature"
+      ],
+      "done_when": "Change validated, reviewed and delivered; affected UI checked on every platform it ships to (iOS: largest accessibility text size, VoiceOver, Reduce Motion, in the simulator).",
+      "infer_from": [
+        "dev-pipeline:update"
+      ],
+      "learned": []
+    },
+    {
+      "id": "refactor",
+      "title": "Refactor proposal",
+      "legacy_type": "REFACTOR_PROPOSAL",
+      "when": "Clean up, restructure or simplify working code.",
+      "flow": [
+        "/dev-pipeline:refactor (propose-only, Rule 9)",
+        "accepted items run as `enhancement` or `feature`"
+      ],
+      "short": "`/refactor` (propose-only)",
+      "skips": "silent rewrites",
+      "escalate": [],
+      "done_when": "Proposal written; the user accepted or declined by ID.",
+      "infer_from": [
+        "dev-pipeline:refactor",
+        "dev-pipeline:code-refactor",
+        "simplify"
+      ],
+      "learned": []
+    },
+    {
+      "id": "perf",
+      "title": "Performance",
+      "legacy_type": "PERFORMANCE",
+      "when": "Something is slow, heavy or janky.",
+      "flow": [
+        "/dev-pipeline:perf",
+        "fixes run as `enhancement`"
+      ],
+      "short": "`/perf` → fixes as `enhancement`",
+      "skips": "spec unless a budget must be decided",
+      "escalate": [],
+      "done_when": "Before/after numbers recorded.",
+      "infer_from": [
+        "dev-pipeline:perf"
+      ],
+      "learned": []
+    },
+    {
+      "id": "deliver",
+      "title": "Deliver",
+      "legacy_type": "DELIVERY",
+      "when": "Ship it: commit, push, open or merge a PR, deploy.",
+      "flow": [
+        "/dev-pipeline:deliver"
+      ],
+      "short": "`/deliver`",
+      "skips": "everything before delivery",
+      "escalate": [],
+      "done_when": "Merged and verified on production URLs.",
+      "infer_from": [
+        "dev-pipeline:deliver",
+        "dev-pipeline:deploy"
+      ],
+      "learned": []
+    },
+    {
+      "id": "feature",
+      "title": "Build a feature",
+      "legacy_type": "NEW_FEATURE",
+      "when": "New capability, screen, endpoint or flow; or anything touching schema, auth, payments, env vars or URL topology; or a complex/intermittent bug.",
+      "flow": [
+        "/dev-pipeline:pipeline (phases 0-12, gates G1-G4)"
+      ],
+      "short": "`/pipeline` (phases 0-12, G1-G4)",
+      "skips": "nothing",
+      "escalate": [],
+      "done_when": "PR merged, production verified (Rules 17, 20), traceability (8.6) green; iOS surfaces pass engineering-craft checklists/ios-swiftui-surface.md.",
+      "infer_from": [
+        "dev-pipeline:pipeline",
+        "dev-pipeline:dev-pipeline",
+        "dev-pipeline:plan",
+        "dev-pipeline:orchestrate",
+        "dev-pipeline:implement"
+      ],
+      "learned": []
+    }
+  ]
+}

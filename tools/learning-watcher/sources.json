@@ -1,0 +1,258 @@
+{
+  "$comment": "Well-known public references the consolidation step prefers when it merges industry practice into a lesson. Cite the URL of anything taken from outside. `skills` are installed best-practice skills to reconcile with (cross-reference, do not duplicate). Every domain here is in domain-allowlist.txt.",
+  "general": {
+    "sources": [
+      {
+        "title": "Google Engineering Practices: code review",
+        "url": "https://google.github.io/eng-practices/review/"
+      },
+      {
+        "title": "OWASP Cheat Sheet Series",
+        "url": "https://cheatsheetseries.owasp.org/"
+      },
+      {
+        "title": "The Twelve-Factor App",
+        "url": "https://12factor.net/"
+      },
+      {
+        "title": "The Practical Test Pyramid (Martin Fowler)",
+        "url": "https://martinfowler.com/articles/practical-test-pyramid.html"
+      },
+      {
+        "title": "Google SRE book",
+        "url": "https://sre.google/sre-book/table-of-contents/"
+      },
+      {
+        "title": "DORA research",
+        "url": "https://dora.dev/"
+      },
+      {
+        "title": "Conventional Commits",
+        "url": "https://www.conventionalcommits.org/"
+      },
+      {
+        "title": "Claude Code best practices (Anthropic)",
+        "url": "https://www.anthropic.com/engineering/claude-code-best-practices"
+      }
+    ],
+    "skills": [
+      "engineering-craft"
+    ]
+  },
+  "swift": {
+    "sources": [
+      {
+        "title": "Swift API Design Guidelines",
+        "url": "https://www.swift.org/documentation/api-design-guidelines/"
+      },
+      {
+        "title": "Swift 6 migration guide (strict concurrency)",
+        "url": "https://www.swift.org/migration/documentation/migrationguide/"
+      },
+      {
+        "title": "The Swift Programming Language: Concurrency",
+        "url": "https://docs.swift.org/swift-book/documentation/the-swift-programming-language/concurrency/"
+      },
+      {
+        "title": "Observation",
+        "url": "https://developer.apple.com/documentation/observation"
+      },
+      {
+        "title": "Swift Testing",
+        "url": "https://developer.apple.com/documentation/testing"
+      },
+      {
+        "title": "XCTest UI testing",
+        "url": "https://developer.apple.com/documentation/xctest/user_interface_tests"
+      }
+    ],
+    "skills": [
+      "engineering-craft (checklists/ios-swiftui-surface.md)"
+    ]
+  },
+  "ios": {
+    "sources": [
+      {
+        "title": "SwiftUI documentation",
+        "url": "https://developer.apple.com/documentation/swiftui"
+      },
+      {
+        "title": "Managing model data in your app",
+        "url": "https://developer.apple.com/documentation/swiftui/managing-model-data-in-your-app"
+      },
+      {
+        "title": "Human Interface Guidelines: Accessibility",
+        "url": "https://developer.apple.com/design/human-interface-guidelines/accessibility"
+      },
+      {
+        "title": "Human Interface Guidelines: Typography (Dynamic Type)",
+        "url": "https://developer.apple.com/design/human-interface-guidelines/typography"
+      },
+      {
+        "title": "SwiftUI ScaledMetric",
+        "url": "https://developer.apple.com/documentation/swiftui/scaledmetric"
+      },
+      {
+        "title": "SwiftUI accessibilityReduceMotion",
+        "url": "https://developer.apple.com/documentation/swiftui/environmentvalues/accessibilityreducemotion"
+      },
+      {
+        "title": "AccessibilityNotification.Announcement",
+        "url": "https://developer.apple.com/documentation/accessibility/accessibilitynotification/announcement"
+      },
+      {
+        "title": "XCUIApplication",
+        "url": "https://developer.apple.com/documentation/xctest/xcuiapplication"
+      },
+      {
+        "title": "App Store Review Guidelines",
+        "url": "https://developer.apple.com/app-store/review/guidelines/"
+      }
+    ],
+    "skills": [
+      "ui-ux-pro-max (--stack swiftui)",
+      "engineering-craft (checklists/ios-swiftui-surface.md)"
+    ],
+    "topics": [
+      "SwiftUI design-system components",
+      "Dynamic Type at accessibility sizes",
+      "VoiceOver",
+      "Reduce Motion",
+      "Swift 6 concurrency",
+      "Swift Testing / XCTest",
+      "simulator UI tests"
+    ]
+  },
+  "nestjs": {
+    "sources": [
+      {
+        "title": "NestJS documentation",
+        "url": "https://docs.nestjs.com/"
+      },
+      {
+        "title": "NestJS validation",
+        "url": "https://docs.nestjs.com/techniques/validation"
+      },
+      {
+        "title": "Node.js security best practices",
+        "url": "https://nodejs.org/en/learn/getting-started/security-best-practices"
+      }
+    ],
+    "skills": []
+  },
+  "nextjs": {
+    "sources": [
+      {
+        "title": "Next.js documentation",
+        "url": "https://nextjs.org/docs"
+      },
+      {
+        "title": "React: You Might Not Need an Effect",
+        "url": "https://react.dev/learn/you-might-not-need-an-effect"
+      }
+    ],
+    "skills": [
+      "vercel:react-best-practices",
+      "frontend-design"
+    ]
+  },
+  "react": {
+    "alias": "nextjs"
+  },
+  "typescript": {
+    "sources": [
+      {
+        "title": "TypeScript handbook",
+        "url": "https://www.typescriptlang.org/docs/handbook/intro.html"
+      }
+    ],
+    "skills": []
+  },
+  "prisma": {
+    "sources": [
+      {
+        "title": "Prisma documentation",
+        "url": "https://www.prisma.io/docs"
+      }
+    ],
+    "skills": []
+  },
+  "postgres": {
+    "sources": [
+      {
+        "title": "PostgreSQL documentation",
+        "url": "https://www.postgresql.org/docs/current/"
+      }
+    ],
+    "skills": []
+  },
+  "playwright": {
+    "sources": [
+      {
+        "title": "Playwright best practices",
+        "url": "https://playwright.dev/docs/best-practices"
+      }
+    ],
+    "skills": []
+  },
+  "stripe": {
+    "sources": [
+      {
+        "title": "Stripe webhooks",
+        "url": "https://docs.stripe.com/webhooks"
+      },
+      {
+        "title": "Stripe idempotent requests",
+        "url": "https://docs.stripe.com/api/idempotent_requests"
+      }
+    ],
+    "skills": [
+      "stripe:stripe-best-practices"
+    ]
+  },
+  "docker": {
+    "sources": [
+      {
+        "title": "Dockerfile best practices",
+        "url": "https://docs.docker.com/build/building/best-practices/"
+      }
+    ],
+    "skills": []
+  },
+  "github": {
+    "sources": [
+      {
+        "title": "GitHub Actions security hardening",
+        "url": "https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions"
+      }
+    ],
+    "skills": []
+  },
+  "python": {
+    "sources": [
+      {
+        "title": "PEP 8",
+        "url": "https://peps.python.org/pep-0008/"
+      }
+    ],
+    "skills": []
+  },
+  "shell": {
+    "sources": [
+      {
+        "title": "Google Shell Style Guide",
+        "url": "https://google.github.io/styleguide/shellguide.html"
+      }
+    ],
+    "skills": []
+  },
+  "swiftui": {
+    "alias": "ios"
+  },
+  "ios-tests": {
+    "alias": "ios"
+  },
+  "ios-simulator": {
+    "alias": "ios"
+  }
+}
