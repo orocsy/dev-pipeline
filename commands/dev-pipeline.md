@@ -293,6 +293,13 @@ If contract drift is detected, the verify-contract command will report it. Fix b
 
 ## PHASE 8: Final Validation
 
+For a new public website, or a change to its search or speed behavior, consult the
+[website audit route](../docs/WORKFLOW_ROUTES.md) when the relevant pages first
+run. Use [seo](seo.md) for discovery/indexing and [perf](perf.md) for measured
+loads; keep one baseline per affected journey. Reuse existing project checks.
+During delivery, repeat affected live checks and document any result that still
+depends on post-launch platform data.
+
 Invoke `@verification-before-completion` — fresh evidence before claiming done.
 
 Launch the **validator** agent for the FULL project:
@@ -365,13 +372,9 @@ After all fixes:
 
 ## PHASE 12: Summary & Learning
 
-Present final summary:
-- What was built (features, components, files)
-- Key architecture decisions made
-- Test coverage (scenarios covered)
-- Files modified (full list)
-- Link to the PR
-- Any follow-up items or known limitations
+Use the [delivery evidence](../docs/DELIVERY_EVIDENCE.md) record for the final briefing.
+Report the user-facing result, source and live receipts, and any remaining work.
+Keep local, release and external outcomes distinct.
 
 Mark all todos complete.
 Update `task_plan.md` with all phases marked complete.

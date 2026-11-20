@@ -21,7 +21,7 @@ commands/        — slash-command definitions (/dev-pipeline:*)
 agents/          — sub-agent definitions used by phase commands
 skills/          — Skill tool definitions
 docs/            — methodology notes (workflow improvements, etc.)
-CLAUDE.md        — plugin-level instructions auto-loaded by Claude Code
+CLAUDE.md        — repository development notes
 ```
 
 ## Decoupled sibling — spec-forge
@@ -68,6 +68,8 @@ CLAUDE.md        — plugin-level instructions auto-loaded by Claude Code
 - `/dev-pipeline:update` — enhance existing feature (lighter than full pipeline)
 - `/dev-pipeline:refactor` — propose-only refactor (never silently rewrites)
 - `/dev-pipeline:perf` / `:health` — performance + system-health audits
+- `/dev-pipeline:seo` — technical SEO and search platform audit
+- [Workflow routes](docs/WORKFLOW_ROUTES.md) and [delivery evidence](docs/DELIVERY_EVIDENCE.md)
 - `/dev-pipeline:learn` / `:sync` — capture learnings + refresh living docs
 - `/dev-pipeline:init` / `:detect` / `:deploy` — project bootstrap helpers
 
