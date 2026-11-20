@@ -269,6 +269,8 @@ class Burst:
         for m in COMMAND_TAG.finditer(text):
             self.skills[m.group(1).lstrip("/")] += 1
         own = WRAPPERS.sub(" ", SYSREM.sub("", PASTE.sub(" [paste] ", text))).strip()
+        # Replying to the agent's own words (artifact reply markers or quoted lines)?
+        replying = bool(re.search(r"<!--\s*reply|^\s*>\s", own, re.M))
         own = re.sub(r"^(?:\s*<!--.*?-->)+", "", own, flags=re.S).strip()  # leading reply markers
         if INTERRUPT in own:
             self.interrupts += 1
@@ -281,9 +283,10 @@ class Burst:
         said = re.sub(r"<!--.*?-->|@\"[^\"]+\"", " ", own, flags=re.S)
         said = "\n".join(l for l in said.splitlines() if not l.lstrip().startswith(">")).strip()
         head = said[:300]
-        # Questions back about the agent's own instructions ("You mean X, right?")
-        # are friction too: the steps were not clear enough to follow.
-        for q in [l.strip() for l in said.splitlines()]:
+        # Questions back about the agent's own instructions ("You mean X, right?") are
+        # friction: the steps were not clear enough to follow. Only in a reply to quoted
+        # agent text; an ordinary question ("Can you also add a test?") is not friction.
+        for q in [l.strip() for l in said.splitlines()] if replying else []:
             if 8 < len(q) <= 240 and q.endswith(("?", "？")):
                 self._push(self.clarifications, self._x(q, 200))
         if len(said) <= 800 and (CORRECTION_START.search(head) or CORRECTION_ANY.search(head)):
@@ -574,7 +577,7 @@ def find_recipes_file() -> str | None:
 # --------------------------------------------------------------------------
 # File reading
 # --------------------------------------------------------------------------
-TS_RX = re.compile(rb'"timestamp":"([0-9T:.\-Z+]+)"')
+TS_RX = re.compile(rb'"timestamp":\s*"([0-9T:.\-Z+]+)"')
 
 
 def seek_to_time(path: str, size: int, cutoff_iso: str) -> int:
@@ -731,6 +734,7 @@ def main(argv=None) -> int:
         except FileNotFoundError:
             continue
         cur = cursors.get(path)
+        cutoff = (cur or {}).get("cutoff", cutoff_iso if cur is None else "")
         if cur is None:
             if st.st_mtime < now - a.backfill_hours * 3600:
                 new_cursors[path] = {"ino": st.st_ino, "offset": st.st_size}
@@ -749,6 +753,8 @@ def main(argv=None) -> int:
         if not idle and pending < a.flush_bytes and now - since < a.max_defer_hours * 3600:
             deferred += 1
             new_cursors[path] = {"ino": st.st_ino, "offset": offset, "deferred_since": since}
+            if cutoff:
+                new_cursors[path]["cutoff"] = cutoff  # still a first sight: keep the backfill window
             continue
         with open(path, "rb") as fh:
             fh.seek(offset)
@@ -763,7 +769,7 @@ def main(argv=None) -> int:
         chunk = data[: end + 1]
         budget -= len(chunk)
         read_total += len(chunk)
-        b = Burst(path, offset, cfg, cutoff=cutoff_iso if cur is None else "")
+        b = Burst(path, offset, cfg, cutoff=cutoff)
         for rec in iter_records(chunk):
             if rec.get("isSidechain") and not a.include_subagents:
                 continue

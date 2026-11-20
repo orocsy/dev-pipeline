@@ -37,6 +37,14 @@ for wt in "$LW_HOME"/inbox/*; do
   fi
 done
 
+# The desktop app's scheduled task calls bin/consolidate.sh; PAUSED makes it a no-op
+# until the task itself is deleted in the app (a script cannot unregister it).
+mkdir -p "$LW_HOME" && touch "$LW_HOME/PAUSED"
+if [[ -d "$HOME/.claude/scheduled-tasks/learning-watcher-consolidate" ]]; then
+  echo "ACTION: delete the desktop scheduled task 'Learning watcher: daily consolidation'"
+  echo "        (Claude app → Scheduled in the sidebar). Until then it finds PAUSED and does nothing."
+fi
+
 if [[ $PURGE -eq 1 ]]; then
   rm -rf "$LW_HOME" && echo "purged $LW_HOME"
 else

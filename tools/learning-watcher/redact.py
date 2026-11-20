@@ -21,6 +21,7 @@ Standard library only, so it runs under launchd without a virtualenv.
 
 from __future__ import annotations
 
+import functools
 import os
 import re
 from typing import Iterable
@@ -169,13 +170,14 @@ def _load_lines(path: str) -> list[str]:
         return []
 
 
-def _domain_allowlist() -> set[str]:
+@functools.lru_cache(maxsize=None)
+def _domain_allowlist() -> frozenset[str]:
     base = set(_load_lines(os.path.join(HERE, "domain-allowlist.txt")))
     base |= set(_load_lines(os.path.join(LEARNING_HOME, "domain-allowlist.txt")))
-    return {d.lower() for d in base}
+    return frozenset(d.lower() for d in base)
 
 
-def _domain_allowed(domain: str, allow: set[str]) -> bool:
+def _domain_allowed(domain: str, allow: frozenset[str]) -> bool:
     d = domain.lower().rstrip(".")
     parts = d.split(".")
     # allow exact or any parent suffix listed (docs.github.com <- github.com)
@@ -191,7 +193,7 @@ _PLACEHOLDER_DOMAINS = {
 _REVERSE_DNS_OK = {"example", "apple", "anthropic", "engineering-craft", "dev-pipeline", "yourcompany", "google", "microsoft"}
 
 
-def _public_email(addr: str, allow: set[str]) -> bool:
+def _public_email(addr: str, allow: frozenset[str]) -> bool:
     """git@ and noreply@ addresses at allowlisted vendors, and placeholders, are not personal."""
     local, _, domain = addr.lower().partition("@")
     if domain.split(".")[0] == "example" or domain in _PLACEHOLDER_DOMAINS:
@@ -199,10 +201,11 @@ def _public_email(addr: str, allow: set[str]) -> bool:
     return local in {"git", "noreply", "no-reply"} and _domain_allowed(domain, allow)
 
 
-def _names() -> list[re.Pattern]:
+@functools.lru_cache(maxsize=None)
+def _names() -> tuple[re.Pattern, ...]:
     names = _load_lines(os.path.join(HERE, "given-names.txt"))
     # Capitalised whole words only: "<Name> booked" yes, a lowercase slug no.
-    return [re.compile(r"(?<![\w-])" + re.escape(n) + r"(?![\w-])") for n in names]
+    return tuple(re.compile(r"(?<![\w-])" + re.escape(n) + r"(?![\w-])") for n in names)
 
 
 def findings(text: str, public: bool = False) -> list[tuple[str, str]]:

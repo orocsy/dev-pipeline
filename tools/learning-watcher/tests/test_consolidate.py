@@ -132,5 +132,32 @@ class ConsolidateTests(unittest.TestCase):
         self.assertIn("already consolidated today", r.stdout)
 
 
+    def test_abandoned_prepare_is_salvaged_not_wedged(self):
+        r = self.run_consolidate("--prepare")
+        self.assertTrue(r.stdout.startswith("READY "), r.stdout)
+        rule = os.path.join(self.home, "inbox", "engineering-craft", "half-written.md")
+        with open(rule, "w") as fh:
+            fh.write("unfinished\n")
+        os.remove(os.path.join(self.home, "state", "session-run.env"))   # the session died
+        r = self.run_consolidate("--prepare", "--force")
+        self.assertTrue(r.stdout.startswith("READY "), r.stdout)
+        self.assertFalse(os.path.exists(rule))
+        self.assertTrue(any(f.endswith("-engineering-craft-abandoned.patch")
+                            for f in os.listdir(os.path.join(self.home, "rejected"))))
+
+    def test_mark_consolidated_trims_oldest_first(self):
+        sys.path.insert(0, LW)
+        os.environ["LW_HOME"] = self.home
+        import importlib
+        import digest
+        importlib.reload(digest)
+        ids = os.path.join(self.tmp, "ids")
+        with open(ids, "w") as fh:
+            fh.write("W-zzzz-1\nW-aaaa-2\n")
+        self.assertEqual(digest.mark_consolidated(ids), 2)
+        self.assertEqual(digest._consolidated_list(), ["W-zzzz-1", "W-aaaa-2"])
+        self.assertEqual(digest.mark_consolidated(ids), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

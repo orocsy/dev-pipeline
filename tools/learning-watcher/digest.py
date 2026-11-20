@@ -45,27 +45,35 @@ def load_events(days: int | None = None) -> list[dict]:
     return out
 
 
-def consolidated_ids() -> set[str]:
+def _consolidated_list() -> list[str]:
+    """Ids in the order they were marked (oldest first)."""
     path = os.path.join(LW_HOME, "state", "consolidated.json")
     try:
         with open(path, encoding="utf-8") as fh:
-            return set(json.load(fh).get("ids", []))
+            return list(json.load(fh).get("ids", []))
     except (FileNotFoundError, ValueError):
-        return set()
+        return []
+
+
+def consolidated_ids() -> set[str]:
+    return set(_consolidated_list())
 
 
 def mark_consolidated(ids_file: str) -> int:
     path = os.path.join(LW_HOME, "state", "consolidated.json")
-    have = consolidated_ids()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    old = _consolidated_list()
+    have = set(old)
     with open(ids_file, encoding="utf-8") as fh:
-        new = {l.strip() for l in fh if l.strip()}
-    # keep the set bounded: ids embed offsets, not dates, so keep the newest 20k
-    merged = sorted(have | new)[-20000:]
+        new = [l.strip() for l in fh if l.strip()]
+    added = [i for i in dict.fromkeys(new) if i not in have]
+    # bounded: drop the ids marked longest ago (marking order), never by id text
+    merged = (old + added)[-20000:]
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump({"ids": merged, "updated": datetime.now(timezone.utc).isoformat()}, fh)
     os.replace(tmp, path)
-    return len(new - have)
+    return len(added)
 
 
 def recipe_of(ev: dict) -> str:

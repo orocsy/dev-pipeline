@@ -239,6 +239,32 @@ class WrappedFeedbackTests(WatcherEnv):
         self.assertIn("user had to ask", self.journal())
 
 
+class FrictionAndWindowTests(WatcherEnv):
+    def test_plain_question_is_not_friction(self):
+        t = lambda m: f"2099-03-01T10:{m:02d}:00.000Z"
+        self.write([human("Can you also add a dark-mode test?", t(1)),
+                    assistant([bash("b1", "git commit -m 'test: dark mode'")], t(2)), result("b1", "ok", t(2))])
+        self.capture()
+        self.assertEqual(self.events()[0]["clarifications"], [])
+
+    def test_deferred_first_sight_keeps_backfill_window(self):
+        old = [human("old question from long ago", "2001-01-01T10:00:00.000Z"),
+               assistant([bash("o1", "pnpm test")], "2001-01-01T10:01:00.000Z"),
+               result("o1", "FAIL ancient", "2001-01-01T10:01:00.000Z", error=True)]
+        now = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        new = transcript_lines()[1:]
+        new = [l.replace("2099-01-01T10:", now[:14]) for l in new]
+        self.write(old + new)
+        run = lambda *a: subprocess.run([sys.executable, os.path.join(LW, "capture.py"), "--backfill-hours", "48", *a],
+                                        env=self.env, capture_output=True, text=True, check=True)
+        run("--idle-minutes", "100000")          # first sight while "active": deferred
+        self.assertEqual(self.journal(), "")
+        run("--idle-minutes", "0")               # now captured: the 2001 records stay out
+        self.assertNotIn("ancient", self.journal())
+        self.assertNotIn("old question", self.journal())
+        self.assertIn("green after red", self.journal())
+
+
 class IOSStackTests(unittest.TestCase):
     def test_ios_signals_are_tagged(self):
         sys.path.insert(0, LW)

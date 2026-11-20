@@ -74,6 +74,9 @@ Local only: review, then merge into main and push yourself." >>"$LOG" 2>&1
 }
 
 finish() {  # ids pending ran(1|0)
+  # recipes.json may have changed: regenerate the router tables it feeds, so the inbox
+  # branch passes tests/recipes.test.sh as committed.
+  [[ -f "$DP/tools/render-recipes.py" ]] && python3 "$DP/tools/render-recipes.py" >>"$LOG" 2>&1
   gate_and_commit "$EC" engineering-craft --public "$2"
   gate_and_commit "$DP" dev-pipeline "" "$2"
   if [[ "$3" -eq 1 ]]; then
@@ -100,15 +103,27 @@ fi
 if [[ "$FORCE" -eq 0 && "$(cat "$STAMP" 2>/dev/null)" == "$DATE" ]]; then
   log "skip: already consolidated today"; say "NOTHING already consolidated today"; exit 0
 fi
-if [[ "$MODE" == run && -f "$SESSION" && -n "$(find "$SESSION" -mmin -360 2>/dev/null)" ]]; then
+if [[ -f "$SESSION" && -n "$(find "$SESSION" -mmin -360 2>/dev/null)" ]]; then
   log "skip: a session-run is in progress"; say "NOTHING session run in progress"; exit 0
 fi
+# A prepared run that never finalized (crash, unanswered prompt) leaves edits in an inbox.
+# Keep them as a patch and clear the inbox, or every later run would stop at "not ready".
+for name in engineering-craft dev-pipeline; do
+  wt="$LW_HOME/inbox/$name"
+  if [[ -e "$wt/.git" && -n "$(git -C "$wt" status --porcelain)" ]]; then
+    patch="$LW_HOME/rejected/$DATE-$name-abandoned.patch"
+    { git -C "$wt" diff; git -C "$wt" ls-files --others --exclude-standard | sed 's/^/untracked: /'; } > "$patch"
+    git -C "$wt" checkout -q -- . && git -C "$wt" clean -qfd
+    log "$name inbox held an unfinished run's edits; saved $patch and cleared it"
+  fi
+done
+rm -f "$SESSION"
 
 DIGEST="$LW_HOME/digests/$DATE.md"
 IDS="$LW_HOME/digests/$DATE.ids"
 rm -f "$IDS"
 python3 "$BIN/digest.py" --out "$DIGEST" --ids-out "$IDS" --max-chars "$LW_DIGEST_CHARS" >>"$LOG" 2>&1
-PENDING=$( [[ -f "$IDS" ]] && grep -c . "$IDS" || echo 0 )
+PENDING=$(grep -c . "$IDS" 2>/dev/null || true); PENDING=${PENDING:-0}   # never "0\n0"
 if [[ "$PENDING" -lt "$LW_MIN_ENTRIES" && "$FORCE" -eq 0 ]]; then
   log "skip: $PENDING pending entries (< $LW_MIN_ENTRIES); no model call"
   say "NOTHING $PENDING pending entries"

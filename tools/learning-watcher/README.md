@@ -20,7 +20,8 @@ you review; it never pushes.
 | Remove it and delete all its data | `bash tools/learning-watcher/uninstall.sh --purge` |
 
 The uninstaller unloads both launchd agents, deletes their plists, removes the pre-push
-privacy gates it installed, and removes the inbox checkouts. It keeps the `learning/inbox`
+privacy gates it installed, removes the inbox checkouts, and leaves `PAUSED` in place so the
+desktop scheduled task does nothing; delete that task in the app (Scheduled, in the sidebar). It keeps the `learning/inbox`
 branches, so nothing waiting for review is lost.
 
 ## How it runs
