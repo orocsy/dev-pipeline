@@ -15,7 +15,7 @@ you review; it never pushes.
 | You want | Do this |
 |---|---|
 | Pause everything now, keep it installed | `touch ~/.claude/learning/PAUSED` (delete the file to resume) |
-| Stop only the daily model run | `launchctl bootout gui/$(id -u)/com.dev-pipeline.learning-watcher.consolidate` |
+| Stop only the daily model run | `launchctl bootout gui/$(id -u)/com.dev-pipeline.learning-watcher.consolidate` and turn off the `learning-watcher-consolidate` scheduled task in the desktop app |
 | Remove it (keep the journal) | `bash tools/learning-watcher/uninstall.sh` |
 | Remove it and delete all its data | `bash tools/learning-watcher/uninstall.sh --purge` |
 
@@ -63,19 +63,20 @@ spending cap; `claude -p --max-budget-usd` does.
   smaller model, is hard-capped in dollars and turns, and is skipped entirely when there is
   little new to learn from. Tune it all in `~/.claude/learning/config.env`.
 
-## One-time setup: sign the CLI in
+## Who runs the daily consolidation
 
-Capture needs nothing. The daily model run calls the standalone `claude` CLI, and the desktop
-app's sign-in does not carry over to it (launchd jobs and nested runs both report "Not logged
-in"). Run this once in a terminal:
+Two runners; whichever gets there first does the day (`state/last-run-date`), the other stops.
 
-```bash
-claude auth login
-```
+| Runner | When | Needs | Cap |
+|---|---|---|---|
+| launchd `com.dev-pipeline.learning-watcher.consolidate` → `consolidate.sh` | 07:30, and on wake if the Mac slept | the standalone `claude` CLI signed in once (`claude auth login`) | hard: `--max-budget-usd`, `--max-turns`, no shell |
+| desktop app scheduled task `learning-watcher-consolidate` → `consolidate.sh --prepare`, the session's own work, `--finalize` | 07:45, while the app is open (or on next launch) | nothing: it uses the app's sign-in | soft: digest-only input (≤ 24k chars), ≤ 5 files per repo, ≤ 3 web lookups |
 
-Until then the daily run stops before any model call, leaves entries pending, and posts a
-notification saying so; capture keeps working. Headless alternative: `claude setup-token`, then
-put `CLAUDE_CODE_OAUTH_TOKEN=…` in `~/.claude/learning/config.env` (mode 600).
+The desktop app's sign-in does not carry over to launchd or nested `claude -p` runs ("Not logged
+in"), which is why the scheduled task exists. Signing the CLI in makes the cheaper, hard-capped
+launchd run take the day, and the scheduled task then stops at the stamp. Both commit only to
+`learning/inbox` after the privacy gate; neither pushes. Stop the scheduled task from the app's
+Scheduled tasks list (or `touch ~/.claude/learning/PAUSED`, which stops both).
 
 ## Privacy
 

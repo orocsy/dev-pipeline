@@ -34,6 +34,9 @@ Conventions:
   design, tech-stack, best-practice and review routing (`ui-ux-pro-max --stack swiftui` plus
   engineering-craft `checklists/ios-swiftui-surface.md`); the watcher tags iOS tests, simulator
   use and SwiftUI design-system files, and its consolidation writes iOS lessons in iOS form.
+- **Two consolidation runners**: `consolidate.sh --prepare` / `--finalize` let a signed-in desktop
+  scheduled session do the model step when the standalone CLI is signed out; a daily stamp keeps it
+  to one run per day.
 - **Privacy gate** (`privacy_lint.py` + a pre-push hook in engineering-craft and dev-pipeline):
   refuses keys, emails, prices, client domains, people's names, user paths and private terms in
   anything bound for a remote. `/dev-pipeline:consolidate-lessons` now lints before committing

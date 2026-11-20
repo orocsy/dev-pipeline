@@ -240,7 +240,7 @@
       "when": "Set up or change a third-party provider account (payments, email, DNS, hosting, app store, OAuth) where some steps only the owner can do in a dashboard.",
       "flow": [
         "stack-setup skill: check what already exists and do every step an API or CLI allows yourself",
-        "open the provider's REAL dashboard in the browser and read each page before writing a step; never guess page, menu or field names",
+        "open the provider's REAL dashboard yourself (built-in browser, or Playwright when that is quicker) and read each page before writing a step; never guess page, menu or field names, and never ask the owner to read pages for you",
         "write the owner's steps click by click for the page as it is today: every field, toggle, dropdown value, pop-up and confirmation (engineering-craft process/owner-steps-from-the-live-dashboard)",
         "one list per environment (sandbox/test and live never interleaved), each self-contained",
         "say up front which settings the provider keeps locked and what unlocks them (account profile, live activation) before any step depends on them",
@@ -273,6 +273,11 @@
           "date": "2026-11-18",
           "note": "A sed mask matching only unquoted values printed two quoted sandbox secrets into chat; they had to be rotated. Mask by key name.",
           "evidence": "live setup"
+        },
+        {
+          "date": "2026-11-20",
+          "note": "The owner had to ask why the agent kept sending them to a browser plugin instead of driving the dashboard itself with Playwright. Use whatever browser automation is available; hand the owner only sign-in, approval and the clicks no tool can do.",
+          "evidence": "1 session, owner correction"
         }
       ]
     },

@@ -107,7 +107,29 @@ class ConsolidateTests(unittest.TestCase):
         r = self.run_consolidate()
         self.assertEqual(r.returncode, 0)
         self.assertIn("not signed in", r.stdout)
+        self.assertFalse(os.path.exists(os.path.join(self.home, "state", "last-run-date")))
         self.assertFalse(os.path.exists(os.path.join(self.home, "state", "consolidated.json")))
+
+
+    def test_session_runner_prepare_then_finalize(self):
+        r = self.run_consolidate("--prepare")
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        self.assertTrue(r.stdout.startswith("READY "), r.stdout)
+        prompt = r.stdout.split(" ", 1)[1].strip()
+        self.assertIn(os.path.join(self.home, "inbox", "engineering-craft"), open(prompt).read())
+        # the session does the model work: here, one clean rule
+        rule = os.path.join(self.home, "inbox", "engineering-craft", "categories", "x.md")
+        os.makedirs(os.path.dirname(rule))
+        with open(rule, "w") as fh:
+            fh.write("# Read a file before overwriting it\n")
+        r = self.run_consolidate("--finalize")
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        self.assertIn("learn(auto)", git(self.ec, "log", "--oneline", "main..learning/inbox"))
+        with open(os.path.join(self.home, "state", "last-run-date")) as fh:
+            self.assertTrue(fh.read().strip())
+        # the launchd runner the same day stops at the stamp
+        r = self.run_consolidate()
+        self.assertIn("already consolidated today", r.stdout)
 
 
 if __name__ == "__main__":
