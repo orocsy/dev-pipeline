@@ -1,0 +1,191 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "建站、修复与网站验收",
+    "quality_profile": "showcase",
+    "visual_preset": "signal-flow",
+    "views": [
+      {
+        "id": "delivery",
+        "label": "开发和发布",
+        "focus": [
+          "intent",
+          "plan",
+          "build",
+          "audit",
+          "release",
+          "proof"
+        ]
+      },
+      {
+        "id": "quality",
+        "label": "SEO 与性能",
+        "focus": [
+          "seo",
+          "perf",
+          "audit",
+          "proof"
+        ]
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "flow",
+      "label": "开发流程"
+    },
+    {
+      "id": "craft",
+      "label": "技术指南"
+    },
+    {
+      "id": "evidence",
+      "label": "证据与交付"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "intent",
+      "lane": "flow",
+      "col": 0,
+      "type": "backend",
+      "label": "确定任务",
+      "sublabel": "新建站／修复／改版",
+      "width": 180
+    },
+    {
+      "id": "plan",
+      "lane": "flow",
+      "col": 1,
+      "type": "backend",
+      "label": "定范围和验收",
+      "sublabel": "选择现有命令",
+      "width": 180
+    },
+    {
+      "id": "build",
+      "lane": "flow",
+      "col": 2,
+      "type": "backend",
+      "label": "实现可运行版本",
+      "sublabel": "开发并验证用户旅程",
+      "width": 180
+    },
+    {
+      "id": "audit",
+      "lane": "flow",
+      "col": 3,
+      "type": "backend",
+      "label": "执行网站复查",
+      "sublabel": "记录基线和问题",
+      "width": 180
+    },
+    {
+      "id": "release",
+      "lane": "flow",
+      "col": 4,
+      "type": "backend",
+      "label": "发布并复验",
+      "sublabel": "读回实际网页",
+      "width": 180
+    },
+    {
+      "id": "seo",
+      "lane": "craft",
+      "col": 2,
+      "type": "database",
+      "label": "技术 SEO",
+      "sublabel": "搜索与收录",
+      "width": 180
+    },
+    {
+      "id": "perf",
+      "lane": "craft",
+      "col": 3,
+      "type": "database",
+      "label": "网页性能",
+      "sublabel": "请求与渲染",
+      "width": 180
+    },
+    {
+      "id": "proof",
+      "lane": "evidence",
+      "col": 4,
+      "type": "database",
+      "label": "交付记录",
+      "sublabel": "结果、证据、未完成项",
+      "width": 180
+    }
+  ],
+  "mainPath": [
+    "intent",
+    "plan",
+    "build",
+    "audit",
+    "release",
+    "proof"
+  ],
+  "edges": [
+    {
+      "id": "intent-plan",
+      "from": "intent",
+      "to": "plan",
+      "variant": "default"
+    },
+    {
+      "id": "plan-build",
+      "from": "plan",
+      "to": "build",
+      "variant": "default"
+    },
+    {
+      "id": "build-audit",
+      "from": "build",
+      "to": "audit",
+      "variant": "default"
+    },
+    {
+      "id": "audit-release",
+      "from": "audit",
+      "to": "release",
+      "variant": "emphasis"
+    },
+    {
+      "id": "release-proof",
+      "from": "release",
+      "to": "proof",
+      "variant": "emphasis"
+    },
+    {
+      "id": "seo-build",
+      "from": "seo",
+      "to": "build",
+      "variant": "default"
+    },
+    {
+      "id": "perf-audit",
+      "from": "perf",
+      "to": "audit",
+      "variant": "default"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "dev-pipeline 负责",
+      "items": [
+        "按任务选择步骤，复用原发布与验证入口",
+        "首次有可运行网页时做基线，发布后验证"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "engineering-craft 负责",
+      "items": [
+        "保存收录判断、性能诊断及真实案例",
+        "从网站项目提炼经验，更新时复核来源"
+      ]
+    }
+  ]
+}
